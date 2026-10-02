@@ -15,6 +15,15 @@ import '../models/models.dart';
 /// Key dibuat sekali per NIAT aksi dan dipakai ulang saat retry — bukan key
 /// baru setiap percobaan (kontrak §3).
 abstract class BillingRepository {
+
+  /// `true` kalau datanya **data contoh**, bukan dari server.
+  ///
+  /// Dipakai UI untuk menandainya di layar. Selama kontrol TV diuji
+  /// (DEC-015), sambungan ke TV itu **nyata** sementara sesi, customer, dan
+  /// uang masih contoh — dan operator yang menguji perlu bisa membedakannya
+  /// sekilas. Tanpa penanda, angka contoh mudah dibaca sebagai angka asli.
+  bool get isSample;
+
   // ── Master data ───────────────────────────────────────────────────
 
   Future<List<Station>> fetchStations();

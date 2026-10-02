@@ -9,6 +9,7 @@ import '../../core/theme/tokens.dart';
 import '../../core/util/format.dart';
 import '../../domain/models/enums.dart';
 import '../../domain/models/models.dart';
+import '../../data/tv/tv_sync_service.dart';
 import '../../domain/repositories/billing_repository.dart';
 import '../session/session_actions.dart';
 import '../session/session_detail_controller.dart';
@@ -225,6 +226,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildGrid(DashboardController ctrl) {
+    final tv = context.watch<TvSyncService>();
+
     if (ctrl.loading && !ctrl.hasData) return const _GridSkeleton();
 
     if (ctrl.error != null && !ctrl.hasData) {
@@ -285,6 +288,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               return StationCard(
                 station: station,
                 hourlyRateHint: ctrl.cheapestHourlyRate,
+                tvHealth: tv.statusFor(station.id).health,
                 onTap: hasSession
                     ? () => _openDetail(station.session!.id)
                     : () => _start(station),

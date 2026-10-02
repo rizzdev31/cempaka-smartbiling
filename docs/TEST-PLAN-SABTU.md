@@ -5,6 +5,7 @@ Testing di lokasi dipecah jadi **dua sesi** karena belum ada kode saat sesi pert
 | | Kapan | Butuh kode? | Tujuan |
 |---|---|---|---|
 | **SESI 1** | **Sabtu 3 Okt 2026** | **tidak** | Buktikan jalur jaringan + kumpulkan fakta TV. Menjawab OD-005 |
+| **SESI TV** | kapan saja — bisa di rumah | ya, sudah ada | Buktikan operator bisa mengendalikan TV. Tidak butuh Laravel |
 | **SESI 2** | setelah vertical slice jalan | ya | Golden path ST01 dari Flutter |
 
 Scope tetap **ST01 saja** (DEC-006). Bukan 6 TV.
@@ -133,6 +134,131 @@ FAKTA TV
 SEBELUM PULANG
 [ ] semua hasil ditulis di docs/PROGRESS.md
 ```
+
+---
+---
+
+# SESI TV — operator mengendalikan TV
+
+**Tidak butuh Laravel.** Ini menguji jalur DEC-015: operator → TV langsung
+lewat jaringan lokal. Bisa dikerjakan di rumah dengan emulator, atau di lokasi
+dengan TV sungguhan.
+
+## TV-0 Siapkan
+
+**Pilihan A — emulator (paling cepat, tanpa TV)**
+
+Keduanya di satu emulator. Alamat yang dipakai adalah `127.0.0.1` dari sudut
+pandang emulator itu sendiri.
+
+```bash
+flutter emulators --launch Pixel_4
+```
+
+```bash
+cd tv-agent && JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew :app:installDebug
+```
+
+```bash
+cd operator-app && flutter run -d android --dart-define=API_BASE_URL=http://10.0.2.2:8000
+```
+
+**Pilihan B — TV sungguhan + tablet** *(yang sebenarnya ingin dibuktikan)*
+
+```bash
+adb connect <IP-TV>:5555
+```
+
+```bash
+cd tv-agent && JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew :app:assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Operator app: pasang `app-arm64-v8a-debug.apk` dari
+`operator-app/build/app/outputs/flutter-apk/`.
+
+TV dan tablet **wajib di SSID yang sama**, dan AP/client isolation **mati**.
+
+## TV-1 Pairing
+
+| ID | Langkah | Lulus jika |
+|---|---|---|
+| TV-01 | Buka **Cempaka TV** di TV | Tampil kode 6 digit + alamat `IP:8787` |
+| TV-02 | Operator: **Status TV** | Semua station "Belum dipasang" |
+| TV-03 | ST01 → **Pasang TV** → tunggu pemindaian | TV ST01 muncul di daftar, ditandai "bebas" |
+| TV-04 | Kalau pemindaian kosong, masukkan alamat dari layar TV → **Cek** | Perangkat terdeteksi, model & Android terbaca |
+| TV-05 | Masukkan kode dari layar TV → **Pasangkan** | Layar TV langsung berganti dari kode ke sesi/idle |
+| TV-06 | Masukkan kode **salah** lebih dulu | Ditolak dengan pesan jelas, tidak terpasang |
+| TV-07 | Ulangi kode salah 10×| TV mengunci pairing; perlu restart aplikasi di TV |
+
+> TV-06 dan TV-07 adalah pengaman yang menghalangi orang lain di WiFi yang
+> sama menyetel timer TV. Layak diuji sekali.
+
+## TV-2 Kontrol billing
+
+Seluruh bagian ini memakai **data contoh** — header operator menandainya
+`DATA CONTOH`. Yang diuji adalah **jalurnya**, bukan angkanya.
+
+| ID | Langkah | Lulus jika |
+|---|---|---|
+| TV-10 | ST01 sudah ada sesi contoh berjalan | TV menampilkan timer yang sama dengan kartu ST01 |
+| TV-11 | Bandingkan detik di TV dan di kartu operator | Selisih < 2 detik |
+| TV-12 | Kartu ST01 → **+30m** → konfirmasi | Timer TV bertambah 30 menit dalam beberapa detik |
+| TV-13 | Kartu ST01 → **+1j** | Timer TV bertambah 1 jam |
+| TV-14 | Tambah F&B dari kartu | **TV tidak berubah** — F&B tidak ditampilkan di TV |
+| TV-15 | Checkout ST01 sampai selesai | TV kembali ke layar idle "Tersedia" |
+| TV-16 | Mulai sesi baru di ST01, pilih **Prepaid** | TV menampilkan "Menunggu pembayaran" |
+| TV-17 | Konfirmasi pembayaran | TV berganti ke timer |
+| TV-18 | **Pindah Station** ST01 → ST02 (ST02 belum ada TV) | TV ST01 kembali idle |
+
+> **TV-14 penting.** Kalau TV ikut berkedip setiap teh manis ditambahkan,
+> berarti tagihan masuk ke sidik keadaan dan setiap item memicu permintaan
+> yang tidak perlu.
+
+## TV-3 Ketahanan
+
+Ini yang membedakan "jalan di meja" dari "jalan di lokasi".
+
+| ID | Langkah | Lulus jika |
+|---|---|---|
+| TV-20 | Matikan WiFi TV 1 menit saat timer jalan | **Timer TV tetap berjalan** dan tetap benar |
+| TV-21 | Nyalakan WiFi kembali | Status operator kembali "Tersambung" setelah **Periksa** |
+| TV-22 | Saat TV mati, lakukan +30m dari operator | Operator menandai "Tidak merespons", tidak diam saja |
+| TV-23 | TV hidup lagi → **Kirim ulang** | Timer TV menyusul ke nilai yang benar |
+| TV-24 | **Restart aplikasi TV** (force stop lalu buka) | Timer lanjut dari waktu yang benar, bukan dari nol |
+| TV-25 | **Restart TV** sepenuhnya, buka aplikasi | Timer masih benar; tidak perlu pairing ulang |
+| TV-26 | Diamkan TV 15 menit tanpa disentuh | Masih merespons **Periksa** dari operator |
+| TV-27 | Tekan **HOME** di remote TV | Keluar dari aplikasi — ini **wajar** pada kiosk lunak |
+| TV-28 | Buka aplikasi TV lagi | Timer benar, tanpa pairing ulang |
+
+> **TV-24 dan TV-25 adalah inti PRD §16 dan T12.** Kalau gagal, berarti
+> `end_at` tidak tersimpan ke disk dan customer bisa kehilangan waktu
+> bermainnya setiap kali TV tersendat.
+>
+> **TV-27 bukan kegagalan.** Kiosk yang benar-benar tidak bisa ditinggalkan
+> butuh Device Owner — lihat OD-005/V10. Aplikasi melaporkan tingkat kiosk
+> yang aktif di baris bawah layar TV dan di layar Status TV.
+
+## TV-4 Yang perlu dicatat
+
+| Yang dicatat | Dari mana |
+|---|---|
+| Model & versi Android TV | Status TV di operator, atau baris bawah layar TV |
+| Tingkat kiosk (lunak / terkunci) | sama |
+| Berapa lama pemindaian menemukan TV | layar Pasang TV |
+| Apakah pemindaian menemukan TV, atau harus manual | sama |
+| Apakah TV tetap merespons setelah 15 menit idle | TV-26 |
+| Apakah timer benar setelah TV restart | TV-24, TV-25 |
+
+Semuanya melengkapi **OD-005**. Tulis hasilnya di `PROGRESS.md` di bawah.
+
+## TV-5 Yang JANGAN dilakukan
+
+| Jangan | Alasan |
+|---|---|
+| Menyimpulkan angka di layar sebagai transaksi nyata | Semua data billing masih contoh — header menandainya `DATA CONTOH` |
+| `dpm set-device-owner` pada TV yang sudah dipakai | Butuh TV tanpa akun; bisa berarti factory reset. Keputusan bisnis, bukan teknis (OD-005/V10) |
+| Memasangkan TV ke station lewat Guest Wi-Fi | Kode pairing hanya melindungi dari penyalahgunaan tidak sengaja. Pemisahan guest PRD §9 tetap wajib |
+| Menganggap kiosk sudah aman karena back tidak berfungsi | HOME masih bisa pada kiosk lunak |
 
 ---
 ---

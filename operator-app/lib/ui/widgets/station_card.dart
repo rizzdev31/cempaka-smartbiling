@@ -9,6 +9,7 @@ import '../../core/time/ticker.dart';
 import '../../core/util/format.dart';
 import '../../domain/models/enums.dart';
 import '../../domain/models/models.dart';
+import '../../domain/models/tv_agent.dart';
 import 'countdown_text.dart';
 
 /// Tinggi minimum kartu station agar isinya tidak pernah overflow.
@@ -65,9 +66,17 @@ class StationCard extends StatelessWidget {
     this.onPay,
     this.onStart,
     this.hourlyRateHint,
+    this.tvHealth = TvLinkHealth.unlinked,
   });
 
   final Station station;
+
+  /// Kesehatan sambungan ke TV station ini, dari `TvSyncService`.
+  ///
+  /// Nyata — berbeda dari data sesi yang masih contoh. Ditampilkan di header
+  /// kartu supaya operator tahu TV mana yang belum siap tanpa membuka layar
+  /// Status TV.
+  final TvLinkHealth tvHealth;
 
   /// Buka detail sesi.
   final VoidCallback? onTap;
@@ -104,7 +113,7 @@ class StationCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _CardHeader(station: station),
+                  _CardHeader(station: station, tvHealth: tvHealth),
                   Expanded(
                     child: maintenance
                         ? const _MaintenanceBody()
@@ -134,16 +143,17 @@ class StationCard extends StatelessWidget {
 // ─── Header ───────────────────────────────────────────────────────────
 
 class _CardHeader extends StatelessWidget {
-  const _CardHeader({required this.station});
+  const _CardHeader({required this.station, required this.tvHealth});
 
   final Station station;
+  final TvLinkHealth tvHealth;
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AppTicker>(
       builder: (context, _, __) {
         final style = StatusStyle.of(deriveStationViewStatus(station));
-        final offline = station.device?.status == DeviceStatus.offline;
+        final tv = _TvBadge.styleFor(tvHealth);
 
         return Container(
           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -185,13 +195,12 @@ class _CardHeader extends StatelessWidget {
                 ),
               ],
               const SizedBox(width: AppSpacing.sm - 2),
-              if (offline)
-                const Padding(
-                  padding: EdgeInsets.only(right: AppSpacing.xs),
+              if (tv != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: AppSpacing.xs),
                   child: Tooltip(
-                    message: 'TV tidak mengirim heartbeat',
-                    child: Icon(Icons.wifi_off,
-                        size: 15, color: AppColors.statusOffline),
+                    message: tv.tooltip,
+                    child: Icon(tv.icon, size: 15, color: tv.color),
                   ),
                 ),
               Flexible(
@@ -762,4 +771,45 @@ class _MiniActionState extends State<_MiniAction> {
       ),
     );
   }
+}
+
+/// Lencana sambungan TV di header kartu.
+///
+/// Status "tersambung" ikut ditampilkan, tidak hanya masalah. Biasanya hanya
+/// pengecualian yang perlu disurfacing, tapi selama kontrol TV masih diuji
+/// operator perlu tahu TV mana yang sudah siap — dan ini satu ikon di slot
+/// yang memang sudah ada.
+class _TvBadge {
+  const _TvBadge({
+    required this.icon,
+    required this.color,
+    required this.tooltip,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String tooltip;
+
+  static _TvBadge? styleFor(TvLinkHealth health) => switch (health) {
+        TvLinkHealth.online => const _TvBadge(
+            icon: Icons.tv,
+            color: AppColors.secondary,
+            tooltip: 'TV tersambung',
+          ),
+        TvLinkHealth.unreachable => const _TvBadge(
+            icon: Icons.tv_off,
+            color: AppColors.statusExpired,
+            tooltip: 'TV tidak merespons',
+          ),
+        TvLinkHealth.rejected => const _TvBadge(
+            icon: Icons.link_off,
+            color: AppColors.statusWarning,
+            tooltip: 'Pairing TV ditolak — pasangkan ulang',
+          ),
+        TvLinkHealth.unlinked => const _TvBadge(
+            icon: Icons.add_to_queue,
+            color: AppColors.outline,
+            tooltip: 'Belum ada TV dipasangkan',
+          ),
+      };
 }

@@ -117,6 +117,10 @@ class _DeviceScreenState extends State<DeviceScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _Summary(dash: dash, sync: sync),
+                  if (dash.isSampleData) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    const _SampleDataNotice(),
+                  ],
                   const SizedBox(height: AppSpacing.md),
                   for (final station in dash.stations)
                     Padding(
@@ -134,6 +138,61 @@ class _DeviceScreenState extends State<DeviceScreen> {
                     ),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Penjelasan apa yang nyata dan apa yang contoh.
+///
+/// Dipasang justru di layar ini karena di sinilah operator menguji sambungan
+/// TV. Saat perhatian ada pada TV, angka contoh paling mudah terbaca sebagai
+/// angka asli — dan itu kekeliruan yang mahal kalau terbawa ke kesimpulan.
+class _SampleDataNotice extends StatelessWidget {
+  const _SampleDataNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md - 2),
+      decoration: BoxDecoration(
+        color: AppColors.tertiaryContainer.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: AppColors.tertiaryContainer.withValues(alpha: 0.28),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.science_outlined,
+              size: 18, color: AppColors.tertiaryContainer),
+          const SizedBox(width: AppSpacing.sm + 2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Sambungan TV nyata, data billing masih contoh',
+                  style: AppTypography.bodyMd.copyWith(
+                    color: AppColors.tertiaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Status "Tersambung", alamat, dan perangkat di bawah ini '
+                  'dibaca langsung dari TV. Tapi sesi, nama customer, dan '
+                  'nominal berasal dari data contoh — timer yang tampil di TV '
+                  'memang benar dikirim, hanya isinya belum dari transaksi '
+                  'sungguhan.',
+                  style: AppTypography.bodySm
+                      .copyWith(color: AppColors.onSurfaceVariant),
+                ),
+              ],
             ),
           ),
         ],

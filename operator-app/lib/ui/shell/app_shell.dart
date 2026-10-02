@@ -5,6 +5,7 @@ import '../../core/brand.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/util/format.dart';
+import '../../data/tv/tv_sync_service.dart';
 import '../dashboard/dashboard_controller.dart';
 import '../dashboard/dashboard_screen.dart';
 import '../device/device_screen.dart';
@@ -123,6 +124,7 @@ class _Sidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ctrl = context.watch<DashboardController>();
+    final tv = context.watch<TvSyncService>();
 
     return AnimatedContainer(
       duration: AppMotion.normal,
@@ -177,7 +179,9 @@ class _Sidebar extends StatelessWidget {
                     active: s == current,
                     badge: switch (s) {
                       ShellSection.fnb => ctrl.fnbActionableCount,
-                      ShellSection.devices => ctrl.offlineDeviceCount,
+                      // Dari TvSyncService: ini status sambungan yang nyata,
+                      // bukan heartbeat karangan dari data contoh.
+                      ShellSection.devices => tv.problemCount,
                       _ => 0,
                     },
                     onTap: () => onSelect(s),
@@ -470,6 +474,10 @@ class _Header extends StatelessWidget {
             const SizedBox(width: AppSpacing.md),
           ],
 
+          if (ctrl.isSampleData) ...[
+            const _SampleDataChip(),
+            const SizedBox(width: AppSpacing.sm),
+          ],
           const ConnectionBanner(),
           const SizedBox(width: AppSpacing.sm),
           IconButton(
@@ -484,6 +492,52 @@ class _Header extends StatelessWidget {
             tooltip: 'Muat ulang',
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Penanda bahwa data billing di layar adalah **data contoh**.
+///
+/// Dipasang selama kontrol TV diuji (DEC-015): sambungan ke TV **nyata**,
+/// sementara sesi, customer, dan uang masih contoh. Tanpa penanda ini, angka
+/// contoh mudah dibaca sebagai angka asli — dan kekeliruan itu paling
+/// berbahaya justru saat sedang menguji, ketika perhatian ada di TV.
+///
+/// Hilang sendiri begitu `ApiBillingRepository` masuk (DEC-012 syarat 2).
+class _SampleDataChip extends StatelessWidget {
+  const _SampleDataChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Sesi, customer, dan nominal di layar ini adalah data contoh. '
+          'Sambungan ke TV nyata.',
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.tertiaryContainer.withValues(alpha: 0.16),
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          border: Border.all(
+            color: AppColors.tertiaryContainer.withValues(alpha: 0.4),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.science_outlined,
+                size: 13, color: AppColors.tertiaryContainer),
+            const SizedBox(width: AppSpacing.xs),
+            Text(
+              'DATA CONTOH',
+              style: AppTypography.labelSm
+                  .copyWith(color: AppColors.tertiaryContainer),
+            ),
+          ],
+        ),
       ),
     );
   }

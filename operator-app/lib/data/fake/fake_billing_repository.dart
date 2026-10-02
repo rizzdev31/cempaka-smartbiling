@@ -32,6 +32,9 @@ class FakeBillingRepository implements BillingRepository {
   final Random _rand;
   static const _uuid = Uuid();
 
+  @override
+  bool get isSample => true;
+
   final List<Station> _stations = [];
   final List<Package> _packages = [];
   final List<Customer> _customers = [];
@@ -326,14 +329,14 @@ class FakeBillingRepository implements BillingRepository {
         status: i == 6
             ? StationMasterStatus.maintenance
             : StationMasterStatus.active,
-        device: DeviceSummary(
-          id: 'dev-$i',
-          status: i == 4 ? DeviceStatus.offline : DeviceStatus.online,
-          lastSeenAt: DateTime.now()
-              .toUtc()
-              .subtract(Duration(minutes: i == 4 ? 23 : 0, seconds: 12)),
-          appVersion: '0.1.0',
-        ),
+        // device SENGAJA null.
+        //
+        // Dalam mode kontrol langsung (DEC-015) tidak ada server yang melacak
+        // heartbeat TV, jadi satu-satunya kebenaran soal sambungan TV ada di
+        // `TvSyncService` — dan itu nyata. Dulu di sini ada device palsu
+        // dengan status ONLINE/OFFLINE karangan; hasilnya kartu station dan
+        // layar Status TV menampilkan dua angka berbeda untuk hal yang sama,
+        // dan operator tidak tahu mana yang benar.
       ));
     }
 
@@ -1226,66 +1229,6 @@ class FakeBillingRepository implements BillingRepository {
         return all.where((o) => statuses.contains(o.status)).toList();
       });
 
-  // ── Device ────────────────────────────────────────────────────────
-
-  static const offlineThreshold = Duration(minutes: 2);
-
-  @override
-  Future<DeviceList> fetchDevices() => _call(() {
-        final now = ServerTime.instance.now;
-
-        final devices = <Device>[];
-        for (final st in _stations) {
-          final d = st.device;
-          if (d == null) continue;
-
-          // Status ditentukan "server": dihitung dari last_seen terhadap
-          // ambang, bukan diambil dari nilai yang disimpan. Ini mencerminkan
-          // perilaku Laravel nanti.
-          final stale = d.lastSeenAt == null ||
-              now.difference(d.lastSeenAt!) > offlineThreshold;
-
-          devices.add(Device(
-            id: d.id,
-            deviceUid: 'uid-${st.code.toLowerCase()}',
-            station: StationRef(id: st.id, code: st.code, name: st.name),
-            status: stale ? DeviceStatus.offline : DeviceStatus.online,
-            lastSeenAt: d.lastSeenAt,
-            appVersion: d.appVersion,
-            model: _seedModelFor(st.code),
-            osVersion: 'Android 11',
-            registeredAt: now.subtract(const Duration(days: 4)),
-          ));
-        }
-
-        // Satu device sengaja tidak dipetakan ke station mana pun, untuk
-        // menguji bahwa device seperti ini tetap terlihat (PRD §10).
-        devices.add(Device(
-          id: 'dev-spare',
-          deviceUid: 'uid-spare',
-          station: null,
-          status: DeviceStatus.offline,
-          lastSeenAt: now.subtract(const Duration(days: 2)),
-          appVersion: '0.0.9',
-          model: 'Realme TV Stick',
-          osVersion: 'Android 9',
-          registeredAt: now.subtract(const Duration(days: 20)),
-        ));
-
-        // Offline lebih dulu — itu yang menuntut perhatian.
-        devices.sort((a, b) {
-          if (a.isOnline != b.isOnline) return a.isOnline ? 1 : -1;
-          final ac = a.station?.code ?? 'zzz';
-          final bc = b.station?.code ?? 'zzz';
-          return ac.compareTo(bc);
-        });
-
-        return DeviceList(
-          devices: devices,
-          offlineThreshold: offlineThreshold,
-        );
-      });
-
   static String _seedConsoleFor(String stationCode) => switch (stationCode) {
         'ST01' => 'PS5 VIP',
         'ST02' => 'PS5 Reguler',
@@ -1295,14 +1238,21 @@ class FakeBillingRepository implements BillingRepository {
         _ => 'PS4 Slim',
       };
 
-  static String _seedModelFor(String stationCode) => switch (stationCode) {
-        'ST01' => 'Xiaomi TV A2 43',
-        'ST02' => 'Xiaomi TV A2 43',
-        'ST03' => 'Samsung AU7000',
-        'ST04' => 'Xiaomi TV A2 43',
-        'ST05' => 'Coocaa 43S3U',
-        _ => 'Xiaomi TV A2 43',
-      };
+  // ── Device ────────────────────────────────────────────────────────
+
+  /// Daftar device dari **server** — kosong, dan itu jawaban yang benar.
+  ///
+  /// `GET /devices` adalah endpoint Laravel (kontrak §9) yang melaporkan
+  /// heartbeat TV. Selama Laravel belum ada, tidak ada server yang menerima
+  /// heartbeat, jadi daftarnya memang kosong.
+  ///
+  /// Sebelumnya di sini dikarang enam device beserta status online/offline.
+  /// Itu membuat layar Status TV terlihat berfungsi padahal angkanya fiksi,
+  /// dan bertabrakan dengan status sambungan TV yang sebenarnya.
+  ///
+  /// Status TV yang nyata ada di `TvSyncService`, bukan di sini.
+  @override
+  Future<DeviceList> fetchDevices() => _call(() => DeviceList.empty);
 
   // ── Shift ─────────────────────────────────────────────────────────
 

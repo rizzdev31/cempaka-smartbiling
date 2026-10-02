@@ -12,10 +12,10 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Tahap aktif** | **TAHAP 2 — Kotlin TV Agent** (kiosk kontrol-langsung, DEC-015). Tahap 0 ditahan |
 | **Blocker** | **tidak ada** — kontrak sudah fix, billing rule sudah fix |
 | **Blocker Tahap 2** | OD-004 (perilaku warning), OD-005 (fakta TV — **dicek besok**) |
-| **Milestone terdekat** | **Sabtu 3 Okt: SESI 1 recon lokasi (0 kode)** — `TEST-PLAN-SABTU.md` |
+| **Milestone terdekat** | **SESI TV** — uji operator mengendalikan TV (bisa kapan saja) · lalu SESI 1 recon lokasi |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
-| **operator-app** | Semua screen PRD §18 kecuali Login & Booking; redesign (DEC-014); **kontrol TV terpasang**; **154 test lulus** |
+| **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **155 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK 4,0 MB |
 | **backend** | masih kosong — **ditahan** (DEC-015) |
 
@@ -868,3 +868,139 @@ generik `INTERNAL`, sesuai yang dibalas agen sebenarnya.
    jalurnya
 2. Satukan status TV di kartu dashboard dengan `TvSyncService`
 3. Kalau sudah terbukti: putuskan OD-012 + OD-015, lalu Laravel
+
+---
+
+### 2026-10-02 — Status TV disatukan + data contoh ditandai jelas
+
+Dua hal menjelang testing operator ↔ TV: **satu sumber kebenaran** untuk status
+TV, dan **penanda jelas** mana yang nyata dan mana yang contoh.
+
+**Files changed**
+- Diubah: `lib/domain/repositories/billing_repository.dart` (`isSample`),
+  `lib/data/fake/fake_billing_repository.dart`,
+  `lib/ui/dashboard/{dashboard_controller,dashboard_screen}.dart`,
+  `lib/ui/widgets/station_card.dart`, `lib/ui/shell/app_shell.dart`,
+  `lib/ui/device/device_screen.dart`, `lib/ui/settings/settings_screen.dart`
+- Ditulis ulang: `test/device_test.dart`
+- Dokumen: `TEST-PLAN-SABTU.md` (SESI TV baru)
+
+**Tests** — **155 lulus**, analyze bersih. APK debug per-ABI ter-build
+(arm64 73 MB).
+
+**Satu sumber kebenaran untuk status TV**
+
+Sebelumnya ada **dua**: kartu station memakai `station.device` dari data
+contoh (status online/offline karangan), sementara layar Status TV memakai
+sambungan nyata dari `TvSyncService`. Keduanya bisa menampilkan angka berbeda
+untuk hal yang sama, dan operator tidak punya cara tahu mana yang benar.
+
+Diperbaiki dengan menghapus sumber palsunya:
+- Fake repository mengembalikan `device: null` untuk semua station
+- `fetchDevices()` mengembalikan daftar **kosong** — dan itu jawaban yang
+  benar: tidak ada server yang menerima heartbeat sampai Laravel ada
+- `DashboardController.offlineDeviceCount` dihapus
+- Kartu station, badge sidebar, dan layar Status TV semuanya membaca
+  `TvSyncService`
+
+Kartu station kini punya **lencana TV** di header: tersambung (mint),
+tidak merespons (merah), pairing ditolak (oranye), belum dipasang (abu).
+Menempati slot yang sudah ada — tidak menambah keramaian, hanya menjadi benar.
+
+**Data contoh ditandai, bukan disembunyikan**
+
+Selama kontrol TV diuji, **sambungan ke TV nyata** sementara **sesi, customer,
+dan nominal masih contoh**. Campuran itu paling berbahaya justru saat sedang
+menguji, ketika perhatian ada di TV dan angka contoh mudah terbaca sebagai
+angka asli.
+
+Jadi:
+- Chip **DATA CONTOH** di header shell, dengan tooltip penjelasan
+- Layar Status TV memuat penjelasan eksplisit: status/alamat/perangkat dibaca
+  langsung dari TV, tapi isi sesinya contoh
+- Pengaturan memisahkan "Data billing: data contoh" dari "Sambungan TV: nyata"
+- `BillingRepository.isSample` menjadi sumber penanda itu — hilang sendiri
+  begitu `ApiBillingRepository` masuk
+
+**`test/device_test.dart` ditulis ulang**
+
+Versi lama menguji **daftar device karangan**: enam perangkat dengan status
+online/offline buatan. Test itu menguji fiksi, dan menjadikannya acuan berarti
+mempertahankan sumber kebingungan yang baru saja dihapus.
+
+Sekarang menguji hal yang benar: fake repository memang **tidak lagi
+mengarang**, penanda data contoh diteruskan ke UI, dan logika murni pada model
+(`DeviceList` menghitung hanya device terpetakan, `TvAgentInfo` membaca
+response agen termasuk nilai yang tidak dikenal).
+
+**SESI TV ditambahkan ke rencana uji**
+
+28 langkah, tiga bagian, tidak butuh Laravel:
+- **TV-1 Pairing** termasuk kode salah dan penguncian setelah 10 percobaan
+- **TV-2 Kontrol billing** — start, +30m, +1j, checkout, prepaid, swap. Termasuk
+  **TV-14: tambah F&B tidak boleh mengubah TV** (kalau berubah, berarti tagihan
+  masuk sidik keadaan)
+- **TV-3 Ketahanan** — WiFi TV dimatikan, aplikasi di-force-stop, TV di-restart,
+  idle 15 menit. **TV-24/TV-25 adalah inti PRD §16 dan T12**: timer harus lanjut
+  dari waktu yang benar setelah restart, bukan dari nol
+
+Bisa dijalankan dengan emulator di rumah, atau dengan TV sungguhan di lokasi.
+
+**Known issues**
+- Masih belum pernah diuji terhadap TV atau emulator sungguhan.
+- Belum ada retry otomatis saat TV tidak merespons; operator menekan
+  "Kirim ulang".
+
+**Next step**
+1. **Jalankan SESI TV** — ini yang membuktikan jalurnya
+2. Catat hasilnya di bawah; TV-24/25 dan TV-26 melengkapi OD-005
+3. Kalau lulus: lanjut melengkapi kebutuhan sistem sesuai PRD, mulai dari
+   keputusan OD-012 + OD-015 lalu Laravel
+
+---
+
+## SESI TV — diisi saat menguji
+
+### Pairing
+| ID | Hasil | Catatan |
+|---|---|---|
+| TV-01 kode + alamat tampil di TV | ⬚ | |
+| TV-03 pemindaian menemukan TV | ⬚ | berapa detik: |
+| TV-04 entri manual berhasil | ⬚ | |
+| TV-05 pairing berhasil | ⬚ | |
+| TV-06 kode salah ditolak | ⬚ | |
+| TV-07 terkunci setelah 10× salah | ⬚ | |
+
+### Kontrol billing
+| ID | Hasil | Catatan |
+|---|---|---|
+| TV-10 timer TV sama dengan kartu | ⬚ | |
+| TV-11 selisih < 2 detik | ⬚ | selisih: |
+| TV-12 +30m sampai ke TV | ⬚ | berapa detik: |
+| TV-13 +1j sampai ke TV | ⬚ | |
+| TV-14 F&B TIDAK mengubah TV | ⬚ | |
+| TV-15 checkout → TV idle | ⬚ | |
+| TV-16 prepaid → menunggu bayar | ⬚ | |
+| TV-17 bayar → timer | ⬚ | |
+| TV-18 swap → TV lama idle | ⬚ | |
+
+### Ketahanan
+| ID | Hasil | Catatan |
+|---|---|---|
+| TV-20 WiFi mati, timer tetap jalan | ⬚ | |
+| TV-21 WiFi hidup, tersambung lagi | ⬚ | |
+| TV-22 operator menandai tidak merespons | ⬚ | |
+| TV-23 kirim ulang menyusul | ⬚ | |
+| TV-24 restart aplikasi, timer benar | ⬚ | |
+| TV-25 restart TV, timer benar | ⬚ | |
+| TV-26 idle 15 menit masih merespons | ⬚ | |
+| TV-27 HOME keluar dari aplikasi | ⬚ | wajar pada kiosk lunak |
+| TV-28 buka lagi, timer benar | ⬚ | |
+
+### Fakta perangkat
+| Yang dicatat | Hasil |
+|---|---|
+| Model + versi Android | |
+| Tingkat kiosk | |
+| Pemindaian berhasil atau manual | |
+| Device Owner mungkin? (ada akun Google?) | |

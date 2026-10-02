@@ -128,8 +128,13 @@ class DashboardController extends ChangeNotifier {
           s.session == null && s.status == StationMasterStatus.active)
       .length;
 
-  int get offlineDeviceCount =>
-      _stations.where((s) => s.device?.status == DeviceStatus.offline).length;
+  /// Sambungan TV **tidak** dihitung di sini.
+  ///
+  /// Satu-satunya kebenaran soal TV ada di `TvSyncService`: sambungannya
+  /// nyata, sementara data station masih contoh. Menghitungnya di dua tempat
+  /// berarti dua angka yang bisa berbeda untuk hal yang sama, dan operator
+  /// berhenti mempercayai keduanya.
+  bool get isSampleData => _repo.isSample;
 
   /// Total tagihan berjalan seluruh station — angka yang paling sering
   /// ditanya pemilik.

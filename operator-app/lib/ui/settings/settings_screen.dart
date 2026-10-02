@@ -226,9 +226,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         : AppColors.statusWarning,
                   ),
                   _DiagRow(
-                    label: 'Sumber data',
-                    value: 'Fake repository (DEC-012)',
+                    label: 'Data billing',
+                    value: 'Data contoh — belum dari server',
                     valueColor: AppColors.statusWarning,
+                  ),
+                  const _DiagRow(
+                    label: 'Sambungan TV',
+                    value: 'Nyata — langsung ke TV lewat jaringan lokal',
                   ),
 
                   const SizedBox(height: AppSpacing.lg),
@@ -248,8 +252,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Text(
-                            'Build ini masih memakai data palsu di memori. '
-                            'Alamat server belum dipanggil sama sekali.',
+                            'Sesi, customer, dan nominal berasal dari data '
+                            'contoh di memori; alamat server di atas belum '
+                            'dipanggil. Sambungan ke TV tidak termasuk — itu '
+                            'nyata.',
                             style: AppTypography.bodySm
                                 .copyWith(color: AppColors.statusWarning),
                           ),

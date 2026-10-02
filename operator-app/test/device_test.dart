@@ -3,9 +3,21 @@ import 'package:operator_app/core/time/server_time.dart';
 import 'package:operator_app/data/fake/fake_billing_repository.dart';
 import 'package:operator_app/domain/models/enums.dart';
 import 'package:operator_app/domain/models/models.dart';
+import 'package:operator_app/domain/models/tv_agent.dart';
 import 'package:operator_app/ui/dashboard/dashboard_controller.dart';
 
-/// Test status device — PRD §18 "Online/offline/last seen" dan kontrak §9.
+/// Test seputar device.
+///
+/// ## Kenapa test ini berubah banyak
+///
+/// Versi sebelumnya menguji **daftar device karangan** dari fake repository:
+/// enam perangkat dengan status online/offline yang dibuat-buat. Hasilnya dua
+/// sumber kebenaran untuk hal yang sama — kartu station memakai device palsu,
+/// layar Status TV memakai sambungan nyata — dan angkanya bisa berbeda.
+///
+/// Sekarang hanya ada satu: sambungan nyata di `TvSyncService` (diuji di
+/// `tv_sync_test.dart`). Yang tersisa di sini adalah memastikan sumber palsunya
+/// benar-benar **tidak lagi mengarang**, plus logika murni pada model.
 
 void main() {
   late FakeBillingRepository repo;
@@ -16,144 +28,112 @@ void main() {
     repo = FakeBillingRepository();
   });
 
-  group('Daftar device', () {
-    test('setiap station punya device, plus satu cadangan tanpa station',
-        () async {
-      final data = await repo.fetchDevices();
-      final stations = await repo.fetchStations();
-
-      expect(
-        data.devices.where((d) => d.isMapped).length,
-        stations.where((s) => s.device != null).length,
-      );
-      expect(
-        data.devices.where((d) => !d.isMapped),
-        isNotEmpty,
-        reason: 'device yang pemetaannya dicabut tetap harus terlihat '
-            '(PRD §10)',
-      );
+  group('Sumber data ditandai sebagai contoh', () {
+    test('fake repository mengaku data contoh', () {
+      expect(repo.isSample, isTrue,
+          reason: 'UI memakai ini untuk menandai DATA CONTOH di header — '
+              'tanpa penanda, angka contoh mudah dibaca sebagai angka asli');
     });
 
-    test('offline diurutkan lebih dulu', () async {
-      final data = await repo.fetchDevices();
-      var seenOnline = false;
-      for (final d in data.devices) {
-        if (d.isOnline) {
-          seenOnline = true;
-        } else {
-          expect(
-            seenOnline,
-            isFalse,
-            reason: 'tidak boleh ada device offline setelah yang online — '
-                'yang menuntut perhatian harus di atas',
-          );
-        }
+    test('dashboard meneruskan penanda itu ke UI', () async {
+      final ctrl = DashboardController(repo);
+      await ctrl.load();
+      expect(ctrl.isSampleData, isTrue);
+    });
+  });
+
+  group('Station tidak lagi membawa device karangan', () {
+    test('semua station punya device null', () async {
+      final stations = await repo.fetchStations();
+
+      expect(stations, isNotEmpty);
+      for (final s in stations) {
+        expect(
+          s.device,
+          isNull,
+          reason: 'tidak ada server yang melacak heartbeat TV di mode kontrol '
+              'langsung, jadi mengarang status device hanya membuat kartu '
+              'station dan layar Status TV saling bertentangan',
+        );
       }
     });
 
-    test('ambang offline dikirim bersama daftar', () async {
+    test('device tetap null setelah sesi dibuat', () async {
+      final stations = await repo.fetchStations();
+      final free = stations.firstWhere(
+        (s) => s.session == null && s.status == StationMasterStatus.active,
+      );
+      final packages = await repo.fetchPackages();
+
+      await repo.createSession(
+        stationId: free.id,
+        packageId: packages.first.id,
+        mode: SessionMode.postpaid,
+        idempotencyKey: 'dev-null-1',
+      );
+
+      final after = await repo.fetchStations();
+      expect(after.firstWhere((s) => s.id == free.id).device, isNull);
+    });
+  });
+
+  group('GET /devices kosong, dan itu jawaban yang benar', () {
+    test('daftar device kosong selama belum ada Laravel', () async {
       final data = await repo.fetchDevices();
-      expect(data.offlineThreshold, FakeBillingRepository.offlineThreshold);
+
+      expect(data.devices, isEmpty);
+      expect(data.onlineCount, 0);
+      expect(data.offlineCount, 0);
+      expect(data.unmappedCount, 0);
+    });
+
+    test('ambang offline tetap dikirim walau daftarnya kosong', () async {
+      final data = await repo.fetchDevices();
+
+      // Client memakainya untuk menjelaskan ALASAN sebuah device dianggap
+      // offline, jadi nilainya harus tetap masuk akal.
       expect(data.offlineThreshold.inSeconds, greaterThan(0));
     });
   });
 
-  group('Status ditentukan dari last_seen terhadap ambang', () {
-    test('device yang baru mengirim kabar -> online', () async {
-      final data = await repo.fetchDevices();
-      final now = ServerTime.instance.now;
-
-      for (final d in data.devices.where((d) => d.isOnline)) {
-        expect(d.lastSeenAt, isNotNull);
-        expect(
-          now.difference(d.lastSeenAt!),
-          lessThanOrEqualTo(data.offlineThreshold),
+  group('Model DeviceList — logika murni', () {
+    Device device({
+      required bool online,
+      bool mapped = true,
+      String uid = 'tv-1',
+    }) =>
+        Device(
+          id: uid,
+          deviceUid: uid,
+          station: mapped
+              ? const StationRef(id: 'sta-1', code: 'ST01', name: 'Station 1')
+              : null,
+          status: online ? DeviceStatus.online : DeviceStatus.offline,
+          lastSeenAt: DateTime.now().toUtc(),
+          model: 'TV A2 43',
+          osVersion: 'Android 11',
         );
-      }
-    });
 
-    test('device yang lama tidak mengirim kabar -> offline', () async {
-      final data = await repo.fetchDevices();
-      final now = ServerTime.instance.now;
-
-      final offline = data.devices.where((d) => !d.isOnline).toList();
-      expect(offline, isNotEmpty);
-
-      for (final d in offline) {
-        expect(
-          d.lastSeenAt == null ||
-              now.difference(d.lastSeenAt!) > data.offlineThreshold,
-          isTrue,
-        );
-      }
-    });
-
-    test('waktu berjalan membuat device jadi offline', () async {
-      final before = await repo.fetchDevices();
-      final onlineBefore = before.onlineCount;
-      expect(onlineBefore, greaterThan(0));
-
-      // Majukan jam server melewati ambang offline.
-      repo.advanceClock(FakeBillingRepository.offlineThreshold +
-          const Duration(minutes: 1));
-
-      final after = await repo.fetchDevices();
-      expect(
-        after.onlineCount,
-        0,
-        reason: 'semua device jadi offline karena tidak ada heartbeat baru',
+    test('hitungan online dan offline hanya device yang dipetakan', () {
+      final list = DeviceList(
+        devices: [
+          device(online: true, uid: 'a'),
+          device(online: false, uid: 'b'),
+          // Cadangan tanpa station: tidak boleh masuk hitungan offline, karena
+          // badge dashboard menghitung TV per station. Dua angka berbeda untuk
+          // hal yang sama membuat operator berhenti mempercayai keduanya.
+          device(online: false, mapped: false, uid: 'c'),
+        ],
+        offlineThreshold: const Duration(minutes: 2),
       );
-      expect(after.offlineCount, greaterThan(before.offlineCount));
-    });
-  });
 
-  group('Hitungan cocok dengan badge dashboard', () {
-    test('offlineCount hanya menghitung device yang dipetakan', () async {
-      final data = await repo.fetchDevices();
-
-      final mappedOffline =
-          data.devices.where((d) => d.isMapped && !d.isOnline).length;
-      expect(data.offlineCount, mappedOffline);
-
-      // Device cadangan tanpa station tidak boleh masuk offlineCount.
-      expect(
-        data.devices.where((d) => !d.isMapped && !d.isOnline),
-        isNotEmpty,
-        reason: 'seed punya cadangan offline tanpa station',
-      );
-      expect(data.unmappedCount, greaterThan(0));
+      expect(list.onlineCount, 1);
+      expect(list.offlineCount, 1);
+      expect(list.unmappedCount, 1);
     });
 
-    test('badge dashboard = offlineCount di layar device', () async {
-      final dashboard = DashboardController(repo);
-      await dashboard.load();
-      final data = await repo.fetchDevices();
-
-      expect(
-        dashboard.offlineDeviceCount,
-        data.offlineCount,
-        reason: 'kalau badge dan layar menunjukkan angka berbeda, '
-            'operator berhenti mempercayai keduanya',
-      );
-    });
-
-    test('onlineCount + offlineCount = jumlah station ber-device', () async {
-      final data = await repo.fetchDevices();
-      final stations = await repo.fetchStations();
-
-      expect(
-        data.onlineCount + data.offlineCount,
-        stations.where((s) => s.device != null).length,
-      );
-    });
-  });
-
-  group('Informasi perangkat', () {
-    test('label perangkat terbentuk dari model + versi OS', () async {
-      final data = await repo.fetchDevices();
-      final d = data.devices.firstWhere((d) => d.model != null);
-      expect(d.hardwareLabel, contains(d.model!));
-      expect(d.hardwareLabel, contains('Android'));
+    test('label perangkat terbentuk dari model dan versi OS', () {
+      expect(device(online: true).hardwareLabel, 'TV A2 43 · Android 11');
     });
 
     test('device tanpa model tetap punya label yang bisa dibaca', () {
@@ -162,8 +142,57 @@ void main() {
         status: DeviceStatus.offline,
         lastSeenAt: null,
       );
-      expect(d.hardwareLabel, isNotEmpty);
       expect(d.hardwareLabel, 'Perangkat belum teridentifikasi');
+      expect(d.isMapped, isFalse);
+      expect(d.isOnline, isFalse);
+    });
+  });
+
+  group('Model TvAgentInfo — pembacaan response agen', () {
+    test('membaca identitas dan kemampuan dari /health', () {
+      final info = TvAgentInfo.fromJson('http://192.168.0.77:8787', {
+        'device_uid': 'tv-abc',
+        'paired': true,
+        'station_code': 'ST03',
+        'requires_pairing': false,
+        'pairing_locked': false,
+        'device': {
+          'manufacturer': 'Xiaomi',
+          'model': 'TV A2 43',
+          'android_release': '11',
+          'is_television': true,
+          'is_device_owner': false,
+          'kiosk_tier': 'SOFT',
+          'app_version': '0.1.0',
+        },
+        'time': {'synced': true, 'seconds_since_sync': 4},
+      });
+
+      expect(info.deviceUid, 'tv-abc');
+      expect(info.paired, isTrue);
+      expect(info.stationCode, 'ST03');
+      expect(info.kioskTier, KioskTier.soft);
+      expect(info.hardwareLabel, 'Xiaomi TV A2 43');
+      expect(info.osLabel, 'Android 11');
+      expect(info.address, '192.168.0.77:8787');
+    });
+
+    test('kiosk tier yang tidak dikenal tidak membuat crash', () {
+      final info = TvAgentInfo.fromJson('http://1.2.3.4:8787', {
+        'device_uid': 'x',
+        'device': {'kiosk_tier': 'SESUATU_BARU'},
+      });
+
+      expect(info.kioskTier, KioskTier.unknown);
+    });
+
+    test('response minim tetap terbaca dengan nilai aman', () {
+      final info = TvAgentInfo.fromJson('http://1.2.3.4:8787', {});
+
+      expect(info.paired, isFalse);
+      expect(info.requiresPairing, isTrue,
+          reason: 'default yang aman adalah menganggap belum dipasangkan');
+      expect(info.hardwareLabel, 'Perangkat belum teridentifikasi');
     });
   });
 }
