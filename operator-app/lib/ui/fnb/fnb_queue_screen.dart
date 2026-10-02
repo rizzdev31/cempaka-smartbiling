@@ -256,10 +256,11 @@ class _OrderCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.surfaceHigh),
         boxShadow: readOnly ? null : AppShadow.card,
       ),
       child: Material(
-        color: readOnly ? AppColors.surfaceContainer : AppColors.surface,
+        color: readOnly ? AppColors.surfaceContainer : AppColors.surfaceLowest,
         borderRadius: BorderRadius.circular(AppRadius.lg),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -498,6 +499,7 @@ class _SegmentedToggle extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceContainer,
         borderRadius: BorderRadius.circular(AppRadius.md + 2),
+        border: Border.all(color: AppColors.surfaceHigh),
       ),
       child: Row(
         children: [

@@ -349,11 +349,9 @@ class _FilterBarState extends State<_FilterBar> {
         horizontal: AppSpacing.gutterLg,
         vertical: AppSpacing.sm + 2,
       ),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLow.withValues(alpha: 0.4),
-        border: const Border(
-          bottom: BorderSide(color: AppColors.surfaceHigh),
-        ),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceLowest,
+        border: Border(bottom: BorderSide(color: AppColors.surfaceHigh)),
       ),
       child: Row(
         children: [
@@ -450,7 +448,7 @@ class _FilterChip extends StatelessWidget {
       label: '${filter.label}, $count station',
       excludeSemantics: true,
       child: Material(
-        color: selected ? AppColors.primaryContainer : AppColors.surfaceLow,
+        color: selected ? AppColors.onSurface : AppColors.surfaceLow,
         borderRadius: BorderRadius.circular(AppRadius.pill),
         child: InkWell(
           onTap: onTap,
@@ -462,11 +460,8 @@ class _FilterChip extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppRadius.pill),
               border: Border.all(
-                color: selected
-                    ? Colors.transparent
-                    : AppColors.surfaceHigh,
+                color: selected ? AppColors.onSurface : AppColors.surfaceHigh,
               ),
-              boxShadow: selected ? AppShadow.glowPrimary : null,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -484,7 +479,7 @@ class _FilterChip extends StatelessWidget {
                   filter.label,
                   style: AppTypography.labelMd.copyWith(
                     color: selected
-                        ? AppColors.onPrimaryContainer
+                        ? AppColors.surfaceLowest
                         : AppColors.onSurfaceVariant,
                     fontWeight:
                         selected ? FontWeight.w600 : FontWeight.w500,
@@ -497,17 +492,16 @@ class _FilterChip extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   decoration: BoxDecoration(
                     color: selected
-                        ? AppColors.onPrimaryContainer
-                            .withValues(alpha: 0.22)
-                        : AppColors.surfaceHigh,
+                        ? AppColors.surfaceLowest.withValues(alpha: 0.22)
+                        : AppColors.surfaceContainer,
                     borderRadius: BorderRadius.circular(AppRadius.pill),
                   ),
                   child: Text(
                     '$count',
                     style: AppTypography.labelSm.copyWith(
                       color: selected
-                          ? AppColors.onPrimaryContainer
-                          : AppColors.outline,
+                          ? AppColors.surfaceLowest
+                          : AppColors.onSurfaceVariant,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -543,11 +537,7 @@ class _ShiftStrip extends StatelessWidget {
         horizontal: AppSpacing.lg,
         vertical: AppSpacing.sm + 2,
       ),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLow,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.surfaceHigh),
-      ),
+      decoration: AppDecoration.card(),
       child: Row(
         children: [
           Icon(
@@ -663,7 +653,7 @@ class _GridSkeleton extends StatelessWidget {
       itemCount: 6,
       itemBuilder: (_, __) => Container(
         decoration: BoxDecoration(
-          color: AppColors.surfaceLow,
+          color: AppColors.surfaceContainer,
           borderRadius: BorderRadius.circular(AppRadius.lg),
         ),
       ),

@@ -465,6 +465,7 @@ class _Panel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.surfaceHigh),
         boxShadow: AppShadow.card,
       ),
       child: child,

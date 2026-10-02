@@ -2,171 +2,194 @@ import 'package:flutter/material.dart';
 
 /// Design tokens — sumber tunggal.
 ///
-/// Diturunkan dari `contoh.html` yang disetujui user: **Material 3 dark**
-/// dengan aksen cyan + mint, permukaan bertingkat biru-gelap, dan glow
-/// halus pada elemen aktif.
+/// ## Arah visual: terang, datar, padat
 ///
-/// Penamaan mengikuti peran Material 3 (`surfaceContainer*`, `onSurface*`)
-/// supaya cocok dengan `ColorScheme` dan mudah dirujuk balik ke contoh.
+/// Acuannya perkakas operasional yang dipakai berjam-jam — Linear, Stripe
+/// Dashboard, aplikasi kasir yang benar-benar dipakai — bukan halaman
+/// pemasaran.
+///
+/// Tiga aturan yang menjaganya tidak terlihat seperti template:
+///
+/// 1. **Lapisan dari nada putih, bukan dari shadow.** Kanvas abu sangat muda,
+///    kartu putih, garis setipis mungkin. Shadow hanya untuk yang benar-benar
+///    melayang di atas layar (modal, popup).
+/// 2. **Satu warna aksen.** Teal dipakai untuk aksi; warna lain hanya status,
+///    dan setiap status selalu disertai ikon dan teks.
+/// 3. **Radius kecil dan berbeda sesuai peran.** Chrome data 6 px, kartu
+///    10 px. Semuanya membulat seragam besar adalah ciri paling cepat terbaca
+///    dari UI yang tidak dirancang.
 ///
 /// JANGAN menulis hex mentah di widget. Semua warna lewat file ini.
 class AppColors {
   AppColors._();
 
-  // ── Permukaan: enam tingkat ───────────────────────────────────────
-  // Kedalaman dari nada permukaan, bukan garis. Sidebar memakai tingkat
-  // paling gelap supaya area kerja terasa terangkat di atasnya.
+  // ── Lapisan putih ─────────────────────────────────────────────────
+  //
+  // Nama token dipertahankan dari tema sebelumnya supaya perubahan ini tidak
+  // menyentuh puluhan widget. Perannya yang berubah: pada tema terang,
+  // "lowest" adalah chrome yang paling putih, bukan yang paling gelap.
 
-  /// Sidebar, header, footer — paling gelap.
-  static const surfaceLowest = Color(0xFF0A0E18);
+  /// Sidebar, header, footer. Putih bersih — chrome harus terbaca sebagai
+  /// bidang tetap, bukan sebagai kartu lain.
+  static const surfaceLowest = Color(0xFFFFFFFF);
 
-  /// Latar layar / area kerja.
-  static const surface = Color(0xFF0F131D);
+  /// Kanvas area kerja. Abu sangat muda supaya kartu putih di atasnya punya
+  /// tepi tanpa perlu shadow.
+  static const surface = Color(0xFFF6F7F9);
   static const background = surface;
 
   /// Kartu dan panel.
-  static const surfaceLow = Color(0xFF171B26);
+  static const surfaceLow = Color(0xFFFFFFFF);
 
-  /// Tombol sekunder, bidang di dalam kartu.
-  static const surfaceContainer = Color(0xFF1C1F2A);
+  /// Bidang cekung: input, tombol sekunder, blok di dalam kartu.
+  static const surfaceContainer = Color(0xFFF1F3F5);
 
-  /// Hover, track progress, pembatas tebal.
-  static const surfaceHigh = Color(0xFF262A35);
+  /// Garis tipis. Dipakai di hampir semua tepi kartu.
+  static const surfaceHigh = Color(0xFFE3E6EA);
 
-  /// Permukaan paling terang — track bar, chip terpilih.
-  static const surfaceHighest = Color(0xFF313540);
+  /// Track bar progres, pembatas yang perlu sedikit lebih terbaca.
+  static const surfaceHighest = Color(0xFFE8EBEF);
 
-  /// Permukaan terang untuk hover tingkat atas.
-  static const surfaceBright = Color(0xFF353944);
+  /// Hover pada permukaan putih.
+  static const surfaceBright = Color(0xFFEDEFF2);
 
   // ── Teks ──────────────────────────────────────────────────────────
 
-  /// Teks utama.
-  static const onSurface = Color(0xFFDFE2F1);
+  /// Teks utama. Hampir hitam, bukan hitam murni — hitam penuh pada putih
+  /// terasa keras setelah beberapa jam.
+  static const onSurface = Color(0xFF15181D);
 
-  /// Teks sekunder.
-  static const onSurfaceVariant = Color(0xFFBAC9CC);
+  /// Teks sekunder. 7,1:1 pada putih.
+  static const onSurfaceVariant = Color(0xFF5B6472);
 
-  /// Teks tersier / placeholder. Setara `outline` di contoh.
-  static const outline = Color(0xFF849396);
+  /// Teks tersier dan placeholder. 3,6:1 — hanya untuk label pendukung,
+  /// tidak pernah untuk informasi yang harus dibaca.
+  static const outline = Color(0xFF8A939F);
 
-  /// Garis pemisah halus.
-  static const outlineVariant = Color(0xFF3B494C);
+  /// Garis paling halus, pemisah di dalam kartu.
+  static const outlineVariant = Color(0xFFD7DCE2);
 
-  // ── Primary: cyan ─────────────────────────────────────────────────
+  // ── Aksen: teal ───────────────────────────────────────────────────
+  //
+  // Garis keturunan cyan dari `contoh.html`, tapi gelap supaya terbaca di
+  // atas putih. Cyan neon pada latar terang tidak bisa memenuhi kontras apa
+  // pun — dipaksakan, hasilnya teks yang tidak terbaca.
 
-  /// Teks/ikon di atas permukaan gelap — cyan terang.
-  static const primary = Color(0xFFC3F5FF);
+  /// Teks dan ikon aksen. 4,9:1 pada putih.
+  static const primary = Color(0xFF0E7490);
 
-  /// Isian tombol utama, nav aktif, bar progress.
-  static const primaryContainer = Color(0xFF00E5FF);
+  /// Isian tombol utama dan nav aktif.
+  static const primaryContainer = Color(0xFF0E7490);
 
-  /// Teks di atas [primaryContainer].
-  static const onPrimaryContainer = Color(0xFF00626E);
+  static const onPrimaryContainer = Color(0xFFFFFFFF);
+  static const onPrimary = Color(0xFFFFFFFF);
 
-  /// Teks di atas [primary].
-  static const onPrimary = Color(0xFF00363D);
+  /// Pressed / hover pada aksi utama.
+  static const primaryFixedDim = Color(0xFF155E75);
 
-  static const primaryFixedDim = Color(0xFF00DAF3);
+  /// Latar sangat muda untuk area terpilih.
+  static const primarySurface = Color(0xFFE8F4F7);
 
-  // ── Secondary: mint — dipakai untuk status "berjalan/sehat" ───────
+  // ── Hijau: sesi berjalan, keadaan sehat ───────────────────────────
 
-  static const secondary = Color(0xFF4EDEA3);
-  static const secondaryContainer = Color(0xFF00A572);
-  static const onSecondary = Color(0xFF003824);
-  static const onSecondaryContainer = Color(0xFF00311F);
+  static const secondary = Color(0xFF047857);
+  static const secondaryContainer = Color(0xFF047857);
+  static const onSecondary = Color(0xFFFFFFFF);
+  static const onSecondaryContainer = Color(0xFFFFFFFF);
 
-  // ── Tertiary: amber — uang & peringatan lembut ────────────────────
+  // ── Amber: uang dan hal yang menuntut perhatian ───────────────────
 
-  static const tertiary = Color(0xFFFFE9D3);
-  static const tertiaryContainer = Color(0xFFFFC681);
-  static const tertiaryFixedDim = Color(0xFFFFB95F);
-  static const onTertiary = Color(0xFF472A00);
+  static const tertiary = Color(0xFF92400E);
+  static const tertiaryContainer = Color(0xFFB45309);
+  static const tertiaryFixedDim = Color(0xFFB45309);
+  static const onTertiary = Color(0xFFFFFFFF);
 
-  // ── Error ─────────────────────────────────────────────────────────
+  // ── Merah ─────────────────────────────────────────────────────────
 
-  static const error = Color(0xFFFFB4AB);
-  static const errorContainer = Color(0xFF93000A);
-  static const onError = Color(0xFF690005);
-  static const onErrorContainer = Color(0xFFFFDAD6);
+  static const error = Color(0xFFB91C1C);
+  static const errorContainer = Color(0xFFFEE2E2);
+  static const onError = Color(0xFFFFFFFF);
+  static const onErrorContainer = Color(0xFF7F1D1D);
 
   // ── Status station ────────────────────────────────────────────────
-  // Selalu dipakai bersama ikon dan label — lihat StatusStyle.
+  //
+  // Semua memenuhi 4,5:1 pada putih. Selalu dipakai bersama ikon dan teks —
+  // lihat StatusStyle.
 
-  /// Tersedia — cyan, karena station kosong adalah peluang, bukan masalah.
+  /// Tersedia. Memakai warna aksen: station kosong adalah peluang.
   static const statusAvailable = primary;
 
-  /// Bermain — mint.
+  /// Bermain.
   static const statusActive = secondary;
 
-  /// Hampir habis — amber.
-  static const statusWarning = tertiaryFixedDim;
+  /// Hampir habis.
+  static const statusWarning = Color(0xFFB45309);
 
-  /// Waktu habis — merah.
+  /// Waktu habis.
   static const statusExpired = error;
 
-  /// Menunggu bayar — amber pucat, berbeda dari "hampir habis".
-  static const statusPendingPayment = tertiary;
+  /// Menunggu pembayaran. Indigo, sengaja jauh dari amber supaya tidak
+  /// tertukar dengan "hampir habis" — keduanya menuntut tindakan berbeda.
+  static const statusPendingPayment = Color(0xFF4338CA);
 
-  /// Checkout.
-  static const statusCheckout = Color(0xFFD0BCFF);
+  /// Checkout. Satu-satunya pemakaian ungu di seluruh aplikasi.
+  static const statusCheckout = Color(0xFF7E22CE);
 
-  /// Offline / maintenance.
-  static const statusOffline = outline;
+  /// Offline, maintenance, order dibatalkan.
+  ///
+  /// Slate-600, bukan slate-500. Order yang dibatalkan dirender di atas
+  /// `surfaceContainer`, dan di sana slate-500 hanya mencapai 4,28:1 —
+  /// gagal. Yang membuat status ini terasa tenang adalah hue-nya yang
+  /// nyaris tanpa saturasi, bukan kontrasnya yang rendah.
+  static const statusOffline = Color(0xFF475569);
 
   // ── Lapisan transparan ────────────────────────────────────────────
+  //
+  // Pada tema terang, lapisan interaksi menggelapkan — bukan menerangkan.
 
-  static const overlaySubtle = Color(0x0FFFFFFF);
-  static const overlayMedium = Color(0x1AFFFFFF);
+  static const overlaySubtle = Color(0x0A000000);
+  static const overlayMedium = Color(0x14000000);
 
-  /// Scrim modal — 60% hitam (spec: 40–60%).
-  static const scrim = Color(0x99000000);
+  /// Scrim modal.
+  static const scrim = Color(0x66000000);
 }
 
-/// Spacing mengikuti skala `contoh.html`, dibulatkan ke grid 4dp.
+/// Spacing. Tetap dari tema sebelumnya — ritmenya sudah benar.
 class AppSpacing {
   AppSpacing._();
 
-  /// 0.25rem
   static const xs = 4.0;
-
-  /// 0.5rem
   static const sm = 8.0;
-
-  /// 0.875rem
   static const md = 14.0;
-
-  /// 1.25rem
   static const lg = 20.0;
-
-  /// 1.75rem
   static const xl = 28.0;
-
-  /// 2.5rem
   static const xxl = 40.0;
 
-  /// Gutter antar kartu.
   static const gutter = 16.0;
-
-  /// Gutter tepi area kerja.
   static const gutterLg = 24.0;
 }
 
+/// Radius.
+///
+/// Dirapatkan dari tema gelap. Perkakas operasional yang dipercaya terlihat
+/// presisi, bukan lembut; dan radius seragam besar di setiap elemen adalah
+/// ciri yang paling cepat terbaca dari UI yang tidak dirancang.
 class AppRadius {
   AppRadius._();
 
-  /// 0.25rem — tombol kecil, badge kotak.
+  /// Badge, tombol kecil, chrome data.
   static const sm = 4.0;
 
-  /// 0.5rem — tombol, input, nav item.
-  static const md = 8.0;
+  /// Tombol, input, nav item.
+  static const md = 6.0;
 
-  /// 0.75rem — kartu, panel.
-  static const lg = 12.0;
+  /// Kartu dan panel.
+  static const lg = 10.0;
 
-  /// Modal & bottom sheet.
-  static const modal = 16.0;
+  /// Modal dan bottom sheet.
+  static const modal = 12.0;
 
+  /// Hanya untuk chip filter dan titik status — bukan untuk tombol.
   static const pill = 999.0;
 }
 
@@ -176,79 +199,90 @@ class AppSize {
   /// Material: minimum 48dp. Tablet dipakai berdiri & terburu-buru.
   static const minTouchTarget = 48.0;
 
-  /// Tinggi header, sama dengan contoh (h-16).
-  static const headerHeight = 64.0;
+  static const headerHeight = 60.0;
 
-  /// Sidebar penuh (w-72).
-  static const sidebarWidth = 288.0;
-
-  /// Sidebar ringkas — hanya ikon, dipakai saat layar kurang lebar.
-  static const sidebarRailWidth = 76.0;
-
-  /// Di bawah lebar ini sidebar menyusut jadi rail.
+  static const sidebarWidth = 268.0;
+  static const sidebarRailWidth = 72.0;
   static const sidebarExpandBreakpoint = 1040.0;
 
-  /// Tinggi bar progres waktu di kartu.
-  static const progressBar = 6.0;
+  /// Penanda nav aktif di tepi kiri. Menggantikan glow dari tema gelap:
+  /// pada latar terang, glow terbaca sebagai hiasan, bukan sebagai keadaan.
+  static const navIndicator = 3.0;
 
-  /// Rail warna status di tepi kartu daftar (antrian F&B, device).
-  static const statusRail = 4.0;
+  static const progressBar = 5.0;
+  static const statusRail = 3.0;
 
-  /// Tinggi minimum kartu station agar isinya tidak overflow.
-  ///
-  /// Dipilih agar enam kartu tetap muat tanpa scroll pada tablet 1280x800
-  /// landscape: setelah header, bar filter, strip shift, dan footer,
-  /// tersisa sekitar 265 px per baris.
   static const stationCardMinHeight = 264.0;
-
-  /// Lebar minimum kartu station.
-  ///
-  /// Grid dashboard menjaminnya lewat breakpoint jumlah kolom: 3 kolom
-  /// hanya di atas 1100 px, 2 kolom di atas 700 px, di bawah itu 1 kolom.
   static const stationCardMinWidth = 300.0;
 }
 
-/// Shadow.
+/// Shadow — dipakai sangat hemat.
 ///
-/// Di contoh, kedalaman disampaikan lewat nada permukaan dan **glow** pada
-/// elemen aktif — bukan drop shadow tebal. Shadow di sini dibuat sangat
-/// halus; yang memberi karakter adalah [glowPrimary].
+/// Pada tema terang, shadow di setiap kartu adalah penanda paling jelas dari
+/// UI yang tidak dirancang. Kartu dipisahkan dari kanvas oleh **nada dan
+/// garis**; shadow disimpan untuk yang benar-benar melayang.
 class AppShadow {
   AppShadow._();
 
+  /// Kartu di atas kanvas: nyaris tidak terlihat, hanya memberi tepi bawah.
+  /// Pemisah utamanya tetap garis.
   static const card = <BoxShadow>[
-    BoxShadow(color: Color(0x1F000000), blurRadius: 6, offset: Offset(0, 2)),
+    BoxShadow(color: Color(0x08000000), blurRadius: 2, offset: Offset(0, 1)),
   ];
 
+  /// Chrome yang menempel di tepi layar — sidebar, header.
   static const panel = <BoxShadow>[
-    BoxShadow(color: Color(0x4D000000), blurRadius: 16, offset: Offset(0, 1)),
+    BoxShadow(color: Color(0x0D000000), blurRadius: 3, offset: Offset(0, 1)),
   ];
 
+  /// Modal, bottom sheet, popup. Di sini shadow memang bertugas.
   static const modal = <BoxShadow>[
-    BoxShadow(color: Color(0x66000000), blurRadius: 24, offset: Offset(0, 8)),
+    BoxShadow(color: Color(0x1F000000), blurRadius: 24, offset: Offset(0, 8)),
+    BoxShadow(color: Color(0x14000000), blurRadius: 6, offset: Offset(0, 2)),
   ];
-
-  /// Glow cyan untuk nav aktif dan chip terpilih.
-  /// Ini efek khas desainnya — jangan dipakai di mana-mana.
-  static const glowPrimary = <BoxShadow>[
-    BoxShadow(color: Color(0x4D00E5FF), blurRadius: 12),
-  ];
-
-  static List<BoxShadow> glow(Color color, {double alpha = 0.3}) => [
-        BoxShadow(color: color.withValues(alpha: alpha), blurRadius: 12),
-      ];
 }
 
 class AppMotion {
   AppMotion._();
 
-  static const fast = Duration(milliseconds: 150);
-  static const normal = Duration(milliseconds: 220);
-  static const slow = Duration(milliseconds: 300);
+  static const fast = Duration(milliseconds: 120);
+  static const normal = Duration(milliseconds: 180);
+  static const slow = Duration(milliseconds: 240);
 
   /// Animasi keluar ~60–70% durasi masuk.
-  static const exit = Duration(milliseconds: 140);
+  static const exit = Duration(milliseconds: 110);
 
   static const easeOut = Curves.easeOutCubic;
   static const easeIn = Curves.easeInCubic;
+}
+
+/// Dekorasi yang dipakai berulang.
+///
+/// Dikumpulkan di sini supaya tepi kartu konsisten di seluruh aplikasi.
+/// Sebelumnya setiap layar menyusun `BoxDecoration` sendiri, dan pada tema
+/// terang perbedaan satu nada garis langsung terlihat.
+class AppDecoration {
+  AppDecoration._();
+
+  /// Kartu putih di atas kanvas.
+  static BoxDecoration card({double radius = AppRadius.lg}) => BoxDecoration(
+        color: AppColors.surfaceLow,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: AppColors.surfaceHigh),
+        boxShadow: AppShadow.card,
+      );
+
+  /// Bidang cekung di dalam kartu: ringkasan, blok customer, track.
+  static BoxDecoration inset({double radius = AppRadius.md}) => BoxDecoration(
+        color: AppColors.surfaceContainer,
+        borderRadius: BorderRadius.circular(radius),
+      );
+
+  /// Kartu dalam keadaan terpilih.
+  static BoxDecoration selected({double radius = AppRadius.lg}) =>
+      BoxDecoration(
+        color: AppColors.primarySurface,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: AppColors.primary),
+      );
 }

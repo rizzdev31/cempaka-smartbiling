@@ -23,12 +23,14 @@ class BrandMark extends StatelessWidget {
     final mark = Container(
       width: size,
       height: size,
+      // Isian rata, bukan gradasi.
+      //
+      // Gradasi diagonal pada logo mark adalah salah satu penanda paling cepat
+      // terbaca dari UI yang tidak dirancang. Merek ini juga akan berganti per
+      // pelanggan (OD-012), dan bentuk yang rata lebih mudah diganti aset
+      // sungguhan nanti.
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primaryContainer],
-        ),
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       alignment: Alignment.center,
@@ -69,10 +71,9 @@ class BrandMark extends StatelessWidget {
             ),
             Text(
               Brand.tagline,
-              style: AppTypography.bodySm.copyWith(
+              style: AppTypography.labelSm.copyWith(
                 color: AppColors.outline,
-                fontSize: 11,
-                height: 1.2,
+                height: 1.3,
               ),
             ),
           ],

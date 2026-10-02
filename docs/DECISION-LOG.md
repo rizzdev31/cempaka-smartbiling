@@ -360,6 +360,103 @@ dianggap sudah selesai.
 
 ---
 
+## DEC-016 — Tema terang; dark mode dihentikan
+**Tanggal:** 2 Okt 2026 · **Status:** APPROVED · **Override:** DEC-014, `UI-UX-SPEC.md` §1
+
+User meminta UI putih dengan gradasi putih, dan secara eksplisit meminta
+hasilnya **tidak terlihat seperti dibuat AI**.
+
+### Alasan lama yang di-override — dicatat supaya tidak digali ulang
+
+`UI-UX-SPEC.md` §1 versi sebelumnya menolak light mode dengan dua alasan:
+ruang rental PlayStation gelap sehingga UI terang mengganggu operator, dan
+layar terang mencolok dari kursi customer.
+
+Alasan itu **tidak terbantahkan, hanya dikesampingkan**: user sudah melihat
+versi gelapnya di perangkat dan menilai ruangannya sendiri. Kalau nanti
+ternyata memang mengganggu di lokasi, alasannya ada di sini — tidak perlu
+ditemukan ulang.
+
+### Yang membuat UI terlihat "dibuat AI", dan apa yang dilakukan
+
+| Ciri | Yang dilakukan |
+|---|---|
+| Gradasi diagonal pada logo & tombol | Dihapus. Logo mark jadi isian rata; tidak ada satu pun `LinearGradient` di aplikasi |
+| Glow pada elemen aktif | Dihapus. Nav aktif memakai **penanda tepi kiri 3 px** + isian abu lembut — cara panel kontrol menunjukkan "kamu di sini" sejak lama |
+| Shadow di setiap kartu | Kartu dipisahkan **garis setipis mungkin + nada permukaan**. Shadow hanya untuk yang benar-benar melayang: modal, bottom sheet, popup |
+| Radius besar seragam di semua elemen | Dirapatkan dan dibedakan per peran: chrome data 4 px, tombol/input 6 px, kartu 10 px, modal 12 px. `pill` hanya untuk chip filter dan titik status |
+| Banyak warna aksen | Satu aksen (teal). Warna lain hanya status, dan setiap status tetap disertai ikon + teks |
+| Chip status berlatar penuh warna | Titik + teks, atau tint sangat muda |
+| Kotak bertumpuk di dalam kotak | Statistik header dibuat rata tanpa kotak; blok di dalam kartu memakai bidang cekung, bukan kartu lagi |
+| Ripple Material 3 | Diganti `InkRipple` klasik — pada permukaan putih, ripple M3 terbaca sebagai genangan |
+
+### Palet
+
+Lapisan dibangun dari **nada putih**, bukan dari shadow: kanvas `#F6F7F9`,
+kartu `#FFFFFF`, bidang cekung `#F1F3F5`, garis `#E3E6EA`.
+
+Aksen **teal `#0E7490`** — garis keturunan cyan dari `contoh.html` tapi gelap
+agar terbaca di atas putih. Cyan neon `#00E5FF` pada latar terang tidak bisa
+memenuhi kontras apa pun; memaksakannya berarti teks yang tidak terbaca.
+
+Status memakai warna 700-an: hijau `#047857`, amber `#B45309`, merah
+`#B91C1C`, indigo `#4338CA` (menunggu bayar), ungu `#7E22CE` (checkout, satu-
+satunya pemakaian ungu di aplikasi), slate `#475569` (offline).
+
+"Menunggu bayar" sengaja indigo, **jauh dari amber**, supaya tidak tertukar
+dengan "hampir habis" — keduanya menuntut tindakan yang berbeda. Jarak hue-nya
+dijaga test (>60°), bukan hanya oleh ingatan.
+
+### Kontras diverifikasi, bukan dikira-kira
+
+31 pasangan warna dihitung dengan rumus WCAG. Semuanya memenuhi target:
+teks utama 17,8:1 · teks sekunder 6,0:1 · aksen 4,8:1 (di bidang cekung) ·
+status terendah 4,5:1 · putih di atas tombol teal 5,4:1.
+
+Dua tempat, satu sumber warna — keduanya membaca `AppColors`:
+
+| | Peran |
+|---|---|
+| `test/theme_discipline_test.dart` | **yang mengikat.** Ikut jalan di `flutter test` |
+| `docs/tools/contrast.py` | tabel untuk dibaca manusia saat menyetel warna |
+
+Setiap warna status diuji di **dua** latar: kartu putih **dan** bidang cekung
+`surfaceContainer`. Ini bukan kehati-hatian berlebihan — pemeriksaan pertama
+hanya menguji latar putih dan lolos, lalu versi yang membaca token langsung
+menemukan `statusOffline` gagal di 4,28:1 pada kartu read-only, yang justru
+latar yang dipakai order dibatalkan. Slate dinaikkan dari `#64748B` ke
+`#475569`. Yang membuat status itu terasa tenang adalah saturasinya yang
+nyaris nol, bukan kontrasnya yang rendah.
+
+Teks pendukung `#8A939F` berada di 3,1:1 — **di bawah 4,5:1 dan itu
+disengaja**. Dipakai hanya untuk label pendukung (alamat, jam, kode order),
+tidak pernah untuk informasi yang harus dibaca. Target untuk peran itu 3:1,
+dan test menahannya tetap **di bawah** 4,5 supaya catatan ini tidak jadi basi
+tanpa ada yang tahu.
+
+### Aturannya ditegakkan mesin, bukan niat
+
+Daftar "yang dilarang" di atas akan bocor kembali satu widget pada satu waktu
+kalau hanya berupa tulisan. `test/theme_discipline_test.dart` membaca source
+`lib/` dan menolak: gradasi apa pun, `Color(0x` di luar `tokens.dart`,
+`BoxShadow(` di luar `tokens.dart`, dan sisa `Brightness.dark`.
+
+Keempat lint itu sudah dibuktikan menyala terhadap berkas uji yang sengaja
+melanggar — lint yang tidak pernah bisa gagal tidak menjaga apa pun.
+
+### Layar TV tetap hitam
+
+`tv-agent` **tidak** diubah. TV berada di ruang yang gelap, dilihat dari 2–3
+meter, dan layar putih terang di depan customer yang sedang bermain adalah hal
+yang berbeda sama sekali dari tablet di meja kasir. Hitam murni juga memberi
+kontras maksimum dan hemat daya pada panel OLED.
+
+Yang tetap sama di keduanya: **makna warna status**. Hijau tetap bermain,
+amber tetap hampir habis, merah tetap habis — nilainya berbeda karena latarnya
+berbeda, tapi artinya identik.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**

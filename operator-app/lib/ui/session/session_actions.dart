@@ -211,8 +211,7 @@ class _MethodTile extends StatelessWidget {
         : Icons.qr_code_2;
 
     return Material(
-      color:
-          selected ? AppColors.primary.withValues(alpha: 0.16) : AppColors.surface,
+      color: selected ? AppColors.primarySurface : AppColors.surfaceLowest,
       borderRadius: BorderRadius.circular(AppRadius.md),
       child: InkWell(
         onTap: onTap,
@@ -228,7 +227,7 @@ class _MethodTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadius.md),
             border: Border.all(
               color: selected ? AppColors.primary : AppColors.surfaceHigh,
-              width: selected ? 2 : 1,
+              width: selected ? 1.6 : 1,
             ),
           ),
           child: Row(
@@ -334,7 +333,7 @@ class _ExtendDialogState extends State<_ExtendDialog> {
                     color: selected ? AppColors.onPrimary : AppColors.onSurface,
                   ),
                   selectedColor: AppColors.primary,
-                  backgroundColor: AppColors.surface,
+                  backgroundColor: AppColors.surfaceLowest,
                   side: const BorderSide(color: AppColors.surfaceHigh),
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm,
@@ -514,7 +513,7 @@ class _SwapDialogState extends State<_SwapDialog> {
                     color: selected ? AppColors.onPrimary : AppColors.onSurface,
                   ),
                   selectedColor: AppColors.primary,
-                  backgroundColor: AppColors.surface,
+                  backgroundColor: AppColors.surfaceLowest,
                   side: const BorderSide(color: AppColors.surfaceHigh),
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm,

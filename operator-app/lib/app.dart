@@ -74,10 +74,12 @@ class OperatorApp extends StatelessWidget {
         title: 'Cempaka Billing',
         debugShowCheckedModeBanner: false,
 
-        // Light mode TIDAK dibuat — UI-UX-SPEC §1.
-        theme: AppTheme.dark(),
-        darkTheme: AppTheme.dark(),
-        themeMode: ThemeMode.dark,
+        // Tema terang. Alasan versi sebelumnya memilih gelap tercatat di
+        // UI-UX-SPEC §1 — tidak perlu digali ulang kalau ternyata layar
+        // terang mengganggu di ruang rental.
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.light(),
+        themeMode: ThemeMode.light,
 
         // Batasi penskalaan teks agar layout 6 kartu tanpa scroll tidak
         // pecah, tapi tetap menghormati pengaturan sistem (a11y).

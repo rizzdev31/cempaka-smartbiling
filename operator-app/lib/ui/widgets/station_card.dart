@@ -102,9 +102,8 @@ class StationCard extends StatelessWidget {
       label: '${station.name}, ${StatusStyle.of(station.viewStatus).label}',
       child: Opacity(
         opacity: maintenance ? 0.8 : 1,
-        child: Material(
-          color: AppColors.surfaceLow,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: Container(
+          decoration: AppDecoration.card(),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: maintenance ? null : onTap,
@@ -454,10 +453,7 @@ class _CustomerBlock extends StatelessWidget {
         horizontal: AppSpacing.md - 2,
         vertical: AppSpacing.sm + 2,
       ),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLowest.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
+      decoration: AppDecoration.inset(),
       child: Row(
         children: [
           Expanded(

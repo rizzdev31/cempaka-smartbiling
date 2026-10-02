@@ -171,10 +171,7 @@ class _OpenShiftPanel extends StatelessWidget {
           // Yang paling penting: kas yang seharusnya ada di kotak.
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainer,
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-            ),
+            decoration: AppDecoration.inset(radius: AppRadius.lg),
             child: Column(
               children: [
                 MoneyRow(label: 'Kas awal', amount: shift.openingCash),
@@ -327,10 +324,7 @@ class _HistoryCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md - 2),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-      ),
+      decoration: AppDecoration.inset(radius: AppRadius.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -785,6 +779,7 @@ class _Panel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.surfaceHigh),
         boxShadow: AppShadow.card,
       ),
       child: child,

@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 
 import 'tokens.dart';
 
-/// Tipografi — mengikuti skala `contoh.html`.
+/// Tipografi.
 ///
 /// Tiga family, masing-masing punya tugas jelas:
-/// - **Space Grotesk** → judul, kode station. Karakter geometris yang
-///   membedakannya dari body tanpa terasa dekoratif.
-/// - **Plus Jakarta Sans** → body dan label. Netral, mudah dibaca kecil.
-/// - **JetBrains Mono** → timer, uang, label teknis. Angka berlebar sama.
+/// - **Space Grotesk** → judul, kode station. Geometris, membedakan diri dari
+///   body tanpa jadi dekoratif.
+/// - **Plus Jakarta Sans** → body dan label.
+/// - **JetBrains Mono** → timer, uang, label teknis.
 ///
-/// Font **dibundel** di `assets/fonts/`, bukan diunduh runtime — lihat
-/// `assets/fonts/README.md` dan DEC-002.
+/// Mono untuk angka dipertahankan dari tema sebelumnya, dan itu memang tanda
+/// perkakas operasional: kolom angka sejajar dan timer tidak bergoyang.
+///
+/// Font **dibundel** di `assets/fonts/` — lihat `assets/fonts/README.md`.
 class AppTypography {
   AppTypography._();
 
@@ -19,28 +21,24 @@ class AppTypography {
   static const body = 'PlusJakartaSans';
   static const mono = 'JetBrainsMono';
 
-  /// Angka berlebar sama. JetBrains Mono memang monospace, tapi fitur ini
-  /// tetap disetel supaya benar kalau font-nya diganti nanti.
   static const List<FontFeature> tabular = [FontFeature.tabularFigures()];
 
   // ── Display & timer (mono) ────────────────────────────────────────
 
-  /// Timer utama di layar detail sesi.
   static const displayLg = TextStyle(
     fontFamily: mono,
     fontSize: 44,
-    height: 52 / 44,
-    letterSpacing: -0.88,
+    height: 50 / 44,
+    letterSpacing: -1.1,
     fontWeight: FontWeight.w700,
     fontFeatures: tabular,
   );
 
-  /// Timer di kartu station.
   static const timerCard = TextStyle(
     fontFamily: mono,
-    fontSize: 34,
-    height: 38 / 34,
-    letterSpacing: -0.34,
+    fontSize: 33,
+    height: 37 / 33,
+    letterSpacing: -0.6,
     fontWeight: FontWeight.w700,
     fontFeatures: tabular,
   );
@@ -49,26 +47,25 @@ class AppTypography {
 
   static const headlineLg = TextStyle(
     fontFamily: heading,
-    fontSize: 32,
-    height: 40 / 32,
-    letterSpacing: -0.64,
+    fontSize: 30,
+    height: 38 / 30,
+    letterSpacing: -0.6,
     fontWeight: FontWeight.w700,
   );
 
-  /// Kode station di kartu, judul layar.
   static const headlineMd = TextStyle(
     fontFamily: heading,
-    fontSize: 24,
-    height: 32 / 24,
-    letterSpacing: -0.24,
-    fontWeight: FontWeight.w600,
+    fontSize: 23,
+    height: 30 / 23,
+    letterSpacing: -0.3,
+    fontWeight: FontWeight.w700,
   );
 
-  /// Judul panel, nama merek di sidebar.
   static const headlineSm = TextStyle(
     fontFamily: heading,
-    fontSize: 18,
-    height: 24 / 18,
+    fontSize: 17,
+    height: 23 / 17,
+    letterSpacing: -0.1,
     fontWeight: FontWeight.w600,
   );
 
@@ -76,8 +73,8 @@ class AppTypography {
 
   static const bodyLg = TextStyle(
     fontFamily: body,
-    fontSize: 16,
-    height: 24 / 16,
+    fontSize: 15,
+    height: 22 / 15,
     fontWeight: FontWeight.w500,
   );
 
@@ -90,20 +87,18 @@ class AppTypography {
 
   static const bodySm = TextStyle(
     fontFamily: body,
-    fontSize: 12,
-    height: 16 / 12,
+    fontSize: 12.5,
+    height: 17 / 12.5,
     fontWeight: FontWeight.w400,
   );
 
-  // ── Label (JetBrains Mono) ────────────────────────────────────────
-  // Label teknis pakai mono: memberi kesan panel kontrol, dan angka di
-  // dalamnya ikut sejajar.
+  // ── Label (mono) ──────────────────────────────────────────────────
 
   static const labelLg = TextStyle(
     fontFamily: mono,
-    fontSize: 14,
-    height: 20 / 14,
-    letterSpacing: 0.28,
+    fontSize: 13,
+    height: 18 / 13,
+    letterSpacing: 0.1,
     fontWeight: FontWeight.w600,
     fontFeatures: tabular,
   );
@@ -112,18 +107,19 @@ class AppTypography {
     fontFamily: mono,
     fontSize: 12,
     height: 16 / 12,
-    letterSpacing: 0.48,
+    letterSpacing: 0.2,
     fontWeight: FontWeight.w500,
     fontFeatures: tabular,
   );
 
-  /// Label kecil huruf besar — judul bagian yang tidak boleh bersaing.
+  /// Judul bagian. Huruf besar dengan tracking longgar — lazim di panel
+  /// kontrol, dan menjaga judul tidak bersaing dengan isinya.
   static const labelSm = TextStyle(
     fontFamily: mono,
-    fontSize: 11,
-    height: 14 / 11,
-    letterSpacing: 0.66,
-    fontWeight: FontWeight.w500,
+    fontSize: 10.5,
+    height: 14 / 10.5,
+    letterSpacing: 0.7,
+    fontWeight: FontWeight.w600,
     fontFeatures: tabular,
   );
 
@@ -131,8 +127,8 @@ class AppTypography {
 
   static const moneyLg = TextStyle(
     fontFamily: mono,
-    fontSize: 20,
-    height: 26 / 20,
+    fontSize: 19,
+    height: 25 / 19,
     letterSpacing: -0.2,
     fontWeight: FontWeight.w700,
     fontFeatures: tabular,
@@ -141,7 +137,7 @@ class AppTypography {
   static const money = TextStyle(
     fontFamily: mono,
     fontSize: 14,
-    height: 20 / 14,
+    height: 19 / 14,
     fontWeight: FontWeight.w600,
     fontFeatures: tabular,
   );
@@ -155,12 +151,16 @@ class AppTypography {
   );
 }
 
-/// Tema gelap. Light mode TIDAK dibuat — lihat `UI-UX-SPEC.md` §1.
+/// Tema terang.
+///
+/// Dark mode tidak lagi dibuat. Alasan versi sebelumnya memilih gelap tetap
+/// tercatat di `UI-UX-SPEC.md` §1 dan di DECISION-LOG — kalau ternyata layar
+/// terang mengganggu di ruang rental, alasannya tidak perlu digali ulang.
 class AppTheme {
   AppTheme._();
 
-  static ThemeData dark() {
-    const scheme = ColorScheme.dark(
+  static ThemeData light() {
+    const scheme = ColorScheme.light(
       primary: AppColors.primary,
       onPrimary: AppColors.onPrimary,
       primaryContainer: AppColors.primaryContainer,
@@ -190,12 +190,15 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
+      brightness: Brightness.light,
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.surface,
       canvasColor: AppColors.surface,
       fontFamily: AppTypography.body,
-      splashFactory: InkSparkle.splashFactory,
+
+      // Ripple Material 3 pada permukaan putih terbaca sebagai genangan.
+      // InkRipple klasik lebih tenang dan lebih cepat hilang.
+      splashFactory: InkRipple.splashFactory,
 
       textTheme: const TextTheme(
         displayLarge: AppTypography.displayLg,
@@ -216,7 +219,7 @@ class AppTheme {
       ),
 
       dividerTheme: const DividerThemeData(
-        color: AppColors.surfaceHigh,
+        color: AppColors.outlineVariant,
         thickness: 1,
         space: 1,
       ),
@@ -227,6 +230,7 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.lg),
+          side: const BorderSide(color: AppColors.surfaceHigh),
         ),
       ),
 
@@ -235,13 +239,18 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         foregroundColor: AppColors.onSurface,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: false,
         toolbarHeight: AppSize.headerHeight,
         titleTextStyle: AppTypography.headlineSm.copyWith(
           color: AppColors.onSurface,
         ),
         iconTheme:
-            const IconThemeData(color: AppColors.onSurfaceVariant, size: 22),
+            const IconThemeData(color: AppColors.onSurfaceVariant, size: 21),
+        // Garis, bukan shadow, yang memisahkan header dari isi.
+        shape: const Border(
+          bottom: BorderSide(color: AppColors.surfaceHigh),
+        ),
       ),
 
       filledButtonTheme: FilledButtonThemeData(
@@ -250,11 +259,12 @@ class AppTheme {
           foregroundColor: AppColors.onPrimaryContainer,
           minimumSize: const Size(0, AppSize.minTouchTarget),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           textStyle: AppTypography.labelLg,
-          disabledBackgroundColor: AppColors.surfaceHigh,
+          disabledBackgroundColor: AppColors.surfaceContainer,
           disabledForegroundColor: AppColors.outline,
         ),
       ),
@@ -265,7 +275,7 @@ class AppTheme {
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
           side: const BorderSide(color: AppColors.surfaceHigh),
           foregroundColor: AppColors.onSurface,
-          backgroundColor: AppColors.surfaceContainer,
+          backgroundColor: AppColors.surfaceLow,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
@@ -310,7 +320,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.primaryContainer),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
@@ -318,7 +328,7 @@ class AppTheme {
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.error, width: 2),
+          borderSide: const BorderSide(color: AppColors.error, width: 1.6),
         ),
         hintStyle: AppTypography.bodySm.copyWith(color: AppColors.outline),
         labelStyle: AppTypography.bodyMd.copyWith(
@@ -351,11 +361,13 @@ class AppTheme {
       ),
 
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: AppColors.surfaceHigh,
-        contentTextStyle:
-            AppTypography.bodyMd.copyWith(color: AppColors.onSurface),
+        // Snackbar gelap di atas UI terang: cukup kontras untuk terbaca
+        // sekilas tanpa membuat seluruh layar bergeser nadanya.
+        backgroundColor: AppColors.onSurface,
+        contentTextStyle: AppTypography.bodyMd.copyWith(color: Colors.white),
+        actionTextColor: AppColors.primarySurface,
         behavior: SnackBarBehavior.floating,
-        elevation: 0,
+        elevation: 4,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
@@ -381,18 +393,17 @@ class AppTheme {
       ),
 
       progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: AppColors.primaryContainer,
+        color: AppColors.primary,
         linearTrackColor: AppColors.surfaceHighest,
         linearMinHeight: AppSize.progressBar,
       ),
 
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
-          color: AppColors.surfaceHigh,
+          color: AppColors.onSurface,
           borderRadius: BorderRadius.circular(AppRadius.md),
-          boxShadow: AppShadow.panel,
         ),
-        textStyle: AppTypography.bodySm.copyWith(color: AppColors.onSurface),
+        textStyle: AppTypography.bodySm.copyWith(color: Colors.white),
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.sm + 2,
           vertical: AppSpacing.sm,

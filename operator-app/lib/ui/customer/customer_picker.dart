@@ -304,13 +304,10 @@ class _WalkInRow extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       padding: const EdgeInsets.all(AppSpacing.md - 2),
       decoration: BoxDecoration(
-        color: selected
-            ? AppColors.primary.withValues(alpha: 0.12)
-            : AppColors.surfaceContainer,
+        color: selected ? AppColors.primarySurface : AppColors.surfaceContainer,
         borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(
           color: selected ? AppColors.primary : AppColors.surfaceHigh,
-          width: selected ? 2 : 1,
         ),
       ),
       child: Row(
@@ -372,9 +369,7 @@ class _CustomerRow extends StatelessWidget {
     final m = customer.membership;
 
     return Material(
-      color: selected
-          ? AppColors.primary.withValues(alpha: 0.10)
-          : Colors.transparent,
+      color: selected ? AppColors.primarySurface : Colors.transparent,
       child: InkWell(
         onTap: onTap,
         child: Container(

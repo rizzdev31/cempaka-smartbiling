@@ -132,7 +132,9 @@ class _Sidebar extends StatelessWidget {
       width: expanded ? AppSize.sidebarWidth : AppSize.sidebarRailWidth,
       decoration: const BoxDecoration(
         color: AppColors.surfaceLowest,
-        boxShadow: AppShadow.panel,
+        // Garis, bukan shadow. Pada latar terang shadow di tepi sidebar
+        // terbaca sebagai noda, bukan sebagai kedalaman.
+        border: Border(right: BorderSide(color: AppColors.surfaceHigh)),
       ),
       child: Column(
         children: [
@@ -143,7 +145,11 @@ class _Sidebar extends StatelessWidget {
               horizontal: expanded ? AppSpacing.gutter : 0,
             ),
             alignment: expanded ? Alignment.centerLeft : Alignment.center,
-            color: AppColors.surfaceLow.withValues(alpha: 0.6),
+            decoration: const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: AppColors.surfaceHigh),
+              ),
+            ),
             child: BrandMark(showName: expanded),
           ),
 
@@ -222,9 +228,7 @@ class _NavItem extends StatelessWidget {
         Icon(
           section.icon,
           size: 20,
-          color: active
-              ? AppColors.onPrimaryContainer
-              : AppColors.onSurfaceVariant,
+          color: active ? AppColors.primary : AppColors.onSurfaceVariant,
         ),
         if (expanded) ...[
           const SizedBox(width: AppSpacing.sm + 2),
@@ -232,9 +236,7 @@ class _NavItem extends StatelessWidget {
             child: Text(
               section.label,
               style: AppTypography.bodyMd.copyWith(
-                color: active
-                    ? AppColors.onPrimaryContainer
-                    : AppColors.onSurfaceVariant,
+                color: active ? AppColors.onSurface : AppColors.onSurfaceVariant,
                 fontWeight: active ? FontWeight.w600 : FontWeight.w400,
               ),
               overflow: TextOverflow.ellipsis,
@@ -258,23 +260,44 @@ class _NavItem extends StatelessWidget {
         child: Tooltip(
           message: expanded ? '' : section.label,
           child: Material(
-            // Nav aktif: isian cyan + glow halus. Ini efek khas desainnya.
-            color: active ? AppColors.primaryContainer : Colors.transparent,
+            // Nav aktif: isian abu lembut + penanda tepi kiri.
+            //
+            // Tema gelap memakai isian cyan penuh dengan glow. Pada latar
+            // terang itu terbaca sebagai tombol, bukan sebagai lokasi — dan
+            // glow-nya terlihat seperti hiasan. Penanda tepi adalah cara
+            // panel kontrol menunjukkan "kamu di sini" sejak lama.
+            color: active ? AppColors.surfaceContainer : Colors.transparent,
             borderRadius: BorderRadius.circular(AppRadius.md),
             child: InkWell(
               onTap: onTap,
               borderRadius: BorderRadius.circular(AppRadius.md),
-              child: AnimatedContainer(
-                duration: AppMotion.fast,
+              child: SizedBox(
                 height: AppSize.minTouchTarget,
-                padding: EdgeInsets.symmetric(
-                  horizontal: expanded ? AppSpacing.md : 0,
+                child: Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: AppMotion.fast,
+                      width: AppSize.navIndicator,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color:
+                            active ? AppColors.primary : Colors.transparent,
+                        borderRadius: BorderRadius.circular(
+                          AppSize.navIndicator / 2,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal:
+                              expanded ? AppSpacing.md - 3 : AppSpacing.xs,
+                        ),
+                        child: content,
+                      ),
+                    ),
+                  ],
                 ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  boxShadow: active ? AppShadow.glowPrimary : null,
-                ),
-                child: content,
               ),
             ),
           ),
@@ -317,15 +340,13 @@ class _NavBadge extends StatelessWidget {
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm - 2),
       decoration: BoxDecoration(
-        color: onActive
-            ? AppColors.onPrimaryContainer
-            : AppColors.tertiaryContainer,
+        color: AppColors.tertiaryContainer,
         borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Text(
         '$count',
         style: AppTypography.labelSm.copyWith(
-          color: onActive ? AppColors.primary : AppColors.onTertiary,
+          color: AppColors.onTertiary,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -381,10 +402,7 @@ class _OperatorCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.all(AppSpacing.sm),
       padding: const EdgeInsets.all(AppSpacing.md - 2),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLow,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-      ),
+      decoration: AppDecoration.inset(radius: AppRadius.lg),
       child: Row(
         children: [
           avatar,
@@ -453,7 +471,7 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.gutterLg),
       decoration: const BoxDecoration(
         color: AppColors.surfaceLowest,
-        boxShadow: AppShadow.card,
+        border: Border(bottom: BorderSide(color: AppColors.surfaceHigh)),
       ),
       child: Row(
         children: [
@@ -553,14 +571,7 @@ class _HeaderStats extends StatelessWidget {
     final total = ctrl.stations.length;
     final busy = total - ctrl.availableCount;
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.xs + 2),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLow.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.surfaceHigh),
-      ),
-      child: Row(
+    return Row(
         children: [
           _HeaderStat(
             label: 'OKUPANSI',
@@ -579,7 +590,6 @@ class _HeaderStats extends StatelessWidget {
             color: AppColors.tertiaryFixedDim,
           ),
         ],
-      ),
     );
   }
 }
@@ -601,14 +611,7 @@ class _HeaderStat extends StatelessWidget {
       label: '$label: $value',
       excludeSemantics: true,
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm + 2,
-          vertical: AppSpacing.xs,
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceLowest.withValues(alpha: 0.6),
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
@@ -647,7 +650,10 @@ class _ShellFooter extends StatelessWidget {
     return Container(
       height: 34,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.gutterLg),
-      color: AppColors.surfaceLowest,
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceLowest,
+        border: Border(top: BorderSide(color: AppColors.surfaceHigh)),
+      ),
       child: Row(
         children: [
           Expanded(

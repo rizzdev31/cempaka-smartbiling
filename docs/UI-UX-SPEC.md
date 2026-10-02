@@ -1,19 +1,39 @@
 # UI/UX SPEC — Flutter Operator & Kotlin TV
 
-Acuan visual: **`operator-app/contoh.html`** yang disetujui user (DEC-014).
-Panduan struktural: skill `ui-ux-pro-max` → pattern **Real-Time / Operations**, style **Dark Mode (OLED)**.
+Acuan: perkakas operasional yang dipakai berjam-jam (Linear, Stripe Dashboard, aplikasi kasir yang benar-benar dipakai) — **bukan** halaman pemasaran.
+Panduan struktural: skill `ui-ux-pro-max` → pattern **Real-Time / Operations**.
+Keputusan: **DEC-016** (tema terang) yang meng-override DEC-014.
 
 Baca file ini **sebelum** menyentuh UI apa pun.
 
 ---
 
-## 1. Arah visual
+## 1. Arah visual: terang, datar, padat
 
-**Material 3 dark** dengan aksen **cyan + mint**, permukaan biru-gelap bertingkat, dan **glow halus** pada elemen aktif.
+**Operator app: tema terang.** Dark mode tidak lagi dibuat.
 
-Light mode **tidak** dibuat. Ruang rental gelap; UI terang mengganggu operator dan mencolok dari kursi customer. Jangan buang waktu membangun dua tema.
+> Versi sebelumnya memilih gelap dengan alasan ruang rental gelap dan layar terang mencolok dari kursi customer. Alasan itu tidak terbantahkan, hanya dikesampingkan — user sudah melihatnya di perangkat dan menilai ruangannya sendiri. Lengkapnya di DEC-016.
 
-Kedalaman disampaikan lewat **nada permukaan**, bukan garis tegas di mana-mana. Garis dipakai hemat — hanya saat nada permukaan tidak cukup memisahkan.
+**Layar TV tetap hitam.** TV dilihat dari 2–3 meter di ruang gelap; itu masalah yang berbeda sama sekali dari tablet di meja kasir. Yang tetap sama: **makna warna status**.
+
+### Tiga aturan yang menjaganya tidak terlihat seperti template
+
+1. **Lapisan dari nada putih, bukan dari shadow.** Kanvas abu sangat muda, kartu putih, garis setipis mungkin. Shadow **hanya** untuk yang benar-benar melayang: modal, bottom sheet, popup.
+2. **Satu warna aksen.** Teal untuk aksi. Warna lain hanya status, dan setiap status selalu disertai ikon dan teks.
+3. **Radius kecil dan berbeda sesuai peran.** Semuanya membulat seragam besar adalah ciri yang paling cepat terbaca dari UI yang tidak dirancang.
+
+### Yang dilarang
+
+| Jangan | Kenapa |
+|---|---|
+| Gradasi apa pun | Tidak ada satu pun `LinearGradient` di aplikasi. Gradasi diagonal pada logo/tombol adalah penanda paling cepat terbaca |
+| Glow | Nav aktif memakai penanda tepi, bukan cahaya |
+| Shadow pada kartu biasa | Garis + nada sudah memisahkan |
+| Blur / glassmorphism | Tidak ada `BackdropFilter` |
+| Emoji sebagai ikon | Satu set ikon saja |
+| Ikon di dalam lingkaran berwarna | Ikon polos |
+| Lebih dari satu aksen | Teal saja |
+| Kotak di dalam kotak di dalam kotak | Blok dalam kartu memakai bidang cekung |
 
 ---
 
@@ -21,69 +41,93 @@ Kedalaman disampaikan lewat **nada permukaan**, bukan garis tegas di mana-mana. 
 
 Semua ada di `lib/core/theme/tokens.dart`. **Jangan tulis hex mentah di widget.**
 
-### Permukaan — enam tingkat
+### Lapisan putih
 
 | Token | Hex | Dipakai untuk |
 |---|---|---|
-| `surfaceLowest` | `#0A0E18` | sidebar, header, footer |
-| `surface` | `#0F131D` | latar area kerja |
-| `surfaceLow` | `#171B26` | kartu, panel, modal |
-| `surfaceContainer` | `#1C1F2A` | tombol sekunder, bidang di dalam kartu |
-| `surfaceHigh` | `#262A35` | hover, garis, badge |
-| `surfaceHighest` | `#313540` | track bar progres |
+| `surfaceLowest` | `#FFFFFF` | sidebar, header, footer — chrome |
+| `surface` | `#F6F7F9` | kanvas area kerja |
+| `surfaceLow` | `#FFFFFF` | kartu, panel |
+| `surfaceContainer` | `#F1F3F5` | bidang cekung: input, tombol sekunder, blok dalam kartu |
+| `surfaceHigh` | `#E3E6EA` | **garis tepi kartu** |
+| `surfaceHighest` | `#E8EBEF` | track bar progres |
+
+> Nama token dipertahankan dari tema gelap supaya perubahan tidak menyentuh puluhan widget. Perannya yang berubah: `lowest` kini chrome paling putih, bukan paling gelap.
 
 ### Teks
 
-| Token | Hex | Pakai untuk |
-|---|---|---|
-| `onSurface` | `#DFE2F1` | teks utama |
-| `onSurfaceVariant` | `#BAC9CC` | teks sekunder |
-| `outline` | `#849396` | teks tersier, placeholder |
-| `outlineVariant` | `#3B494C` | garis halus, placeholder timer |
-
-### Aksen
-
-| Peran | Token | Hex |
-|---|---|---|
-| Primary (teks/ikon) | `primary` | `#C3F5FF` |
-| Primary (isian) | `primaryContainer` | `#00E5FF` |
-| Secondary (sehat/jalan) | `secondary` | `#4EDEA3` |
-| Secondary (isian) | `secondaryContainer` | `#00A572` |
-| Tertiary (uang) | `tertiaryContainer` | `#FFC681` |
-| Tertiary (peringatan) | `tertiaryFixedDim` | `#FFB95F` |
-| Error | `error` | `#FFB4AB` |
-
-### Status station — wajib konsisten di Flutter, TV, dan Superadmin
-
-| Status | Token | Ikon | Label |
+| Token | Hex | Kontras di kartu | Pakai untuk |
 |---|---|---|---|
-| `AVAILABLE` | `primary` cyan | circle-outline | Tersedia |
-| `PENDING_PAYMENT` | `tertiary` | schedule | Menunggu Bayar |
-| `ACTIVE` | `secondary` mint | play-circle | Bermain |
-| `WARNING` | `tertiaryFixedDim` | alert-triangle | Hampir Habis |
-| `EXPIRED` | `error` | x-circle | Habis |
-| `CHECKOUT` | ungu | receipt | Checkout |
-| `OFFLINE` / maintenance | `outline` | wifi-off / build | Offline / Maintenance |
+| `onSurface` | `#15181D` | 17,8:1 | teks utama |
+| `onSurfaceVariant` | `#5B6472` | 6,0:1 | teks sekunder |
+| `outline` | `#8A939F` | 3,1:1 | **hanya** label pendukung |
+| `outlineVariant` | `#D7DCE2` | — | pemisah dalam kartu |
 
-> **Aturan `color-not-only`:** status **tidak boleh** dibedakan hanya dengan warna. Selalu **warna + ikon/titik + teks**. Operator bisa buta warna, dan di layar gelap cyan vs mint sulit dibedakan sekilas.
+`outline` sengaja di bawah 4,5:1. Target untuk peran itu 3:1, dan ia **tidak pernah** dipakai untuk informasi yang harus dibaca.
 
-### Spacing, radius, ukuran
+### Aksen & status
 
-Spacing: `4 / 8 / 14 / 20 / 28 / 40`, gutter `16`, gutter tepi `24`.
-Radius: `sm 4` (tombol kecil) · `md 8` (tombol, input, nav) · `lg 12` (kartu) · `modal 16` · `pill`.
+Kolom kontras = di atas kartu putih · di atas bidang cekung `#F1F3F5`. **Keduanya wajib ≥4,5:1**, karena kartu read-only (order dibatalkan, sesi selesai) berlatar bidang cekung — di situlah slate `#64748B` dulu gagal.
 
-| Ukuran | Nilai |
+| Peran | Token | Hex | Kontras |
+|---|---|---|---|
+| Aksi, Tersedia | `primary` | `#0E7490` | 5,4 · 4,8 |
+| Bermain | `secondary` | `#047857` | 5,5 · 4,9 |
+| Hampir habis, uang | `tertiaryContainer` | `#B45309` | 5,0 · 4,5 |
+| Habis, error | `error` | `#B91C1C` | 6,5 · 5,8 |
+| Menunggu bayar | `statusPendingPayment` | `#4338CA` | 7,9 · 7,1 |
+| Checkout | `statusCheckout` | `#7E22CE` | 7,0 · 6,3 |
+| Offline, maintenance, dibatalkan | `statusOffline` | `#475569` | 7,6 · 6,8 |
+
+Teal adalah garis keturunan cyan dari `contoh.html`, digelapkan agar terbaca di atas putih. **Cyan neon `#00E5FF` tidak bisa memenuhi kontras apa pun pada latar terang** — memaksakannya berarti teks yang tidak terbaca.
+
+"Menunggu bayar" sengaja indigo, jauh dari amber, supaya tidak tertukar dengan "hampir habis": keduanya menuntut tindakan berbeda.
+
+> **Aturan `color-not-only`:** status **tidak boleh** dibedakan hanya dengan warna. Selalu **warna + titik/ikon + teks**.
+
+### Radius — berbeda sesuai peran
+
+`sm 4` badge & chrome data · `md 6` tombol, input, nav · `lg 10` kartu · `modal 12` · `pill` **hanya** chip filter dan titik status.
+
+### Ukuran
+
+| | Nilai |
 |---|---|
 | Target sentuh minimum | **48 dp** |
-| Tombol aksi di kartu | **44 dp** — pengecualian yang dicatat, lihat §7 |
-| Header | 64 |
-| Sidebar penuh / rail | 288 / 76 |
+| Tombol aksi di kartu | **44 dp** — pengecualian, lihat §7 |
+| Header | 60 |
+| Sidebar penuh / rail | 268 / 72 |
 | Breakpoint sidebar penuh | ≥ 1040 |
+| Penanda nav aktif | 3 |
 | Kartu station minimum | 300 × 264 |
 
-### Glow — efek khas desain ini
+### Shadow — dipakai sangat hemat
 
-`AppShadow.glowPrimary` hanya untuk **nav aktif** dan **chip filter terpilih**. Jangan dipakai di mana-mana; begitu semuanya menyala, tidak ada yang menonjol.
+`card` nyaris tidak terlihat (pemisah utamanya garis) · `panel` chrome di tepi layar · `modal` di sini shadow memang bertugas.
+
+### Dekorasi bersama
+
+`AppDecoration.card()` · `.inset()` · `.selected()` — dikumpulkan supaya tepi kartu konsisten. Pada tema terang, perbedaan satu nada garis langsung terlihat.
+
+### Verifikasi kontras & disiplin visual
+
+31 pasangan dihitung dengan rumus WCAG. Semuanya memenuhi target.
+
+Dua tempat, satu sumber warna — keduanya membaca `AppColors`, jadi palet tidak bisa menyimpang:
+
+| | Peran |
+|---|---|
+| `test/theme_discipline_test.dart` | **yang mengikat.** Ikut jalan di `flutter test` |
+| `docs/tools/contrast.py` | tabel untuk dibaca saat menyetel warna; keluar kode 1 kalau gagal |
+
+```bash
+flutter test test/theme_discipline_test.dart   # mengikat
+python docs/tools/contrast.py                  # laporan
+```
+
+Test yang sama juga menegakkan daftar larangan di §1 dengan membaca source `lib/`: menolak gradasi apa pun, `Color(0x` di luar `tokens.dart`, `BoxShadow(` di luar `tokens.dart`, dan sisa `Brightness.dark`.
+
+> Menambah warna baru? Tambahkan token di `tokens.dart` **lalu daftarkan pasangannya di test itu.** Warna yang tidak terdaftar tidak terverifikasi — dan `statusOffline` membuktikan warna yang "kelihatan cukup gelap" bisa gagal.
 
 ---
 
@@ -265,7 +309,7 @@ Layar TV dilihat dari 2–3 meter, dikontrol remote atau tidak sama sekali.
 - [ ] Tidak ada hex mentah di widget — semua lewat `AppColors`
 - [ ] Timer & uang pakai tabular figures
 - [ ] Press state tidak menggeser layout
-- [ ] Glow hanya di nav aktif & chip terpilih
+- [ ] Tidak ada `LinearGradient`, glow, atau `BoxShadow` di luar modal/sheet/popup
 
 ### Interaksi
 - [ ] Target sentuh ≥48 dp (kecuali aksi kartu 44 dp, dicatat)
@@ -285,9 +329,9 @@ Layar TV dilihat dari 2–3 meter, dikontrol remote atau tidak sama sekali.
 - [ ] Diuji di landscape **dan** portrait
 
 ### Kontras
-- [ ] Teks utama ≥4.5:1
-- [ ] Teks sekunder ≥3:1
-- [ ] Garis terlihat, tidak hilang di latar gelap
+- [ ] `python docs/tools/contrast.py` lolos semua
+- [ ] Teks utama ≥4.5:1, teks pendukung ≥3:1
+- [ ] Garis kartu masih terlihat di atas kanvas putih
 - [ ] Scrim modal 40–60% hitam
 
 ### Aksesibilitas

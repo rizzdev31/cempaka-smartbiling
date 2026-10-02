@@ -359,9 +359,7 @@ class _TvPairSheetState extends State<_TvPairSheet> {
         info.stationCode != widget.station.code;
 
     return Material(
-      color: selected
-          ? AppColors.primaryContainer.withValues(alpha: 0.14)
-          : AppColors.surfaceContainer,
+      color: selected ? AppColors.primarySurface : AppColors.surfaceContainer,
       borderRadius: BorderRadius.circular(AppRadius.md),
       child: InkWell(
         onTap: () => setState(() => _selected = info),
@@ -371,10 +369,8 @@ class _TvPairSheetState extends State<_TvPairSheet> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadius.md),
             border: Border.all(
-              color: selected
-                  ? AppColors.primaryContainer
-                  : AppColors.surfaceHigh,
-              width: selected ? 2 : 1,
+              color: selected ? AppColors.primary : AppColors.surfaceHigh,
+              width: selected ? 1.6 : 1,
             ),
           ),
           child: Row(

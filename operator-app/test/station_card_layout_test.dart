@@ -64,7 +64,7 @@ Future<void> _pumpCard(
 }) async {
   await tester.pumpWidget(
     MaterialApp(
-      theme: AppTheme.dark(),
+      theme: AppTheme.light(),
       home: ChangeNotifierProvider(
         create: (_) => AppTicker(),
         child: MediaQuery(

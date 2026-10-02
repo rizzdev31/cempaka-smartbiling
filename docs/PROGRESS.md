@@ -11,11 +11,11 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 |---|---|
 | **Tahap aktif** | **TAHAP 2 — Kotlin TV Agent** (kiosk kontrol-langsung, DEC-015). Tahap 0 ditahan |
 | **Blocker** | **tidak ada** — kontrak sudah fix, billing rule sudah fix |
-| **Blocker Tahap 2** | OD-004 (perilaku warning), OD-005 (fakta TV — **dicek besok**) |
-| **Milestone terdekat** | **SESI TV** — uji operator mengendalikan TV (bisa kapan saja) · lalu SESI 1 recon lokasi |
+| **Blocker Tahap 2** | OD-004 (perilaku warning), OD-005 (fakta TV — dicek di **SESI 1, Sab 3 Okt 2026**) |
+| **Milestone terdekat** | **SESI TV** — uji operator mengendalikan TV (bisa kapan saja, tidak perlu di lokasi) · SESI 1 recon lokasi **hari ini** |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
-| **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **155 test lulus** |
+| **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); **186 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK 4,0 MB |
 | **backend** | masih kosong — **ditahan** (DEC-015) |
 
@@ -956,6 +956,93 @@ Bisa dijalankan dengan emulator di rumah, atau dengan TV sungguhan di lokasi.
 2. Catat hasilnya di bawah; TV-24/25 dan TV-26 melengkapi OD-005
 3. Kalau lulus: lanjut melengkapi kebutuhan sistem sesuai PRD, mulai dari
    keputusan OD-012 + OD-015 lalu Laravel
+
+---
+
+### 2026-10-02 — Tema terang (DEC-016) + disiplin visual ditegakkan test
+
+**Files changed**
+
+Tema: `lib/core/theme/tokens.dart` (ditulis ulang terang),
+`lib/core/theme/app_theme.dart` (`AppTheme.light()`, `InkRipple`),
+plus 12 berkas UI menyesuaikan token.
+Baru: `test/theme_discipline_test.dart`, `docs/tools/contrast.py`.
+Dokumen: `DECISION-LOG.md` (DEC-016), `UI-UX-SPEC.md` §1–§2 ditulis ulang.
+
+**DB changes** — tidak ada.
+**API/Events** — tidak ada. Perubahan murni presentasi.
+
+**Yang dikerjakan**
+
+Permintaan user: UI putih, dan **tidak terlihat seperti dibuat AI**.
+
+Yang kedua itu yang menentukan bentuknya. Yang membuat UI terasa dibuat AI
+bukan warnanya, melainkan kebiasaan yang menumpuk: gradasi diagonal, glow di
+elemen aktif, shadow di setiap kartu, radius besar seragam, kotak di dalam
+kotak. Semuanya dihapus — kartu kini dipisahkan garis setipis mungkin plus
+nada permukaan, nav aktif memakai penanda tepi kiri 3 px, radius dibedakan
+per peran (4/6/10/12), shadow hanya untuk yang benar-benar melayang.
+
+Aksen jadi teal `#0E7490` — keturunan cyan `contoh.html` tapi digelapkan.
+Cyan neon tidak bisa memenuhi kontras apa pun di atas putih.
+
+**Catatan:** `UI-UX-SPEC` §1 sebelumnya menolak light mode dengan alasan ruang
+rental gelap dan layar terang mencolok dari kursi customer. Alasan itu tidak
+terbantahkan, hanya dikesampingkan — user menilai ruangannya sendiri.
+Dicatat di DEC-016 supaya tidak digali ulang kalau nanti terasa mengganggu
+di lokasi.
+
+**`tv-agent` tidak diubah** — tetap hitam. TV dilihat dari 2–3 meter di ruang
+gelap; itu masalah yang berbeda dari tablet di meja kasir.
+
+**Satu bug kontras nyata ditemukan**
+
+Pemeriksaan pertama memakai palet yang saya salin manual dan hanya menguji
+latar putih — lolos semua. Setelah skripnya diubah supaya **membaca
+`tokens.dart` langsung** dan setiap status diuji juga di atas bidang cekung,
+`statusOffline` `#64748B` gagal di **4,28:1**.
+
+Bukan kasus teoretis: order F&B yang dibatalkan dirender `readOnly`, dan
+kartu `readOnly` berlatar `surfaceContainer` — label statusnya teks. Slate
+dinaikkan ke `#475569` (7,58 putih · 6,81 inset). Yang membuat status itu
+terasa tenang adalah saturasinya yang nyaris nol, bukan kontras rendah.
+
+**Tests** — +31 (`theme_discipline_test.dart`), total **186, semuanya lulus**.
+`flutter analyze` bersih.
+
+Test itu menegakkan dua hal yang sebelumnya cuma tulisan di dokumen:
+
+1. **Lint source `lib/`** — menolak gradasi apa pun, `Color(0x` di luar
+   `tokens.dart`, `BoxShadow(` di luar `tokens.dart`, sisa `Brightness.dark`.
+2. **Kontras dari `AppColors`** — setiap status di **dua** latar (kartu putih
+   dan bidang cekung), plus penjaga bahwa teks pendukung tetap **di bawah**
+   4,5:1 supaya catatan "ini disengaja" tidak jadi basi diam-diam.
+
+Keempat lint sudah dibuktikan menyala terhadap berkas yang sengaja melanggar,
+lalu berkas itu dihapus. Lint yang tidak pernah bisa gagal tidak menjaga
+apa pun.
+
+**Manual test** — belum. Perubahan ini hanya terverifikasi lewat test dan
+perhitungan; **belum pernah dilihat di layar tablet sungguhan.** Warna di
+panel tablet murah bisa terasa berbeda dari perhitungan, terutama garis kartu
+yang sengaja sangat tipis (1,17:1).
+
+Langkah lihat sendiri:
+1. `flutter run` di tablet
+2. Dashboard — pastikan tepi kartu masih terlihat, tidak "rata" semua
+3. F&B Queue — order dibatalkan: labelnya harus terbaca jelas di kartu abu
+4. Lihat dari jarak duduk kasir, bukan dari jarak baca
+
+**Known issues**
+- Belum dilihat di layar sungguhan (di atas).
+- Garis kartu 1,17:1 adalah angka paling berisiko; kalau hilang di tablet,
+  naikkan `surfaceHigh` satu nada — bukan tambah shadow.
+- `docs/tools/contrast.py` dan test punya daftar pasangan terpisah. Warnanya
+  satu sumber jadi tidak bisa menyimpang, tapi cakupan pasangannya bisa beda.
+  Test yang mengikat.
+
+**Next step**
+Tidak berubah: **jalankan SESI TV**. Tema tidak menyentuh jalur operator↔TV.
 
 ---
 

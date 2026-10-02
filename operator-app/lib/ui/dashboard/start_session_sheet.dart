@@ -281,9 +281,7 @@ class _ChoiceTile extends StatelessWidget {
       selected: selected,
       button: true,
       child: Material(
-        color: selected
-            ? AppColors.primary.withValues(alpha: 0.16)
-            : AppColors.surface,
+        color: selected ? AppColors.primarySurface : AppColors.surfaceLowest,
         borderRadius: BorderRadius.circular(AppRadius.md),
         child: InkWell(
           onTap: onTap,
@@ -300,7 +298,7 @@ class _ChoiceTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.md),
               border: Border.all(
                 color: selected ? AppColors.primary : AppColors.surfaceHigh,
-                width: selected ? 2 : 1,
+                width: selected ? 1.6 : 1,
               ),
             ),
             child: Column(

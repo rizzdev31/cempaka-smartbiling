@@ -216,10 +216,7 @@ class _Summary extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLow,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-      ),
+      decoration: AppDecoration.card(),
       child: Row(
         children: [
           _Count(
@@ -331,9 +328,8 @@ class _StationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.surfaceLow,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
+    return Container(
+      decoration: AppDecoration.card(),
       clipBehavior: Clip.antiAlias,
       child: Row(
         children: [
