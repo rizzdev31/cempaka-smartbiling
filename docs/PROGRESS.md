@@ -15,7 +15,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Milestone terdekat** | **Sabtu 3 Okt: SESI 1 recon lokasi (0 kode)** — `TEST-PLAN-SABTU.md` |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
-| **operator-app** | fondasi + Dashboard + Session Detail jalan di fake repository; 32 test lulus; APK debug ter-build |
+| **operator-app** | fondasi + Dashboard + Session Detail jalan di fake repository; **49 test lulus**; APK debug ter-build; design pass pertama selesai |
 | **backend / tv-agent** | masih kosong (baru README) |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
@@ -23,8 +23,9 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | ID | Pertanyaan | Ditunda sejak | Pemicu peninjauan |
 |---|---|---|---|
 | **OD-011** | Perlukah penemuan IP server otomatis (scan subnet) di Flutter? | 2 Okt 2026 | **Setelah DHCP reservation diuji di SESI 1.** Kalau IP laptop tetap stabil → tidak perlu. Kalau masih sering berubah → pasang scan subnet (± 100 baris) |
+| **OD-012** | Aplikasi dijual ke beberapa pengguna: **white-label per-instance atau multi-tenant?** | 2 Okt 2026 | **Sebelum migration pertama Laravel ditulis.** Kalau multi-tenant, `tenant_id` harus ada sejak awal — retrofit setelah ada data produksi sangat mahal. Rekomendasi: per-instance |
 
-Analisis lengkap (termasuk deteksi TV lewat heartbeat) ada di `DECISION-LOG.md` → OD-011.
+Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat heartbeat) dan OD-012.
 
 ---
 
@@ -68,7 +69,8 @@ Analisis lengkap (termasuk deteksi TV lewat heartbeat) ada di `DECISION-LOG.md` 
 - [x] Payment (cash + QRIS manual)
 - [x] Extend + Station Swap + Tambah F&B
 - [x] Checkout + struk (durasi aktual vs tertagih)
-- [x] 32 test aturan billing lulus
+- [x] 49 test lulus (aturan billing + layout kartu)
+- [x] Design pass 1: rail status, bar proporsi waktu, brand mark, permukaan bertingkat
 - [ ] Login / auth
 - [ ] Reverb client + auto-reconnect + reconcile
 - [ ] F&B Queue (layar antrian terpisah)
@@ -335,3 +337,48 @@ Alur yang bisa dicoba: ketuk ST02 → Prepaid 1 jam → konfirmasi tunai → tim
 | T15 Extend dalam grace 10 menit | ⬚ | |
 | T16 Extend lewat 10 menit → ditolak | ⬚ | |
 | T17 Postpaid 63 menit → ditagih 60 | ⬚ | |
+
+---
+
+### 2026-10-02 — Design pass 1 + white-label dicatat
+
+**Files changed**
+- Baru: `lib/core/brand.dart`, `lib/ui/widgets/brand_mark.dart`, `test/station_card_layout_test.dart`
+- Diubah: `lib/core/theme/{tokens,app_theme}.dart`, `lib/ui/widgets/{station_card,status_chip}.dart`, `lib/ui/dashboard/dashboard_screen.dart`, `lib/ui/session/session_detail_screen.dart`, `lib/domain/models/models.dart`, `lib/data/fake/fake_billing_repository.dart`, `lib/ui/dashboard/dashboard_controller.dart`
+- Dokumen: `contracts/API.md`, `contracts/CHANGELOG.md` (DRAFT 2), `DECISION-LOG.md` (OD-012)
+
+**API/Events** — satu penambahan kontrak, non-breaking:
+`GET /stations` → `station.session.started_at`. Dibutuhkan untuk menggambar bar proporsi waktu di kartu tanpa memuat detail enam sesi. Tercatat di `contracts/CHANGELOG.md` DRAFT 2 berikut aksi untuk backend.
+
+**Tests** — `flutter test`: **49 lulus** (naik dari 32). `flutter analyze`: bersih.
+Test baru `station_card_layout_test.dart`: anti-overflow pada beberapa ukuran kartu, penurunan status dari `end_at`, dan perhitungan proporsi waktu.
+
+**Arah visual**
+Dark Mode (OLED) sebagai dasar, dilapisi **Soft UI Evolution** dari skill ui-ux-pro-max: kedalaman dari nada permukaan dan shadow berlapis halus, bukan garis tegas di mana-mana. Radius 16, animasi 220 ms, kontras AA+.
+
+**Yang berubah di kartu station**
+- **Rail status** 4 px di tepi kiri — isyarat paling cepat terbaca dari jarak beberapa meter
+- **Bar proporsi waktu** di bawah timer; warnanya ikut status, jadi saat mendekati habis rail, chip, timer, dan bar berubah serentak
+- **Empat tingkat permukaan** (`bg` / `surfaceSunken` / `surface` / `surfaceRaised`) menggantikan garis sebagai pembentuk kedalaman
+- Chip status tanpa garis tebal supaya tidak bersaing dengan timer
+- Station kosong **tidak lagi** menampilkan `--:--:--` — deretan tanda hubung terlihat seperti data gagal dimuat; diganti ikon + "Mulai sesi"
+- `BrandMark` di header, semua nama dari `Brand` (persiapan OD-012)
+
+**Dua bug layout yang ditemukan test, bukan saat dilihat**
+1. Dua `Spacer()` di dalam `Column` membuat kartu overflow 28–48 px pada jendela pendek. Diganti `mainAxisAlignment: spaceBetween`.
+2. Nominal panjang (mis. Rp 9.850.000) menabrak nama customer sebesar 1 px pada kartu sempit. Dibungkus `Flexible` + `FittedBox`.
+
+Keduanya hanya muncul di ukuran kecil — kalau hanya dilihat di jendela besar, tidak akan ketahuan sampai dibuka di tablet.
+
+**Keputusan baru**
+- `minStationCardHeight = 200`. Grid menjamin tinggi kartu tidak di bawah itu; kalau jendela terlalu pendek untuk enam kartu, **grid-nya di-scroll** — bukan kartunya dipaksa mengecil sampai rusak. Target spec (enam kartu tanpa scroll) tetap tercapai di tablet.
+- **OD-012** dicatat: aplikasi akan dijual ke beberapa pengguna. User minta fiturnya nanti, tapi satu bagiannya **tidak bisa ditunda** — keputusan multi-tenant atau tidak harus diambil sebelum migration pertama, karena menambahkan `tenant_id` setelah ada data produksi berarti membongkar setiap tabel, query, dan laporan. Rekomendasi: per-instance.
+
+**Known issues**
+- **Belum diverifikasi secara visual.** Analyze dan test bersih, dan test anti-overflow menutup risiko layout, tapi rasa visualnya tetap perlu dilihat user.
+- Masih belum ada: login, WebSocket, F&B Queue, Shift, Device screen, pilih member.
+
+**Next step**
+1. User melihat hasilnya di Chrome dan memberi koreksi
+2. Lanjut fitur: F&B Queue → Shift → Device → pilih member
+3. Login (butuh backend) lalu Laravel thin slice

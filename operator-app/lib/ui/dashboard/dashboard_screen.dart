@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,6 +10,7 @@ import '../../domain/models/enums.dart';
 import '../../domain/models/models.dart';
 import '../session/session_detail_screen.dart';
 import '../settings/settings_screen.dart';
+import '../widgets/brand_mark.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/connection_banner.dart';
 import '../widgets/station_card.dart';
@@ -82,37 +85,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final ctrl = context.watch<DashboardController>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Cempaka Billing'),
-        titleTextStyle: AppTypography.screenTitle.copyWith(
-          color: AppColors.text,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _Header(ctrl: ctrl),
+            const DevDiagnosticBar(),
+            if (ctrl.hasData) _SummaryStrip(ctrl: ctrl),
+            Expanded(child: _buildBody(ctrl)),
+          ],
         ),
-        actions: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-            child: Center(child: ConnectionBanner()),
-          ),
-          IconButton(
-            onPressed: ctrl.loading ? null : () => ctrl.refresh(),
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Muat ulang',
-          ),
-          IconButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Pengaturan',
-          ),
-          const SizedBox(width: AppSpacing.sm),
-        ],
-      ),
-      body: Column(
-        children: [
-          const DevDiagnosticBar(),
-          _SummaryStrip(ctrl: ctrl),
-          Expanded(child: _buildBody(ctrl)),
-        ],
       ),
     );
   }
@@ -131,6 +112,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return RefreshIndicator(
       onRefresh: ctrl.refresh,
+      backgroundColor: AppColors.surfaceRaised,
+      color: AppColors.primary,
       child: LayoutBuilder(
         builder: (context, constraints) {
           // Grid 3×2 di landscape, 2×3 di portrait — enam kartu tanpa scroll.
@@ -138,25 +121,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final columns = landscape ? 3 : 2;
           final rows = landscape ? 2 : 3;
 
-          final gridHeight = constraints.maxHeight -
-              (AppSpacing.md * 2) -
-              (AppSpacing.md * (rows - 1));
-          final gridWidth = constraints.maxWidth -
-              (AppSpacing.md * 2) -
-              (AppSpacing.md * (columns - 1));
+          const gutter = AppSpacing.md;
+          final gridHeight =
+              constraints.maxHeight - (gutter * 2) - (gutter * (rows - 1));
+          final gridWidth =
+              constraints.maxWidth - (gutter * 2) - (gutter * (columns - 1));
 
-          final tileHeight = gridHeight / rows;
           final tileWidth = gridWidth / columns;
 
+          // Tinggi kartu dijamin minimum [minStationCardHeight].
+          //
+          // Target spec adalah enam kartu tanpa scroll (UI-UX-SPEC §3), dan
+          // pada tablet tinggi kartu selalu jauh di atas minimum ini. Tapi
+          // di jendela yang sangat pendek — misalnya Chrome saat
+          // pengembangan — membagi rata akan membuat kartu lebih pendek
+          // daripada isinya dan memunculkan overflow. Lebih baik grid-nya
+          // bisa di-scroll daripada tampilan rusak.
+          final tileHeight =
+              math.max(gridHeight / rows, minStationCardHeight);
+          final tileWidth2 = tileWidth <= 0 ? 1.0 : tileWidth;
+
           return GridView.builder(
-            padding: const EdgeInsets.all(AppSpacing.md),
+            padding: const EdgeInsets.all(gutter),
             physics: const AlwaysScrollableScrollPhysics(),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
-              mainAxisSpacing: AppSpacing.md,
-              crossAxisSpacing: AppSpacing.md,
-              childAspectRatio:
-                  tileHeight <= 0 ? 1.4 : (tileWidth / tileHeight),
+              mainAxisSpacing: gutter,
+              crossAxisSpacing: gutter,
+              childAspectRatio: tileWidth2 / tileHeight,
             ),
             itemCount: ctrl.stations.length,
             itemBuilder: (context, i) {
@@ -173,6 +165,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
+/// Header: merek di kiri, status koneksi dan aksi di kanan.
+///
+/// Memakai [BrandMark] supaya nama dan logo tetap benar saat mereknya
+/// berganti per pengguna (OD-012).
+class _Header extends StatelessWidget {
+  const _Header({required this.ctrl});
+
+  final DashboardController ctrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: AppSize.headerHeight,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: Row(
+        children: [
+          const BrandMark(),
+          const Spacer(),
+          const ConnectionBanner(),
+          const SizedBox(width: AppSpacing.sm),
+          IconButton(
+            onPressed: ctrl.loading ? null : () => ctrl.refresh(),
+            icon: ctrl.loading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh),
+            tooltip: 'Muat ulang',
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Pengaturan',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Ringkasan di atas grid — angka yang paling sering ditanya.
 class _SummaryStrip extends StatelessWidget {
   const _SummaryStrip({required this.ctrl});
@@ -181,50 +217,57 @@ class _SummaryStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!ctrl.hasData) return const SizedBox.shrink();
-
     return Container(
+      margin: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.md,
+        0,
+      ),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm + 2,
+        vertical: AppSpacing.sm + 4,
       ),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.border)),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        boxShadow: AppShadow.card,
       ),
       child: Row(
         children: [
           _Stat(
-            icon: Icons.play_circle_outline,
             color: AppColors.statusActive,
             label: 'Bermain',
             value: '${ctrl.activeCount}',
           ),
+          const _StatDivider(),
           _Stat(
-            icon: Icons.circle_outlined,
             color: AppColors.statusAvailable,
             label: 'Tersedia',
             value: '${ctrl.availableCount}',
           ),
-          if (ctrl.offlineDeviceCount > 0)
+          if (ctrl.offlineDeviceCount > 0) ...[
+            const _StatDivider(),
             _Stat(
-              icon: Icons.wifi_off,
               color: AppColors.statusOffline,
               label: 'TV offline',
               value: '${ctrl.offlineDeviceCount}',
             ),
+          ],
           const Spacer(),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                'Tagihan berjalan',
-                style:
-                    AppTypography.caption.copyWith(color: AppColors.textMuted),
+                'TAGIHAN BERJALAN',
+                style: AppTypography.overline
+                    .copyWith(color: AppColors.textFaint),
               ),
+              const SizedBox(height: 2),
               Text(
                 formatRupiah(ctrl.openBalance),
-                style:
-                    AppTypography.money.copyWith(color: AppColors.accent),
+                style: AppTypography.moneyLarge
+                    .copyWith(color: AppColors.accent),
               ),
             ],
           ),
@@ -236,38 +279,50 @@ class _SummaryStrip extends StatelessWidget {
 
 class _Stat extends StatelessWidget {
   const _Stat({
-    required this.icon,
     required this.color,
     required this.label,
     required this.value,
   });
 
-  final IconData icon;
   final Color color;
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: AppSpacing.lg),
-      child: Semantics(
-        label: '$label: $value',
-        excludeSemantics: true,
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: color),
-            const SizedBox(width: AppSpacing.xs + 2),
-            Text(value, style: AppTypography.money.copyWith(color: color)),
-            const SizedBox(width: AppSpacing.xs + 2),
-            Text(
-              label,
-              style:
-                  AppTypography.caption.copyWith(color: AppColors.textMuted),
-            ),
-          ],
-        ),
+    return Semantics(
+      label: '$label: $value',
+      excludeSemantics: true,
+      child: Row(
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(value, style: AppTypography.money.copyWith(color: color)),
+          const SizedBox(width: AppSpacing.xs + 2),
+          Text(
+            label,
+            style: AppTypography.caption.copyWith(color: AppColors.textMuted),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  const _StatDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 18,
+      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      color: AppColors.borderSubtle,
     );
   }
 }
@@ -291,7 +346,6 @@ class _StationGridSkeleton extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(AppRadius.card),
-          border: Border.all(color: AppColors.border),
         ),
       ),
     );
@@ -312,8 +366,16 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.cloud_off_outlined,
-                size: 48, color: AppColors.statusOffline),
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppRadius.card),
+              ),
+              child: const Icon(Icons.cloud_off_outlined,
+                  size: 26, color: AppColors.statusOffline),
+            ),
             const SizedBox(height: AppSpacing.md),
             Text(
               message,
@@ -337,13 +399,13 @@ class _ErrorState extends StatelessWidget {
                       builder: (_) => const SettingsScreen(),
                     ),
                   ),
-                  icon: const Icon(Icons.settings_outlined),
+                  icon: const Icon(Icons.settings_outlined, size: 18),
                   label: const Text('Pengaturan'),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 FilledButton.icon(
                   onPressed: onRetry,
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(Icons.refresh, size: 18),
                   label: const Text('Coba lagi'),
                 ),
               ],

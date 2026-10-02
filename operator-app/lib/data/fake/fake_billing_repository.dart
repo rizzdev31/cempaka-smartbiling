@@ -445,6 +445,7 @@ class FakeBillingRepository implements BillingRepository {
           ? StationSessionSummary(
               id: projected.id,
               status: projected.status,
+              startedAt: projected.startedAt,
               endAt: projected.endAt,
               customerLabel: projected.customerLabel,
               balanceDue: projected.totals.balanceDue,

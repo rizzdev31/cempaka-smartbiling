@@ -236,6 +236,7 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | **OD-009** | Formula profit/margin & target achievement | PRD §35 TBD. Belum blokir karena reporting di Tahap 3B. | Tahap 3B |
 | **OD-010** | Receipt: dicetak (printer model/interface) atau cukup di layar? | Mempengaruhi UI checkout dan hardware yang perlu dibeli. | Tahap 1 (UI), Tahap 3 (hardware) |
 | **OD-011** | Apakah Flutter perlu **penemuan IP server otomatis** (scan subnet), atau cukup DHCP reservation? | **Ditunda oleh user 2 Okt 2026 — tunggu hasil DHCP reservation di SESI 1.** Analisis ada di bawah tabel. | Tahap 1 (opsional) |
+| **OD-012** | Aplikasi akan **dijual ke beberapa pengguna** dengan nama & logo menyesuaikan, tetap di bawah naungan Cempaka Smart Billing. White-label per-instance, atau multi-tenant satu server? | **Keputusan arsitektur terbesar yang belum ada di PRD.** Menentukan schema DB. Retrofit `tenant_id` setelah ada data produksi sangat mahal. Detail di bawah tabel. | **Tahap 0 (schema)** — walau fiturnya nanti |
 
 **Tidak ada lagi Open Decision yang memblokir Tahap 0.** Billing engine sudah boleh ditulis.
 
@@ -281,6 +282,50 @@ Sudah siap: kontrak `API.md` §9, model `DeviceSummary`, indikator offline di ka
 Belum ada: heartbeat-nya sendiri → **Tahap 2**, masih diblokir OD-005.
 
 **Yang tidak bisa otomatis:** memasangkan TV mana = station mana. Tidak ada protokol jaringan yang bisa tahu suatu TV secara fisik berada di ST01. Dibinding sekali oleh manusia lewat `enrollment_code` (Admin buat kode untuk ST01 → dimasukkan di TV ST01), setelah itu permanen. Ini memang yang diminta PRD §10.
+
+---
+
+---
+
+## OD-012 — detail: aplikasi dijual ke beberapa pengguna (white-label)
+
+**Disampaikan user 2 Okt 2026.** User minta fiturnya dikerjakan nanti, fokus ke fitur dulu.
+**Tapi satu bagiannya tidak bisa ditunda** — lihat "Yang harus diputuskan sebelum Tahap 0 selesai".
+
+Kebutuhan: nama dan logo menyesuaikan tiap pengguna, tetap di bawah naungan Cempaka Smart Billing.
+
+### Dua model yang sangat berbeda konsekuensinya
+
+| | **White-label per-instance** | **Multi-tenant satu server** |
+|---|---|---|
+| Deployment | Tiap rental punya VPS/DB sendiri | Satu VPS, satu DB, banyak rental |
+| Schema | Tidak berubah | `tenant_id` di **hampir semua** tabel + row-level scoping |
+| Isolasi data | Mutlak | Bergantung disiplin query — satu query lupa filter = data rental lain bocor |
+| Biaya per pelanggan | Satu VPS per pelanggan | Dibagi |
+| Update | Deploy ke tiap instance | Sekali |
+| Risiko | Operasional (banyak instance) | Keamanan (kebocoran antar tenant) |
+
+PRD §5 menyatakan "multi-cabang penuh bukan fokus V1" — jadi kebutuhan ini **belum tercakup PRD** dan perlu masuk sebagai Change Request (PRD §34).
+
+### Yang harus diputuskan sebelum Tahap 0 selesai
+
+Hanya satu pertanyaan: **multi-tenant atau tidak.**
+
+Kalau nanti dipilih multi-tenant, `tenant_id` harus ada di schema **sejak migration pertama**. Menambahkannya setelah ada data transaksi nyata berarti membongkar setiap tabel, setiap query, setiap laporan, dan setiap endpoint — sekaligus memverifikasi tidak ada kebocoran. Itu pekerjaan berminggu-minggu, bukan berhari-hari.
+
+Kalau dipilih per-instance, schema sekarang sudah benar dan tidak ada yang perlu diubah.
+
+**Rekomendasi:** mulai **per-instance**. Alasannya: isolasi data mutlak tanpa bergantung disiplin query, cocok untuk pelanggan awal yang jumlahnya sedikit, dan tidak menambah kerumitan pada tahap yang belum terbukti jalan. Pindah ke multi-tenant nanti tetap mahal — tapi memilih multi-tenant sekarang berarti menanggung risiko kebocoran data sejak hari pertama untuk kebutuhan yang belum ada pelanggannya.
+
+### Yang sudah dikerjakan sekarang sebagai persiapan murah
+
+`operator-app/lib/core/brand.dart` — semua nama, tagline, dan atribusi dikumpulkan di satu file. Tidak ada string merek yang tertulis di widget. Mengubah merek nanti = mengubah satu file, bukan berburu string di seluruh app.
+
+Ini **bukan** implementasi white-label. Ini hanya memastikan white-label nanti tidak perlu menyentuh puluhan file. Biayanya nol.
+
+### Yang masih perlu diputuskan saat fiturnya dikerjakan
+
+Logo: dibundel per build, atau diunduh dari server per tenant? · Warna: ikut tenant atau tetap? (mengubah warna berarti menguji ulang kontras — UI-UX-SPEC §1) · Nama aplikasi di launcher Android: beda APK per pelanggan, atau satu APK dengan nama netral? · Bagaimana "di bawah naungan Cempaka" ditampilkan — footer, splash, atau halaman Tentang? · Lisensi & masa aktif per pelanggan.
 
 ---
 

@@ -121,6 +121,7 @@ class DashboardController extends ChangeNotifier {
             ? StationSessionSummary(
                 id: session.id,
                 status: session.status,
+                startedAt: session.startedAt,
                 endAt: session.endAt,
                 customerLabel: session.customerLabel,
                 balanceDue: session.totals.balanceDue,

@@ -48,6 +48,20 @@ Kontrak awal. Belum ada implementasi, jadi belum ada breaking change.
 
 ---
 
+## v1 · DRAFT 2 — 2026-10-02
+
+**ADDED — API** · terdampak: Flutter (sudah menyesuaikan), Backend (belum ada)
+
+- `GET /stations` → `station.session.started_at` (ISO-8601 UTC, `null` saat `PENDING_PAYMENT`)
+
+**Alasan:** dashboard operator menggambar proporsi waktu terpakai per station sebagai bar tipis di kartu. Tanpa `started_at`, client harus memuat detail setiap sesi hanya untuk menghitung proporsi — enam request tambahan untuk satu informasi visual.
+
+**Non-breaking:** field tambahan. Client yang mengabaikannya tetap jalan.
+
+**Aksi untuk backend:** sertakan `started_at` pada ringkasan sesi di `GET /stations`. Nilainya sama dengan `session.started_at` di §7.
+
+---
+
 ## Template entry berikutnya
 
 ```

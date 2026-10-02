@@ -191,6 +191,7 @@ Error: `401 INVALID_CREDENTIALS`, `403 USER_INACTIVE`, `429 TOO_MANY_ATTEMPTS`
       "session": {
         "id": "uuid",
         "status": "ACTIVE",
+        "started_at": "2026-10-02T07:00:00Z",
         "end_at": "2026-10-02T08:00:00Z",
         "customer_label": "Budi",
         "balance_due": 25000
@@ -208,6 +209,7 @@ Error: `401 INVALID_CREDENTIALS`, `403 USER_INACTIVE`, `429 TOO_MANY_ATTEMPTS`
 
 - `station.status` ∈ `ACTIVE` | `MAINTENANCE` | `DISABLED` — ini status **master data**, bukan status sesi.
 - `session` = `null` kalau station kosong. Inilah yang membuat station tampil `AVAILABLE` di dashboard.
+- `session.started_at` = `null` saat `PENDING_PAYMENT`. Bersama `end_at`, dipakai client untuk menggambar proporsi waktu terpakai tanpa perlu memuat detail sesi.
 - `device` = `null` kalau belum ada TV Agent terdaftar (normal sampai Tahap 2).
 
 ### `GET /packages`

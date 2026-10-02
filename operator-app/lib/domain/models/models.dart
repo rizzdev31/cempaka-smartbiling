@@ -123,18 +123,34 @@ class StationSessionSummary {
     required this.endAt,
     required this.customerLabel,
     required this.balanceDue,
+    this.startedAt,
   });
 
   final String id;
   final SessionStatus status;
+
+  /// `null` saat `PENDING_PAYMENT`. Bersama [endAt] dipakai untuk menggambar
+  /// proporsi waktu terpakai (kontrak §6, CHANGELOG DRAFT 2).
+  final DateTime? startedAt;
   final DateTime? endAt;
   final String? customerLabel;
   final int balanceDue;
+
+  /// Proporsi waktu yang sudah terpakai, 0..1.
+  /// `null` kalau tidak bisa dihitung (sesi belum mulai atau data tidak ada).
+  double? progressAt(DateTime now) {
+    if (startedAt == null || endAt == null) return null;
+    final total = endAt!.difference(startedAt!).inSeconds;
+    if (total <= 0) return null;
+    final used = now.difference(startedAt!).inSeconds;
+    return (used / total).clamp(0.0, 1.0);
+  }
 
   factory StationSessionSummary.fromJson(Map<String, dynamic> j) =>
       StationSessionSummary(
         id: j['id'] as String,
         status: SessionStatus.parse(j['status'] as String?),
+        startedAt: _dt(j['started_at']),
         endAt: _dt(j['end_at']),
         customerLabel: j['customer_label'] as String?,
         balanceDue: _int(j['balance_due']),

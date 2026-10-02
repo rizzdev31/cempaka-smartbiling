@@ -132,7 +132,7 @@ class _SummaryPane extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      border: Border.all(color: AppColors.border),
+                      color: AppColors.overlaySubtle,
                       borderRadius: BorderRadius.circular(AppRadius.chip),
                     ),
                     child: Text(
@@ -146,11 +146,13 @@ class _SummaryPane extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               CountdownText(
                 endAt: session.endAt,
-                style: AppTypography.timerLarge,
+                style: AppTypography.timerHero,
               ),
-              const SizedBox(height: AppSpacing.xs),
+              const SizedBox(height: AppSpacing.sm - 2),
               RemainingLabel(endAt: session.endAt),
               const SizedBox(height: AppSpacing.lg),
+              const Divider(),
+              const SizedBox(height: AppSpacing.sm),
               _InfoRow(
                 icon: Icons.person_outline,
                 label: 'Customer',
@@ -238,7 +240,7 @@ class _ActionPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Aksi', style: AppTypography.cardLabel),
+          Text('Aksi', style: AppTypography.sectionTitle),
           const SizedBox(height: AppSpacing.md),
 
           // Primary CTA — satu per keadaan (UI-UX-SPEC §3).
@@ -394,7 +396,7 @@ class _OpenTabPane extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Text('Open Tab', style: AppTypography.cardLabel)),
+              Expanded(child: Text('Open Tab', style: AppTypography.sectionTitle)),
               Text(
                 '${session.items.length} item',
                 style: AppTypography.caption
@@ -459,11 +461,11 @@ class _Panel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.md + 2),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.card),
-        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadow.card,
       ),
       child: child,
     );
