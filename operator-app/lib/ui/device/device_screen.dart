@@ -6,25 +6,25 @@ import '../../core/theme/tokens.dart';
 import '../../core/time/server_time.dart';
 import '../../core/time/ticker.dart';
 import '../../core/util/format.dart';
-import '../../domain/errors/api_error.dart';
+import '../../data/tv/tv_sync_service.dart';
+import '../../domain/models/enums.dart';
 import '../../domain/models/models.dart';
-import '../../domain/repositories/billing_repository.dart';
+import '../../domain/models/tv_agent.dart';
+import '../dashboard/dashboard_controller.dart';
 import '../widgets/confirm_dialog.dart';
+import 'tv_pair_sheet.dart';
 
 /// Status TV — PRD §18: "Online/offline/last seen".
 ///
-/// Layar ini **read-only**. Pendaftaran, pemetaan ulang, dan pencabutan
-/// token device adalah wewenang Admin (PRD §19) dan masuk Tahap 3B.
-/// Operator di sini hanya perlu menjawab satu pertanyaan: TV mana yang
-/// tidak mengirim kabar, dan sejak kapan.
+/// Sejak DEC-015 layar ini bukan hanya pemantauan: di sini operator
+/// **memasangkan** TV ke station dan memastikan perintah billing sampai.
 ///
-/// Status diambil apa adanya dari server. Berbeda dari status sesi — yang
-/// memang diturunkan client dari `end_at` — karena ambang offline adalah
-/// kebijakan operasional, bukan hitungan waktu yang pasti.
+/// Satu baris per station, bukan per perangkat. Alasannya: pertanyaan operator
+/// selalu "TV di ST03 kenapa?", bukan "perangkat dengan uid abc123 kenapa?".
 class DeviceScreen extends StatefulWidget {
   const DeviceScreen({super.key, this.embedded = false});
 
-  /// `true` saat dipasang di dalam [AppShell] — shell sudah punya header.
+  /// `true` saat dipasang di dalam `AppShell` — shell sudah punya header.
   final bool embedded;
 
   @override
@@ -32,122 +32,106 @@ class DeviceScreen extends StatefulWidget {
 }
 
 class _DeviceScreenState extends State<DeviceScreen> {
-  DeviceList _data = DeviceList.empty;
-  bool _loading = false;
-  Object? _error;
-
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshAll());
   }
 
-  Future<void> _load({bool silent = false}) async {
-    if (!silent) setState(() => _loading = true);
-    try {
-      final data = await context.read<BillingRepository>().fetchDevices();
+  Future<void> _refreshAll() async {
+    final dash = context.read<DashboardController>();
+    final sync = context.read<TvSyncService>();
+
+    if (!dash.hasData) await dash.load();
+    if (!mounted) return;
+
+    for (final station in dash.stations) {
+      if (!sync.isLinked(station.id)) continue;
+      await sync.refreshStatus(station.id);
       if (!mounted) return;
-      setState(() {
-        _data = data;
-        _error = null;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e);
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
   }
 
-  String? get _errorMessage => switch (_error) {
-        ApiError e => e.message,
-        null => null,
-        _ => 'Terjadi kesalahan tidak terduga.',
-      };
+  Future<void> _pair(Station station) async {
+    final ok = await showTvPairSheet(context, station: station);
+    if (ok && mounted) await context.read<DashboardController>().refresh();
+  }
+
+  Future<void> _unpair(Station station) async {
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Lepas TV dari ${station.code}?',
+      message: 'TV akan kembali menampilkan kode pairing dan berhenti '
+          'menerima perintah dari station ini.',
+      confirmLabel: 'Lepas TV',
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+
+    await context.read<TvSyncService>().unpair(station.id);
+    if (mounted) showSuccess(context, 'TV dilepas dari ${station.code}.');
+  }
+
+  Future<void> _resend(Station station) async {
+    await context.read<TvSyncService>().forcePush(station);
+    if (!mounted) return;
+
+    final health = context.read<TvSyncService>().statusFor(station.id).health;
+    if (health == TvLinkHealth.online) {
+      showSuccess(context, '${station.code}: keadaan dikirim ulang ke TV.');
+    } else {
+      showWarning(context, '${station.code}: TV tidak merespons.');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.embedded) return _buildBody();
+    final content = _buildBody();
+    if (widget.embedded) return content;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Status TV'),
-        actions: [
-          IconButton(
-            onPressed: _loading ? null : () => _load(silent: true),
-            icon: _loading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.refresh),
-            tooltip: 'Muat ulang',
-          ),
-          const SizedBox(width: AppSpacing.sm),
-        ],
-      ),
-      body: SafeArea(child: _buildBody()),
+      appBar: AppBar(title: const Text('Status TV')),
+      body: SafeArea(child: content),
     );
   }
 
   Widget _buildBody() {
-    if (_loading && _data.devices.isEmpty) {
+    final dash = context.watch<DashboardController>();
+    final sync = context.watch<TvSyncService>();
+
+    if (dash.loading && !dash.hasData) {
       return const Center(child: CircularProgressIndicator());
-    }
-    if (_error != null && _data.devices.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.xl),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline,
-                  size: 44, color: AppColors.error),
-              const SizedBox(height: AppSpacing.md),
-              Text(
-                _errorMessage ?? 'Gagal memuat status TV.',
-                textAlign: TextAlign.center,
-                style: AppTypography.bodyMd,
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              AsyncButton(
-                label: 'Coba lagi',
-                icon: Icons.refresh,
-                onPressed: () => _load(),
-              ),
-            ],
-          ),
-        ),
-      );
     }
 
     return RefreshIndicator(
-      onRefresh: () => _load(silent: true),
+      onRefresh: _refreshAll,
       backgroundColor: AppColors.surfaceLow,
-      color: AppColors.primary,
+      color: AppColors.primaryContainer,
       child: ListView(
-        padding: const EdgeInsets.all(AppSpacing.md),
+        padding: const EdgeInsets.all(AppSpacing.gutterLg),
         children: [
           Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
+              constraints: const BoxConstraints(maxWidth: 820),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _SummaryPanel(data: _data),
+                  _Summary(dash: dash, sync: sync),
                   const SizedBox(height: AppSpacing.md),
-                  const _Tahap2Notice(),
-                  const SizedBox(height: AppSpacing.md),
-                  ..._data.devices.map(
-                    (d) => Padding(
+                  for (final station in dash.stations)
+                    Padding(
                       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _DeviceCard(
-                        device: d,
-                        threshold: _data.offlineThreshold,
+                      child: _StationRow(
+                        station: station,
+                        status: sync.statusFor(station.id),
+                        busy: sync.isBusy(station.id),
+                        onPair: () => _pair(station),
+                        onUnpair: () => _unpair(station),
+                        onResend: () => _resend(station),
+                        onRefresh: () =>
+                            context.read<TvSyncService>().refreshStatus(station.id),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -158,51 +142,53 @@ class _DeviceScreenState extends State<DeviceScreen> {
   }
 }
 
-class _SummaryPanel extends StatelessWidget {
-  const _SummaryPanel({required this.data});
+// ─── Ringkasan ────────────────────────────────────────────────────────
 
-  final DeviceList data;
+class _Summary extends StatelessWidget {
+  const _Summary({required this.dash, required this.sync});
+
+  final DashboardController dash;
+  final TvSyncService sync;
 
   @override
   Widget build(BuildContext context) {
+    final total = dash.stations.length;
+    final linked = sync.linkedCount;
+
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.surfaceLow,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        boxShadow: AppShadow.card,
       ),
       child: Row(
         children: [
           _Count(
-            value: data.onlineCount,
-            label: 'Online',
-            color: AppColors.statusAvailable,
+            value: sync.onlineCount,
+            label: 'Tersambung',
+            color: AppColors.secondary,
           ),
           const SizedBox(width: AppSpacing.lg),
           _Count(
-            value: data.offlineCount,
-            label: 'Offline',
-            color: data.offlineCount > 0
+            value: sync.problemCount,
+            label: 'Bermasalah',
+            color: sync.problemCount > 0
                 ? AppColors.statusExpired
                 : AppColors.onSurfaceVariant,
           ),
-          if (data.unmappedCount > 0) ...[
-            const SizedBox(width: AppSpacing.lg),
-            _Count(
-              value: data.unmappedCount,
-              label: 'Tanpa station',
-              color: AppColors.onSurfaceVariant,
-            ),
-          ],
+          const SizedBox(width: AppSpacing.lg),
+          _Count(
+            value: total - linked,
+            label: 'Belum dipasang',
+            color: AppColors.outline,
+          ),
           const Spacer(),
           Flexible(
             child: Text(
-              'Dianggap offline setelah '
-              '${formatDurationLabel(data.offlineThreshold.inMinutes)} '
-              'tanpa kabar',
+              'Perintah dikirim langsung ke TV lewat jaringan lokal',
               textAlign: TextAlign.right,
-              style: AppTypography.bodySm.copyWith(color: AppColors.outline),
+              style:
+                  AppTypography.labelSm.copyWith(color: AppColors.outline),
             ),
           ),
         ],
@@ -233,7 +219,8 @@ class _Count extends StatelessWidget {
           Text('$value', style: AppTypography.moneyLg.copyWith(color: color)),
           Text(
             label,
-            style: AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
+            style: AppTypography.labelSm
+                .copyWith(color: AppColors.onSurfaceVariant),
           ),
         ],
       ),
@@ -241,195 +228,294 @@ class _Count extends StatelessWidget {
   }
 }
 
-/// Peringatan jujur bahwa angka di layar ini belum nyata.
-///
-/// Tanpa catatan ini operator bisa menyimpulkan TV benar-benar offline,
-/// padahal heartbeat-nya belum ada sama sekali (Tahap 2).
-class _Tahap2Notice extends StatelessWidget {
-  const _Tahap2Notice();
+// ─── Baris per station ────────────────────────────────────────────────
+
+class _StationRow extends StatelessWidget {
+  const _StationRow({
+    required this.station,
+    required this.status,
+    required this.busy,
+    required this.onPair,
+    required this.onUnpair,
+    required this.onResend,
+    required this.onRefresh,
+  });
+
+  final Station station;
+  final TvLinkStatus status;
+  final bool busy;
+  final Future<void> Function() onPair;
+  final Future<void> Function() onUnpair;
+  final Future<void> Function() onResend;
+  final Future<void> Function() onRefresh;
+
+  Color get _color => switch (status.health) {
+        TvLinkHealth.online => AppColors.secondary,
+        TvLinkHealth.unreachable => AppColors.statusExpired,
+        TvLinkHealth.rejected => AppColors.statusWarning,
+        TvLinkHealth.unlinked => AppColors.outline,
+      };
+
+  String get _label => switch (status.health) {
+        TvLinkHealth.online => 'Tersambung',
+        TvLinkHealth.unreachable => 'Tidak merespons',
+        TvLinkHealth.rejected => 'Pairing ditolak',
+        TvLinkHealth.unlinked => 'Belum dipasang',
+      };
+
+  IconData get _icon => switch (status.health) {
+        TvLinkHealth.online => Icons.tv,
+        TvLinkHealth.unreachable => Icons.tv_off,
+        TvLinkHealth.rejected => Icons.link_off,
+        TvLinkHealth.unlinked => Icons.add_to_queue,
+      };
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md - 2),
-      decoration: BoxDecoration(
-        color: AppColors.statusWarning.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(
-          color: AppColors.statusWarning.withValues(alpha: 0.28),
-        ),
-      ),
+    return Material(
+      color: AppColors.surfaceLow,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      clipBehavior: Clip.antiAlias,
       child: Row(
         children: [
-          const Icon(Icons.info_outline,
-              size: 18, color: AppColors.statusWarning),
-          const SizedBox(width: AppSpacing.sm + 2),
+          Container(width: AppSize.statusRail, height: 96, color: _color),
           Expanded(
-            child: Text(
-              'Aplikasi TV belum dibuat, jadi belum ada TV yang benar-benar '
-              'mengirim kabar. Angka di layar ini masih data contoh.',
-              style: AppTypography.bodySm
-                  .copyWith(color: AppColors.statusWarning),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md - 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        station.code,
+                        style: AppTypography.headlineSm
+                            .copyWith(color: AppColors.onSurface),
+                      ),
+                      if (station.consoleType != null) ...[
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          station.consoleType!,
+                          style: AppTypography.labelSm
+                              .copyWith(color: AppColors.outline),
+                        ),
+                      ],
+                      const SizedBox(width: AppSpacing.sm),
+                      Icon(_icon, size: 15, color: _color),
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        _label,
+                        style: AppTypography.labelMd.copyWith(color: _color),
+                      ),
+                      const Spacer(),
+                      if (busy)
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      else
+                        _LastContact(status: status),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm - 2),
+                  _detail(),
+                  const SizedBox(height: AppSpacing.sm),
+                  _actions(context),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
   }
-}
 
-class _DeviceCard extends StatelessWidget {
-  const _DeviceCard({required this.device, required this.threshold});
+  Widget _detail() {
+    final link = status.link;
+    final info = status.info;
 
-  final Device device;
-  final Duration threshold;
+    if (link == null) {
+      return Text(
+        'Pasangkan TV supaya timer dan sesi tampil di layarnya.',
+        style: AppTypography.bodySm.copyWith(color: AppColors.outline),
+      );
+    }
 
-  @override
-  Widget build(BuildContext context) {
-    final color =
-        device.isOnline ? AppColors.statusAvailable : AppColors.statusExpired;
+    final bits = <String>[
+      link.baseUrl.replaceFirst(RegExp(r'^https?://'), ''),
+      if (info != null) info.hardwareLabel,
+      if (info != null) info.osLabel,
+      if (info != null) info.kioskTier.label,
+    ];
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        boxShadow: AppShadow.card,
-      ),
-      child: Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        clipBehavior: Clip.antiAlias,
-        child: Row(
-          children: [
-            Container(width: AppSize.statusRail, height: 88, color: color),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md - 2),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          device.station?.code ?? 'Tanpa station',
-                          style: AppTypography.headlineSm.copyWith(
-                            color: device.isMapped
-                                ? AppColors.onSurface
-                                : AppColors.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Icon(
-                          device.isOnline ? Icons.wifi : Icons.wifi_off,
-                          size: 15,
-                          color: color,
-                        ),
-                        const SizedBox(width: AppSpacing.xs),
-                        Text(
-                          device.isOnline ? 'Online' : 'Offline',
-                          style: AppTypography.bodySm.copyWith(color: color),
-                        ),
-                        const Spacer(),
-                        _LastSeen(device: device),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      device.hardwareLabel,
-                      style: AppTypography.bodySm
-                          .copyWith(color: AppColors.onSurfaceVariant),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Row(
-                      children: [
-                        _MetaChip(
-                          icon: Icons.tag,
-                          label: device.appVersion == null
-                              ? 'Versi tidak diketahui'
-                              : 'v${device.appVersion}',
-                        ),
-                        if (!device.isMapped) ...[
-                          const SizedBox(width: AppSpacing.sm),
-                          const _MetaChip(
-                            icon: Icons.link_off,
-                            label: 'Belum dipasangkan',
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          bits.join(' · '),
+          style: AppTypography.labelSm.copyWith(color: AppColors.outline),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
-      ),
+        if (status.lastError != null) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            status.lastError!,
+            style: AppTypography.bodySm.copyWith(color: _color),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+        // Apa yang SEHARUSNYA tampil di TV. Ini yang dipakai operator untuk
+        // membandingkan dengan layar TV tanpa harus berdiri dan melihat.
+        if (status.health == TvLinkHealth.online) ...[
+          const SizedBox(height: AppSpacing.xs),
+          _ExpectedOnTv(station: station),
+        ],
+      ],
+    );
+  }
+
+  Widget _actions(BuildContext context) {
+    if (status.link == null) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: AsyncButton(
+          label: 'Pasang TV',
+          icon: Icons.add_link,
+          onPressed: onPair,
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        AsyncButton(
+          label: 'Periksa',
+          icon: Icons.refresh,
+          outlined: true,
+          onPressed: busy ? null : onRefresh,
+        ),
+        AsyncButton(
+          label: 'Kirim ulang',
+          icon: Icons.sync,
+          outlined: true,
+          onPressed: busy ? null : onResend,
+        ),
+        AsyncButton(
+          label: 'Ganti TV',
+          icon: Icons.swap_horiz,
+          outlined: true,
+          onPressed: onPair,
+        ),
+        AsyncButton(
+          label: 'Lepas',
+          icon: Icons.link_off,
+          outlined: true,
+          destructive: true,
+          onPressed: onUnpair,
+        ),
+      ],
     );
   }
 }
 
-/// Kapan terakhir mengirim kabar.
+/// Apa yang seharusnya tampil di layar TV saat ini.
 ///
-/// Satu-satunya bagian yang berlangganan ticker — "3 menit lalu" harus
-/// bertambah sendiri, kalau tidak operator melihat angka basi dan
-/// menyimpulkan TV baru saja hidup.
-class _LastSeen extends StatelessWidget {
-  const _LastSeen({required this.device});
+/// Dihitung dari data station yang sama yang dikirim ke TV, memakai
+/// server-time offset. Kalau angka di sini dan di layar TV berbeda, berarti
+/// perintah terakhir tidak sampai — itu diagnosis yang tidak bisa didapat
+/// hanya dari status "tersambung".
+class _ExpectedOnTv extends StatelessWidget {
+  const _ExpectedOnTv({required this.station});
 
-  final Device device;
+  final Station station;
 
   @override
   Widget build(BuildContext context) {
-    if (device.lastSeenAt == null) {
-      return Text(
-        'Belum pernah',
-        style: AppTypography.bodySm.copyWith(color: AppColors.outline),
+    final session = station.session;
+
+    if (session == null) {
+      return Row(
+        children: [
+          const Icon(Icons.desktop_access_disabled_outlined,
+              size: 13, color: AppColors.outline),
+          const SizedBox(width: AppSpacing.xs + 2),
+          Text(
+            'Di TV: layar idle',
+            style: AppTypography.labelSm.copyWith(color: AppColors.outline),
+          ),
+        ],
+      );
+    }
+
+    if (session.status == SessionStatus.pendingPayment) {
+      return Row(
+        children: [
+          const Icon(Icons.schedule,
+              size: 13, color: AppColors.statusPendingPayment),
+          const SizedBox(width: AppSpacing.xs + 2),
+          Text(
+            'Di TV: menunggu pembayaran',
+            style: AppTypography.labelSm
+                .copyWith(color: AppColors.statusPendingPayment),
+          ),
+        ],
       );
     }
 
     return Consumer<AppTicker>(
       builder: (context, _, __) {
-        final now = ServerTime.instance.now;
-        return Text(
-          formatRelative(device.lastSeenAt!, now),
-          style: AppTypography.bodySm.copyWith(
-            color:
-                device.isOnline ? AppColors.onSurfaceVariant : AppColors.statusExpired,
-          ),
+        final endAt = session.endAt;
+        if (endAt == null) return const SizedBox.shrink();
+
+        final remaining = ServerTime.instance.remainingUntil(endAt);
+        final text = remaining.isNegative
+            ? 'Di TV: habis ${formatDurationLabel(remaining.abs().inMinutes)} lalu'
+            : 'Di TV: ${formatCountdown(remaining)}';
+
+        return Row(
+          children: [
+            const Icon(Icons.timer_outlined,
+                size: 13, color: AppColors.secondary),
+            const SizedBox(width: AppSpacing.xs + 2),
+            Text(
+              text,
+              style: AppTypography.labelSm.copyWith(
+                color: remaining.isNegative
+                    ? AppColors.statusExpired
+                    : AppColors.secondary,
+              ),
+            ),
+          ],
         );
       },
     );
   }
 }
 
-class _MetaChip extends StatelessWidget {
-  const _MetaChip({required this.icon, required this.label});
+class _LastContact extends StatelessWidget {
+  const _LastContact({required this.status});
 
-  final IconData icon;
-  final String label;
+  final TvLinkStatus status;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm - 2,
-        vertical: 3,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: AppColors.outline),
-          const SizedBox(width: AppSpacing.xs),
-          Text(
-            label,
-            style: AppTypography.bodySm
-                .copyWith(color: AppColors.outline, fontSize: 11),
-          ),
-        ],
+    final at = status.lastOkAt;
+    if (at == null) {
+      return Text(
+        status.link == null ? '' : 'belum ada kontak',
+        style: AppTypography.labelSm.copyWith(color: AppColors.outline),
+      );
+    }
+
+    return Consumer<AppTicker>(
+      builder: (context, _, __) => Text(
+        formatRelative(at, ServerTime.instance.now),
+        style: AppTypography.labelSm.copyWith(color: AppColors.outline),
       ),
     );
   }

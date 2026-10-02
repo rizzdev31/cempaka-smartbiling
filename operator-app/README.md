@@ -13,9 +13,20 @@ Aplikasi operator untuk tablet Android. **Tahap 1.**
 
 ## Menjalankan
 
+Di tablet/emulator Android:
+
 ```bash
 flutter run --dart-define=API_BASE_URL=http://192.168.0.50:8000 --dart-define=WS_HOST=192.168.0.50 --dart-define=WS_PORT=8080
 ```
+
+Di Chrome untuk melihat UI dengan cepat:
+
+```bash
+flutter run -d chrome --dart-define=API_BASE_URL=http://192.168.0.50:8000
+```
+
+> Di web, **pemindaian TV tidak tersedia** — browser tidak mengizinkan aplikasi
+> membaca IP lokalnya. Alamat TV dimasukkan manual; alamatnya tampil di layar TV.
 
 Ganti IP sesuai laptop server. Nilainya masih bisa diubah dari dalam app lewat **Pengaturan**, tanpa rebuild.
 
@@ -104,11 +115,36 @@ Lalu `test/billing_rules_test.dart` dijalankan terhadap API asli untuk membuktik
 |---|---|
 | Login / auth | 0 → 1 |
 | Klien WebSocket Reverb (`ConnectionStatus` masih statis) | 0 → 1 |
+| Retry otomatis saat TV tidak merespons (sekarang manual "Kirim ulang") | 1 |
 | F&B Queue (layar antrian terpisah) | 1 |
 | Shift start/close/handover | 1 |
 | Device status (layar terpisah) | 1 |
 | Booking list/verify/check-in | 3 |
 | Font Fira Sans/Code dibundel (lihat `app_theme.dart`) | 1 |
+
+## Kontrol TV (sementara — DEC-015)
+
+Operator mengirim perintah **langsung ke TV** lewat jaringan lokal, tanpa
+backend. Di Tahap 2 ini diganti event dari Laravel lewat Reverb.
+
+```
+Station berubah ──► TvSyncService ──► TvAgentClient ──► HTTP ──► agen TV
+                         │
+                    sidik keadaan
+              (session_id | mode | end_at)
+```
+
+- **Hanya perubahan yang dikirim.** `end_at` masuk sidik karena itu yang membuat
+  extend terkirim; tagihan sengaja tidak masuk karena TV tidak menampilkannya.
+- **Penemuan** lewat pemindaian subnet, **entri manual selalu tersedia**.
+- **Satu station satu TV** (PRD §10); memasangkan perangkat yang sama ke station
+  lain melepas pasangan lamanya.
+- Identitas TV adalah `device_uid`, bukan IP — DHCP bisa memberi alamat lain.
+
+Layar **Status TV** menampilkan apa yang *seharusnya* tampil di TV saat ini,
+supaya operator bisa membandingkan tanpa berdiri dan melihat layarnya.
+
+Lihat `../tv-agent/README.md` untuk sisi TV-nya.
 
 ## Test
 

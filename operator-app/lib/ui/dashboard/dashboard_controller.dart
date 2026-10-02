@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../domain/errors/api_error.dart';
 import '../../domain/models/enums.dart';
 import '../../domain/models/models.dart';
+import '../../data/tv/tv_sync_service.dart';
 import '../../domain/repositories/billing_repository.dart';
 import '../widgets/station_card.dart';
 
@@ -17,9 +18,13 @@ import '../widgets/station_card.dart';
 /// Saat Reverb tersambung (Tahap 0), `session.*` dari WebSocket memanggil
 /// [applySession] — tidak perlu mengubah UI.
 class DashboardController extends ChangeNotifier {
-  DashboardController(this._repo);
+  DashboardController(this._repo, {TvSyncService? tvSync}) : _tvSync = tvSync;
 
   final BillingRepository _repo;
+
+  /// Pengirim keadaan sesi ke TV. Null berarti kontrol TV tidak aktif —
+  /// dashboard tetap berfungsi penuh tanpanya.
+  final TvSyncService? _tvSync;
   static const _uuid = Uuid();
 
   List<Station> _stations = const [];
@@ -153,6 +158,11 @@ class DashboardController extends ChangeNotifier {
       _fnbActionable = (results[2] as List<FnbOrder>).length;
       _currentShift = results[3] as Shift?;
       _error = null;
+
+      // TV disamakan dengan keadaan station terkini. Dijalankan tanpa
+      // ditunggu: TV yang tidak merespons tidak boleh membuat dashboard
+      // terasa lambat, dan statusnya ditampilkan terpisah.
+      _syncTv();
     } catch (e) {
       _error = e;
     } finally {
@@ -186,6 +196,12 @@ class DashboardController extends ChangeNotifier {
     );
     await refresh();
     return session;
+  }
+
+  void _syncTv() {
+    final sync = _tvSync;
+    if (sync == null) return;
+    sync.syncAll(_stations);
   }
 
   /// Dipanggil oleh event realtime nanti, atau setelah mutasi dari layar lain.

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'app.dart';
 import 'core/config/api_config.dart';
+import 'data/tv/tv_link_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,5 +19,9 @@ Future<void> main() async {
   // supaya tidak sempat memanggil alamat yang salah.
   await ApiConfig.instance.load();
 
-  runApp(const OperatorApp());
+  // Pasangan station-TV dibaca lebih dulu supaya dashboard bisa langsung
+  // menyinkronkan keadaan ke TV pada pemuatan pertama.
+  final tvLinkStore = await TvLinkStore.open();
+
+  runApp(OperatorApp(tvLinkStore: tvLinkStore));
 }

@@ -15,8 +15,8 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Milestone terdekat** | **Sabtu 3 Okt: SESI 1 recon lokasi (0 kode)** — `TEST-PLAN-SABTU.md` |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
-| **operator-app** | Semua screen PRD §18 selesai kecuali Login & Booking; **redesign sesuai `contoh.html`** (DEC-014); **128 test lulus** |
-| **tv-agent** | kiosk + timer + kontrol HTTP lokal jalan; **31 test lulus**; APK 4,0 MB |
+| **operator-app** | Semua screen PRD §18 kecuali Login & Booking; redesign (DEC-014); **kontrol TV terpasang**; **154 test lulus** |
+| **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK 4,0 MB |
 | **backend** | masih kosong — **ditahan** (DEC-015) |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
@@ -775,4 +775,96 @@ Ketiganya akan dibutuhkan sebelum produksi.
 **Next step**
 1. Pasang APK ke TV atau emulator dan buktikan layarnya benar
 2. Penemuan TV + panel kontrol di aplikasi operator
+3. Kalau sudah terbukti: putuskan OD-012 + OD-015, lalu Laravel
+
+---
+
+### 2026-10-02 — Operator ↔ TV: penemuan, pairing, dan kontrol billing
+
+Menyambungkan sisi billing ke TV. Operator sekarang bisa menemukan TV di
+jaringan, memasangkannya ke station, dan sejak itu **setiap perubahan sesi
+otomatis tampil di layar TV** — mulai sesi, tambah durasi, checkout.
+
+**Files changed**
+- Baru: `lib/data/tv/{tv_agent_client,tv_discovery,tv_link_store,tv_sync_service}.dart`,
+  `lib/data/tv/{local_ip,local_ip_io,local_ip_stub}.dart`,
+  `lib/domain/models/tv_agent.dart`, `lib/ui/device/tv_pair_sheet.dart`,
+  `test/tv_sync_test.dart`, `web/` (platform web)
+- Ditulis ulang: `lib/ui/device/device_screen.dart`
+- Diubah: `pubspec.yaml` (`http`), `lib/app.dart`, `lib/main.dart`,
+  `lib/ui/dashboard/dashboard_controller.dart`
+
+**Tests** — `flutter test`: **154 lulus** (naik dari 128). `flutter analyze`: bersih.
+`flutter build web`: lolos. 26 test baru untuk kontrol TV.
+
+**Yang dibangun**
+- **Penemuan** lewat pemindaian subnet /24, 32 probe paralel, dengan indikator
+  kemajuan. Bukan mDNS: multicast sering di-drop access point murah dan butuh
+  WiFi multicast lock di Android. Pemindaian hanya memakai HTTP biasa —
+  kalau operator bisa membuka alamat TV di browser, pemindaian juga bisa.
+- **Entri alamat manual selalu tersedia**, bukan cadangan darurat: di web itu
+  satu-satunya cara, dan saat operator dan TV beda subnet pemindaian memang
+  tidak akan menemukan apa pun.
+- **Pairing** dari sheet: pilih TV → masukkan kode 6 digit dari layar TV →
+  terpasang, lalu keadaan sesi langsung dikirim.
+- **Layar Status TV** per station: status sambungan, perangkat, tingkat kiosk,
+  kontak terakhir, dan **apa yang seharusnya tampil di TV sekarang**.
+- Tombol Periksa / Kirim ulang / Ganti TV / Lepas.
+
+**Keputusan desain yang menentukan perilaku**
+
+*Dikirim saat berubah, bukan terus-menerus.* Dashboard menyegarkan data setiap
+kali operator kembali ke monitor. Mengirim ulang ke TV setiap kali berarti
+belasan permintaan per menit tanpa ada yang berubah. Jadi `TvSyncService`
+menyimpan sidik keadaan per station dan hanya mengirim perubahan.
+
+*Sidik berisi `session_id`, mode, dan `end_at` — bukan tagihan.* `end_at` masuk
+karena **itu yang membuat extend terkirim**: menambah durasi tidak mengubah
+`session_id`. Tagihan sengaja **tidak** masuk: TV tidak menampilkannya, dan
+kalau dimasukkan setiap teh manis memicu satu permintaan ke TV tanpa ada yang
+berubah di layarnya. Keduanya ada test-nya.
+
+*Sidik tidak disimpan saat gagal.* Kalau disimpan, TV tertinggal sampai ada
+perubahan berikutnya — bisa berjam-jam. Ada test yang mengunci ini.
+
+*Token ditolak dibedakan dari tidak terjangkau.* Penanganannya berbeda: yang
+pertama perlu pairing ulang, yang kedua perlu menunggu jaringan membaik.
+
+*`unpair` tetap melepas walau TV tidak merespons.* TV yang mati atau sudah
+dibawa pergi tidak boleh membuat station terjebak dengan perangkat yang tidak
+ada.
+
+*Satu TV tidak boleh terpasang di dua station* (PRD §10). Memasangkan perangkat
+yang sama ke station lain melepas pasangan lamanya — kalau tidak, dua station
+mengirim perintah ke TV yang sama dan timer-nya saling menimpa tanpa ada yang
+tahu kenapa. Ada test-nya.
+
+*`device_uid`, bukan IP, yang menentukan identitas TV.* DHCP bisa memberi
+alamat berbeda setelah TV restart.
+
+**Satu kesalahan saya yang perlu dikoreksi**
+Saya beberapa kali memberi perintah `flutter run -d chrome` untuk melihat UI.
+Project ini dibuat dengan `--platforms android`, jadi **perintah itu tidak akan
+pernah jalan** — Flutter akan menolak dengan "not configured for the web".
+Platform web sekarang ditambahkan dan `flutter build web` lolos, judul serta
+warna tema web disesuaikan dengan merek.
+
+**Satu hal yang test harness-nya sendiri menyesatkan**
+Fake agen semula membalas `DEVICE_TOKEN_INVALID` untuk semua error. Akibatnya
+test "TV tidak merespons" lulus/gagal karena alasan yang salah. Diganti error
+generik `INTERNAL`, sesuai yang dibalas agen sebenarnya.
+
+**Known issues**
+- Belum pernah diuji terhadap TV atau emulator sungguhan — baru terbukti lewat
+  fake HTTP. Yang membuktikan jalur nyata hanya pengujian di perangkat.
+- Pemindaian tidak tersedia di web (browser tidak mengizinkan aplikasi membaca
+  IP lokalnya). Entri manual dipakai di sana.
+- Kartu station di dashboard masih menampilkan status device dari fake
+  repository, belum dari `TvSyncService`. Berikutnya.
+- Belum ada retry otomatis; operator menekan "Kirim ulang".
+
+**Next step**
+1. Uji operator ↔ TV di emulator atau TV sungguhan — ini yang membuktikan
+   jalurnya
+2. Satukan status TV di kartu dashboard dengan `TvSyncService`
 3. Kalau sudah terbukti: putuskan OD-012 + OD-015, lalu Laravel

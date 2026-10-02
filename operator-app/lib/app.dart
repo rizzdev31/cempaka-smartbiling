@@ -6,13 +6,21 @@ import 'core/theme/app_theme.dart';
 import 'core/time/server_time.dart';
 import 'core/time/ticker.dart';
 import 'data/fake/fake_billing_repository.dart';
+import 'data/tv/tv_agent_client.dart';
+import 'data/tv/tv_discovery.dart';
+import 'data/tv/tv_link_store.dart';
+import 'data/tv/tv_sync_service.dart';
 import 'domain/repositories/billing_repository.dart';
 import 'ui/dashboard/dashboard_controller.dart';
 import 'ui/shell/app_shell.dart';
 import 'ui/widgets/connection_banner.dart';
 
 class OperatorApp extends StatelessWidget {
-  const OperatorApp({super.key});
+  const OperatorApp({super.key, required this.tvLinkStore});
+
+  /// Dibuka di `main()` sebelum UI dibangun: pasangan station-TV harus sudah
+  /// terbaca sebelum dashboard mencoba menyinkronkan apa pun.
+  final TvLinkStore tvLinkStore;
 
   @override
   Widget build(BuildContext context) {
@@ -36,8 +44,30 @@ class OperatorApp extends StatelessWidget {
         // Tidak ada UI yang perlu disentuh.
         Provider<BillingRepository>(create: (_) => FakeBillingRepository()),
 
+        // ── Kontrol TV (sementara — DEC-015) ─────────────────────────
+        //
+        // Saat Reverb masuk di Tahap 2, tiga provider ini hilang dan
+        // perintah ke TV datang dari Laravel.
+        Provider<TvAgentClient>(
+          create: (_) => TvAgentClient(),
+          dispose: (_, c) => c.close(),
+        ),
+        Provider<TvLinkStore>.value(value: tvLinkStore),
+        Provider<TvDiscovery>(
+          create: (ctx) => TvDiscovery(ctx.read<TvAgentClient>()),
+        ),
         ChangeNotifierProvider(
-          create: (ctx) => DashboardController(ctx.read<BillingRepository>()),
+          create: (ctx) => TvSyncService(
+            client: ctx.read<TvAgentClient>(),
+            store: ctx.read<TvLinkStore>(),
+          ),
+        ),
+
+        ChangeNotifierProvider(
+          create: (ctx) => DashboardController(
+            ctx.read<BillingRepository>(),
+            tvSync: ctx.read<TvSyncService>(),
+          ),
         ),
       ],
       child: MaterialApp(
