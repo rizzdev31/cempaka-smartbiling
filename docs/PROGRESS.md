@@ -15,7 +15,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Milestone terdekat** | **Sabtu 3 Okt: SESI 1 recon lokasi (0 kode)** — `TEST-PLAN-SABTU.md` |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
-| **operator-app** | fondasi + Dashboard + Session Detail jalan di fake repository; **49 test lulus**; APK debug ter-build; design pass pertama selesai |
+| **operator-app** | Dashboard + Session Detail + **F&B Queue** jalan di fake repository; **62 test lulus**; design pass 1 selesai |
 | **backend / tv-agent** | masih kosong (baru README) |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
@@ -69,11 +69,11 @@ Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat 
 - [x] Payment (cash + QRIS manual)
 - [x] Extend + Station Swap + Tambah F&B
 - [x] Checkout + struk (durasi aktual vs tertagih)
-- [x] 49 test lulus (aturan billing + layout kartu)
+- [x] 62 test lulus (aturan billing + layout kartu + antrian F&B)
 - [x] Design pass 1: rail status, bar proporsi waktu, brand mark, permukaan bertingkat
 - [ ] Login / auth
 - [ ] Reverb client + auto-reconnect + reconcile
-- [ ] F&B Queue (layar antrian terpisah)
+- [x] F&B Queue (layar antrian + badge di dashboard)
 - [ ] Shift start/close/handover
 - [ ] Device status (layar terpisah)
 - [ ] **Ganti fake repository → `ApiBillingRepository`** (DEC-012 syarat 2)
@@ -382,3 +382,41 @@ Keduanya hanya muncul di ukuran kecil — kalau hanya dilihat di jendela besar, 
 1. User melihat hasilnya di Chrome dan memberi koreksi
 2. Lanjut fitur: F&B Queue → Shift → Device → pilih member
 3. Login (butuh backend) lalu Laravel thin slice
+
+---
+
+### 2026-10-02 — F&B Queue
+
+**Files changed**
+- Baru: `lib/ui/fnb/fnb_queue_controller.dart`, `lib/ui/fnb/fnb_queue_screen.dart`, `test/fnb_queue_test.dart`
+- Diubah: `lib/ui/dashboard/{dashboard_controller,dashboard_screen}.dart`, `lib/domain/models/enums.dart`, `lib/data/fake/fake_billing_repository.dart`
+
+**API/Events** — tidak ada perubahan kontrak. Memakai `GET /fnb/orders` dan `POST /fnb/orders/{id}/status` yang sudah ada di `API.md` §8.
+
+**Tests** — `flutter test`: **62 lulus** (naik dari 49). `flutter analyze`: bersih.
+13 test baru: pengelompokan antrian, transisi status, aturan pembatalan, order baru masuk antrian.
+
+**Yang dibangun**
+- Layar antrian terpisah, dikelompokkan per status: **Belum diproses → Sedang diproses → Siap diantar**. Bukan satu daftar panjang, karena "belum disentuh" dan "siap diantar" adalah dua pertanyaan berbeda untuk operator dapur.
+- **Satu tombol per kartu** yang memajukan order satu langkah: Proses → Tandai Siap → Antar. Label pakai kata kerja, bukan nama status.
+- Tab **Aktif / Riwayat**. Riwayat urut dari yang terbaru.
+- **Umur order** dengan peringatan bertingkat: setelah 10 menit oranye, setelah 20 menit merah. Ini sinyal operasional, bukan hiasan — order yang menganggur perlu terlihat tanpa operator menghitung sendiri.
+- Ketuk kartu → buka sesi terkait, karena operator sering perlu melihat Open Tab-nya.
+- Badge di bar aksi dashboard. Hanya menghitung `PENDING` + `PROCESSING`; yang sudah `READY` tidak dihitung karena tinggal diantar, bukan dikerjakan.
+- Bar aksi baru di bawah grid dashboard — akan menampung Shift dan Device.
+- Seed fake menambah order di empat status supaya layarnya bisa langsung dinilai.
+
+**Dua pelanggaran kontrak yang ditemukan dan diperbaiki**
+1. `updateFnbOrderStatus` di fake mengizinkan cancel dari **status apa pun**, padahal kontrak §8 membatasi cancel hanya dari `PENDING` atau `PROCESSING`. Order yang sudah siap atau diantar tidak boleh dibatalkan begitu saja — barangnya sudah dibuat. Diperbaiki, dan pesan errornya dibuat spesifik.
+2. Tombol batal muncul di semua order termasuk yang tidak boleh dibatalkan. Ditambah `FnbOrderStatus.canCancel`; tombolnya kini disembunyikan, supaya operator tidak pernah menemui error yang bisa dicegah.
+
+Keduanya ditemukan saat menulis test, bukan saat memakai layarnya.
+
+**Known issues**
+- Belum ada `fnb.order.updated` di realtime (usulan `REALTIME.md` §9, belum disetujui). Sampai itu ada, antrian disegarkan manual atau saat layar dibuka — belum otomatis kalau ada tablet kedua.
+- Belum diverifikasi secara visual.
+
+**Next step**
+1. Shift start/close/handover
+2. Device status
+3. Pilih member di Start Session

@@ -251,7 +251,12 @@ class FakeBillingRepository implements BillingRepository {
       customerId: 'cus-1',
       startedAt: now.subtract(const Duration(minutes: 18)),
       rentalPaid: true,
-      extraFnb: [('fnb-1', 2), ('fnb-4', 1)],
+      // (produk, qty, status order, dibuat berapa menit lalu)
+      extraFnb: [
+        ('fnb-1', 2, FnbOrderStatus.delivered, 14),
+        ('fnb-4', 1, FnbOrderStatus.ready, 6),
+        ('fnb-3', 2, FnbOrderStatus.pending, 1),
+      ],
     );
 
     _spawnSeedSession(
@@ -261,7 +266,10 @@ class FakeBillingRepository implements BillingRepository {
       customerName: 'Walk-in',
       startedAt: now.subtract(const Duration(minutes: 52)),
       rentalPaid: false,
-      extraFnb: [('fnb-2', 1)],
+      extraFnb: [
+        ('fnb-2', 1, FnbOrderStatus.processing, 4),
+        ('fnb-5', 1, FnbOrderStatus.pending, 12),
+      ],
     );
 
     _spawnSeedSession(
@@ -282,7 +290,7 @@ class FakeBillingRepository implements BillingRepository {
     bool rentalPaid = false,
     String? customerId,
     String? customerName,
-    List<(String, int)> extraFnb = const [],
+    List<(String, int, FnbOrderStatus, int)> extraFnb = const [],
   }) {
     final pkg = _packages.firstWhere((p) => p.id == packageId);
     final st = _stations.firstWhere((s) => s.id == stationId);
@@ -323,18 +331,47 @@ class FakeBillingRepository implements BillingRepository {
       state.endAt = startedAt.add(Duration(minutes: pkg.durationMinutes));
     }
 
-    for (final (pid, qty) in extraFnb) {
+    // Setiap F&B seed juga dibuatkan FnbOrder, bukan hanya session item.
+    // Tanpa ini antrian F&B kosong saat app pertama dibuka dan layarnya
+    // tidak bisa dinilai.
+    for (final (pid, qty, status, agoMinutes) in extraFnb) {
       final p = _products.firstWhere((e) => e.id == pid);
+      final at = DateTime.now().toUtc().subtract(Duration(minutes: agoMinutes));
+
       state.items.add(_SessionItemState(
         id: _uuid.v4(),
         type: SessionItemType.fnb,
         name: p.name,
         qty: qty,
         unitPrice: p.price,
-        isPaid: false,
+        isPaid: status == FnbOrderStatus.delivered,
         meta: const {},
-        createdAt: DateTime.now().toUtc(),
+        createdAt: at,
       ));
+
+      if (status == FnbOrderStatus.delivered) state.paid += p.price * qty;
+
+      _orderSeq++;
+      final order = FnbOrder(
+        id: _uuid.v4(),
+        code: 'FB-${_orderSeq.toString().padLeft(4, '0')}',
+        status: status,
+        sessionId: state.id,
+        stationCode: state.station.code,
+        items: [
+          FnbOrderItem(
+            productId: p.id,
+            name: p.name,
+            qty: qty,
+            unitPrice: p.price,
+            subtotal: p.price * qty,
+          ),
+        ],
+        total: p.price * qty,
+        source: 'OPERATOR',
+        createdAt: at,
+      );
+      _orders[order.id] = order;
     }
 
     _sessions[id] = state;
@@ -1070,10 +1107,22 @@ class FakeBillingRepository implements BillingRepository {
             httpStatus: 404,
           );
         }
-        if (o.status.next != status && status != FnbOrderStatus.cancelled) {
-          throw const ApiError(
+        // Kontrak §8: transisi sah PENDING -> PROCESSING -> READY ->
+        // DELIVERED. Cancel HANYA dari PENDING atau PROCESSING — order yang
+        // sudah siap atau sudah diantar tidak bisa dibatalkan begitu saja
+        // karena barangnya sudah dibuat.
+        final cancellable = status == FnbOrderStatus.cancelled &&
+            const {FnbOrderStatus.pending, FnbOrderStatus.processing}
+                .contains(o.status);
+
+        if (o.status.next != status && !cancellable) {
+          throw ApiError(
             code: ApiErrorCode.fnbStatusTransitionInvalid,
-            message: 'Perubahan status order tidak sah.',
+            message: status == FnbOrderStatus.cancelled
+                ? 'Order yang sudah ${o.status.label.toLowerCase()} '
+                    'tidak bisa dibatalkan.'
+                : 'Perubahan status order tidak sah.',
+            details: {'from': o.status.wire, 'to': status.wire},
             httpStatus: 409,
           );
         }

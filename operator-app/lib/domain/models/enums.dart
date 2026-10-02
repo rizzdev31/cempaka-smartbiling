@@ -164,6 +164,15 @@ enum FnbOrderStatus {
         FnbOrderStatus.ready => FnbOrderStatus.delivered,
         _ => null,
       };
+
+  /// Kontrak §8: cancel hanya dari `PENDING` atau `PROCESSING`.
+  /// Order yang sudah siap atau diantar tidak bisa dibatalkan — barangnya
+  /// sudah dibuat. UI memakai ini untuk menyembunyikan tombol batal, supaya
+  /// operator tidak pernah menemui error yang bisa dicegah.
+  bool get canCancel => const {
+        FnbOrderStatus.pending,
+        FnbOrderStatus.processing,
+      }.contains(this);
 }
 
 /// `device.status` — kontrak §6.

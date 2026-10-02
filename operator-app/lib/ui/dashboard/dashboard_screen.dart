@@ -8,6 +8,7 @@ import '../../core/theme/tokens.dart';
 import '../../core/util/format.dart';
 import '../../domain/models/enums.dart';
 import '../../domain/models/models.dart';
+import '../fnb/fnb_queue_screen.dart';
 import '../session/session_detail_screen.dart';
 import '../settings/settings_screen.dart';
 import '../widgets/brand_mark.dart';
@@ -92,10 +93,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const DevDiagnosticBar(),
             if (ctrl.hasData) _SummaryStrip(ctrl: ctrl),
             Expanded(child: _buildBody(ctrl)),
+            if (ctrl.hasData) _ActionBar(ctrl: ctrl, onOpenFnb: _openFnbQueue),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _openFnbQueue() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const FnbQueueScreen()),
+    );
+    if (!mounted) return;
+    // Status order mempengaruhi Open Tab, jadi dashboard ikut disegarkan.
+    await context.read<DashboardController>().refresh();
   }
 
   Widget _buildBody(DashboardController ctrl) {
@@ -204,6 +215,110 @@ class _Header extends StatelessWidget {
             tooltip: 'Pengaturan',
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Bar aksi di bawah grid.
+///
+/// Bukan navigasi utama — ini pintasan ke layar kerja yang sering dibuka.
+/// Ditaruh di bawah karena paling mudah dijangkau jempol saat tablet
+/// diletakkan di meja kasir. Akan menampung Shift dan Device nanti.
+class _ActionBar extends StatelessWidget {
+  const _ActionBar({required this.ctrl, required this.onOpenFnb});
+
+  final DashboardController ctrl;
+  final Future<void> Function() onOpenFnb;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        0,
+        AppSpacing.md,
+        AppSpacing.md,
+      ),
+      child: Row(
+        children: [
+          _ActionTile(
+            icon: Icons.restaurant_outlined,
+            label: 'Antrian F&B',
+            badge: ctrl.fnbActionableCount,
+            onTap: onOpenFnb,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.badge = 0,
+  });
+
+  final IconData icon;
+  final String label;
+  final Future<void> Function() onTap;
+  final int badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasBadge = badge > 0;
+
+    return Semantics(
+      button: true,
+      label: hasBadge ? '$label, $badge order menunggu' : label,
+      excludeSemantics: true,
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        child: InkWell(
+          onTap: () => onTap(),
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          child: Container(
+            height: AppSize.minTouchTarget + 4,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  color: hasBadge ? AppColors.accent : AppColors.textMuted,
+                ),
+                const SizedBox(width: AppSpacing.sm + 2),
+                Text(label, style: AppTypography.cardLabel),
+                if (hasBadge) ...[
+                  const SizedBox(width: AppSpacing.sm + 2),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 22),
+                    height: 22,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm - 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent,
+                      borderRadius: BorderRadius.circular(AppRadius.chip),
+                    ),
+                    child: Text(
+                      '$badge',
+                      style: AppTypography.moneySmall.copyWith(
+                        color: AppColors.bg,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

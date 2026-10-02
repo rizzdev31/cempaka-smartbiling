@@ -23,6 +23,7 @@ class DashboardController extends ChangeNotifier {
 
   List<Station> _stations = const [];
   List<Package> _packages = const [];
+  int _fnbActionable = 0;
   bool _loading = false;
   Object? _error;
 
@@ -30,6 +31,11 @@ class DashboardController extends ChangeNotifier {
   List<Package> get packages => _packages;
   bool get loading => _loading;
   Object? get error => _error;
+
+  /// Jumlah order F&B yang masih menuntut tindakan — untuk badge di
+  /// tombol antrian. Hanya `PENDING` dan `PROCESSING`; yang sudah `READY`
+  /// tidak dihitung karena tinggal diantar, bukan dikerjakan.
+  int get fnbActionableCount => _fnbActionable;
 
   bool get hasData => _stations.isNotEmpty;
 
@@ -61,9 +67,14 @@ class DashboardController extends ChangeNotifier {
       final results = await Future.wait([
         _repo.fetchStations(),
         _repo.fetchPackages(),
+        _repo.fetchFnbOrders(statuses: const {
+          FnbOrderStatus.pending,
+          FnbOrderStatus.processing,
+        }),
       ]);
       _stations = results[0] as List<Station>;
       _packages = results[1] as List<Package>;
+      _fnbActionable = (results[2] as List<FnbOrder>).length;
       _error = null;
     } catch (e) {
       _error = e;
