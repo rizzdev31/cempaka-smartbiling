@@ -8,6 +8,7 @@ import '../../core/theme/tokens.dart';
 import '../../core/util/format.dart';
 import '../../domain/models/enums.dart';
 import '../../domain/models/models.dart';
+import '../../domain/repositories/billing_repository.dart';
 import '../device/device_screen.dart';
 import '../fnb/fnb_queue_screen.dart';
 import '../session/session_detail_screen.dart';
@@ -50,9 +51,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         context,
         station: station,
         packages: ctrl.packages,
+        repo: context.read<BillingRepository>(),
         onSubmit: ({
           required packageId,
           required mode,
+          customerId,
           customerName,
           required idempotencyKey,
         }) =>
@@ -60,6 +63,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           stationId: station.id,
           packageId: packageId,
           mode: mode,
+          customerId: customerId,
           customerName: customerName,
           idempotencyKey: idempotencyKey,
         ),

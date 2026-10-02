@@ -253,6 +253,22 @@ class FakeBillingRepository implements BillingRepository {
         phone: '085711122233',
         membership: Membership(tier: 'GOLD', isActive: true),
       ),
+      const Customer(
+        id: 'cus-4',
+        name: 'Dewi Lestari',
+        phone: '081355566677',
+        membership: Membership(tier: 'SILVER', isActive: true),
+      ),
+      const Customer(id: 'cus-5', name: 'Bagus Nugroho', phone: '087812345678'),
+      const Customer(
+        id: 'cus-6',
+        name: 'Siti Rahayu',
+        phone: '089966677788',
+        // Membership kedaluwarsa — harus terlihat berbeda dari yang aktif,
+        // supaya operator tidak memberi harga member kepada yang sudah habis.
+        membership: Membership(tier: 'SILVER', isActive: false),
+      ),
+      const Customer(id: 'cus-7', name: 'Rizky Maulana', phone: '082199988877'),
     ]);
 
     _products.addAll([
@@ -711,12 +727,23 @@ class FakeBillingRepository implements BillingRepository {
                   id: station.id, code: station.code, name: station.name),
               package: pkg,
               mode: mode,
+              // Dulu memakai `firstWhere` tanpa pengaman: customer_id yang
+              // tidak ada akan melempar StateError mentah, bukan ApiError,
+              // sehingga UI menampilkan "kesalahan tidak terduga" alih-alih
+              // pesan yang berguna.
               customer: customerId == null
                   ? null
                   : CustomerRef(
                       id: customerId,
                       name: _customers
-                          .firstWhere((c) => c.id == customerId)
+                          .firstWhere(
+                            (c) => c.id == customerId,
+                            orElse: () => throw const ApiError(
+                              code: ApiErrorCode.notFound,
+                              message: 'Customer tidak ditemukan.',
+                              httpStatus: 404,
+                            ),
+                          )
                           .name),
               customerName: customerId == null
                   ? (customerName?.trim().isNotEmpty == true

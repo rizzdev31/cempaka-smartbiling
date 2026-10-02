@@ -15,7 +15,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Milestone terdekat** | **Sabtu 3 Okt: SESI 1 recon lokasi (0 kode)** — `TEST-PLAN-SABTU.md` |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
-| **operator-app** | Dashboard + Session Detail + F&B Queue + Shift + **Status TV** jalan di fake repository; **89 test lulus**; design pass 1 selesai |
+| **operator-app** | Semua screen PRD §18 selesai kecuali Login & Booking; **103 test lulus**; jalan di fake repository |
 | **backend / tv-agent** | masih kosong (baru README) |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
@@ -64,12 +64,12 @@ Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat 
 - [x] Model + error code ditranskrip dari kontrak
 - [x] Fake repository yang mencerminkan aturan server
 - [x] Dashboard 6 station (grid 3×2 landscape)
-- [x] Start Session (Prepaid/Postpaid)
+- [x] Start Session (Prepaid/Postpaid + pilih member)
 - [x] Session Detail + Open Tab
 - [x] Payment (cash + QRIS manual)
 - [x] Extend + Station Swap + Tambah F&B
 - [x] Checkout + struk (durasi aktual vs tertagih)
-- [x] 89 test lulus (billing + layout + antrian F&B + shift + device)
+- [x] 103 test lulus (billing + layout + F&B + shift + device + customer)
 - [x] Design pass 1: rail status, bar proporsi waktu, brand mark, permukaan bertingkat
 - [ ] Login / auth
 - [ ] Reverb client + auto-reconnect + reconcile
@@ -507,3 +507,58 @@ Diperbaiki: `onlineCount`/`offlineCount` hanya menghitung device yang dipetakan 
 1. Pilih member di Start Session (satu-satunya item PRD §18 yang masih kurang)
 2. Login (butuh backend)
 3. Laravel thin slice, lalu ganti fake → API
+
+---
+
+### 2026-10-02 — Pilih member di Start Session
+
+**Files changed**
+- Baru: `lib/ui/customer/customer_picker.dart`, `test/customer_selection_test.dart`
+- Diubah: `lib/ui/dashboard/{start_session_sheet,dashboard_screen}.dart`, `lib/data/fake/fake_billing_repository.dart`
+- Dokumen: `DECISION-LOG.md` (OD-014)
+
+**API/Events** — tidak ada perubahan kontrak. Memakai `GET /customers?q=` yang sudah ada di `API.md` §6.
+
+**Tests** — `flutter test`: **103 lulus** (naik dari 89). `flutter analyze`: bersih.
+14 test baru: pencarian nama & telepon, pemetaan `CustomerChoice` ke field kontrak, dan pembuatan sesi dengan member / walk-in.
+
+**Yang dibangun**
+- Baris "Customer" yang bisa diketuk di sheet Mulai Sesi, menggantikan kolom nama bebas. Satu baris dan satu cara mengubahnya — sesuai DEC-008 yang hanya mengizinkan satu customer per sesi.
+- Pemilih berupa bottom sheet: pencarian nama/telepon, opsi **Walk-in selalu di atas** (pilihan paling sering dipakai), lalu daftar member.
+- Pencarian **di-debounce 300 ms** dan hasil yang datang terlambat diabaikan kalau kolom sudah berubah. Tanpa itu, mengetik "budi" mengirim empat permintaan dan daftar bisa berkedip ke hasil yang salah.
+- Badge membership. **Membership kedaluwarsa sengaja ditampilkan berbeda, bukan disembunyikan** — operator perlu tahu orangnya pernah member tapi tidak berhak harga member sekarang.
+- Seed customer ditambah jadi tujuh, termasuk satu dengan membership kedaluwarsa.
+
+**Batas wewenang yang ditegakkan — OD-014 baru**
+Operator **tidak bisa mendaftarkan member baru** dari layar ini. PRD §6 memberi akses `customer` hanya kepada Admin/Owner; operator tidak termasuk. Customer yang belum terdaftar dilayani sebagai Walk-in.
+
+Catatan penjelasan dipasang di dalam pemilih, supaya operator tidak mencari tombol "Tambah member" dan menyimpulkan aplikasinya belum jadi.
+
+Tapi ini perlu keputusan: customer yang ingin jadi member di meja kasir adalah kejadian harian. Dicatat sebagai **OD-014**, bukan diputuskan di kode.
+
+**Satu bug ditemukan dan diperbaiki**
+`createSession` di fake memakai `firstWhere` tanpa `orElse` untuk mencari customer. `customer_id` yang tidak ada melempar `StateError` mentah, bukan `ApiError` — sehingga UI menampilkan "kesalahan tidak terduga" alih-alih pesan yang berguna. Sekarang melempar `ApiError` dengan kode `NOT_FOUND`, dan ada test yang menguncinya.
+
+**Status PRD §18 — operator app**
+
+| Screen | Status |
+|---|---|
+| Login | ❌ butuh backend |
+| Dashboard | ✅ |
+| Start Session | ✅ |
+| Session Detail | ✅ |
+| F&B Queue | ✅ |
+| Payment | ✅ |
+| Shift | ✅ |
+| Device | ✅ |
+| Booking | ⏸ ditunda ke Tahap 3 (ROADMAP) |
+
+**Known issues**
+- Belum diverifikasi secara visual — seluruh Tahap 1 sejauh ini belum pernah dilihat user.
+- Belum ada klien WebSocket; `ConnectionStatus` masih statis.
+- Harga member belum berpengaruh apa pun. Paket masih satu harga untuk semua. Belum ada requirement PRD soal diskon member — kalau memang ada, perlu Change Request.
+
+**Next step**
+1. **User melihat hasilnya dan memberi koreksi** — ini yang paling berharga sekarang
+2. Laravel thin slice (auth, stations, packages, sessions, payments)
+3. Ganti fake repository → `ApiBillingRepository` (DEC-012 syarat 2)

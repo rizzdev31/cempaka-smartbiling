@@ -6,6 +6,8 @@ import '../../core/theme/tokens.dart';
 import '../../core/util/format.dart';
 import '../../domain/models/enums.dart';
 import '../../domain/models/models.dart';
+import '../../domain/repositories/billing_repository.dart';
+import '../customer/customer_picker.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/money_text.dart';
 
@@ -21,9 +23,11 @@ Future<Session?> showStartSessionSheet(
   BuildContext context, {
   required Station station,
   required List<Package> packages,
+  required BillingRepository repo,
   required Future<Session> Function({
     required String packageId,
     required SessionMode mode,
+    String? customerId,
     String? customerName,
     required String idempotencyKey,
   }) onSubmit,
@@ -41,6 +45,7 @@ Future<Session?> showStartSessionSheet(
     builder: (_) => _StartSessionSheet(
       station: station,
       packages: packages,
+      repo: repo,
       onSubmit: onSubmit,
     ),
   );
@@ -50,14 +55,17 @@ class _StartSessionSheet extends StatefulWidget {
   const _StartSessionSheet({
     required this.station,
     required this.packages,
+    required this.repo,
     required this.onSubmit,
   });
 
   final Station station;
   final List<Package> packages;
+  final BillingRepository repo;
   final Future<Session> Function({
     required String packageId,
     required SessionMode mode,
+    String? customerId,
     String? customerName,
     required String idempotencyKey,
   }) onSubmit;
@@ -70,7 +78,7 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
   /// Satu key untuk satu niat memulai sesi. Dibuat sekali, dipakai ulang.
   final String _intentKey = const Uuid().v4();
 
-  final _nameController = TextEditingController();
+  CustomerChoice _customer = CustomerChoice.defaultWalkIn;
   String? _packageId;
   SessionMode _mode = SessionMode.prepaid;
 
@@ -78,12 +86,6 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
   void initState() {
     super.initState();
     if (widget.packages.isNotEmpty) _packageId = widget.packages.first.id;
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
   }
 
   Package? get _package => _packageId == null
@@ -98,9 +100,8 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
       final session = await widget.onSubmit(
         packageId: pkg.id,
         mode: _mode,
-        customerName: _nameController.text.trim().isEmpty
-            ? null
-            : _nameController.text.trim(),
+        customerId: _customer.customerId,
+        customerName: _customer.customerName,
         idempotencyKey: _intentKey,
       );
       if (!mounted) return;
@@ -197,13 +198,18 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
               const SizedBox(height: AppSpacing.lg),
 
               // ── Customer ─────────────────────────────────────────
-              TextField(
-                controller: _nameController,
-                textCapitalization: TextCapitalization.words,
-                decoration: const InputDecoration(
-                  labelText: 'Nama customer (opsional)',
-                  helperText: 'Kosongkan untuk walk-in',
-                ),
+              Text('Customer', style: AppTypography.cardLabel),
+              const SizedBox(height: AppSpacing.sm),
+              _CustomerRow(
+                choice: _customer,
+                onTap: () async {
+                  final picked = await showCustomerPicker(
+                    context,
+                    repo: widget.repo,
+                    current: _customer,
+                  );
+                  if (picked != null) setState(() => _customer = picked);
+                },
               ),
               const SizedBox(height: AppSpacing.lg),
 
@@ -320,6 +326,86 @@ class _ChoiceTile extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Baris pemilih customer di sheet Mulai Sesi.
+///
+/// Satu baris yang bisa diketuk, bukan dua kontrol terpisah: dengan DEC-008
+/// hanya ada satu customer per sesi, jadi satu nilai dan satu cara mengubahnya.
+class _CustomerRow extends StatelessWidget {
+  const _CustomerRow({required this.choice, required this.onTap});
+
+  final CustomerChoice choice;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final member = choice.member;
+    final m = member?.membership;
+    final expired = m != null && !m.isActive;
+
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        child: Container(
+          constraints:
+              const BoxConstraints(minHeight: AppSize.minTouchTarget + 8),
+          padding: const EdgeInsets.all(AppSpacing.md - 2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.card),
+            border: Border.all(color: AppColors.borderSubtle),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.overlaySubtle,
+                  borderRadius: BorderRadius.circular(AppRadius.button),
+                ),
+                child: Icon(
+                  choice.isMember ? Icons.badge_outlined : Icons.person_outline,
+                  size: 18,
+                  color: choice.isMember
+                      ? AppColors.accent
+                      : AppColors.textMuted,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm + 4),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(choice.label, style: AppTypography.cardLabel),
+                    Text(
+                      choice.isMember
+                          ? (expired
+                              ? 'Member ${m.tier} — sudah habis'
+                              : 'Member ${m?.tier ?? ''}'.trim())
+                          : 'Bukan member',
+                      style: AppTypography.caption.copyWith(
+                        color: expired
+                            ? AppColors.statusWarning
+                            : choice.isMember
+                                ? AppColors.accent
+                                : AppColors.textFaint,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.textMuted),
+            ],
           ),
         ),
       ),
