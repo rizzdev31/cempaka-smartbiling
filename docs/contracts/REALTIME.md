@@ -207,13 +207,13 @@ Alasan: 6 device × heartbeat tiap 30 detik + `session.updated` tiap item F&B bi
 
 Tidak ada di PRD §23. **Jangan diimplementasikan** sebelum masuk Decision Log.
 
-| Event | Kegunaan | Kenapa diusulkan |
+| Event | Kegunaan | Status |
 |---|---|---|
-| `fnb.order.updated` | status order berubah (`PROCESSING`/`READY`/`DELIVERED`) | PRD §13 mewajibkan customer melihat status order, dan antrian F&B di tablet kedua tidak akan sinkron tanpa ini. Kemungkinan besar dibutuhkan di Tahap 3C |
-| `device.offline` | device melewati batas heartbeat | tanpa ini, status offline hanya terlihat saat operator me-refresh |
-| `shift.closed` | shift ditutup | relevan kalau ada lebih dari satu tablet operator |
+| `fnb.order.updated` | status order berubah (`PROCESSING`/`READY`/`DELIVERED`) | **Digeser ke Tahap 3C** (DEC-013). Dengan satu tablet operator tidak ada layar kedua yang perlu disinkronkan. Tapi PRD §13 mewajibkan customer melihat status order, dan Customer Portal **adalah** layar kedua — jadi event ini akan kembali dibutuhkan |
+| `device.offline` | device melewati batas heartbeat | **Masih terbuka.** Ini soal TV, bukan tablet, jadi DEC-013 tidak menutupnya. Tanpa event ini status offline hanya terlihat saat operator me-refresh |
+| `shift.closed` | shift ditutup | **Tidak perlu** (DEC-013). Hanya relevan kalau ada lebih dari satu tablet |
 
-Sampai disetujui, ketiganya ditangani dengan **polling HTTP** di Flutter.
+Sampai disetujui, yang masih terbuka ditangani dengan **refresh manual / saat layar dibuka** di Flutter.
 
 ---
 

@@ -504,6 +504,88 @@ class CheckoutResult {
   final Receipt receipt;
 }
 
+// ─── Shift — kontrak §10 ────────────────────────────────────────────
+
+class ShiftSummary {
+  const ShiftSummary({
+    required this.rental,
+    required this.fnb,
+    required this.cash,
+    required this.qris,
+    required this.total,
+  });
+
+  final int rental;
+  final int fnb;
+  final int cash;
+  final int qris;
+  final int total;
+
+  factory ShiftSummary.fromJson(Map<String, dynamic> j) => ShiftSummary(
+        rental: _int(j['rental']),
+        fnb: _int(j['fnb']),
+        cash: _int(j['cash']),
+        qris: _int(j['qris']),
+        total: _int(j['total']),
+      );
+
+  static const zero =
+      ShiftSummary(rental: 0, fnb: 0, cash: 0, qris: 0, total: 0);
+}
+
+class Shift {
+  const Shift({
+    required this.id,
+    required this.operator,
+    required this.openedAt,
+    required this.openingCash,
+    required this.summary,
+    this.closedAt,
+    this.closingCash,
+    this.note,
+  });
+
+  final String id;
+  final ActorRef operator;
+  final DateTime openedAt;
+  final DateTime? closedAt;
+
+  /// Kas awal yang dihitung operator saat membuka shift.
+  final int openingCash;
+
+  /// Kas akhir yang dihitung operator saat menutup. `null` kalau belum tutup.
+  final int? closingCash;
+
+  final ShiftSummary summary;
+  final String? note;
+
+  bool get isOpen => closedAt == null;
+
+  /// Kas yang **seharusnya** ada di kotak: kas awal + penerimaan tunai.
+  /// QRIS tidak dihitung karena tidak masuk kotak kas.
+  int get expectedCash => openingCash + summary.cash;
+
+  /// Selisih antara kas yang dihitung dan kas yang seharusnya.
+  /// Positif = lebih, negatif = kurang. `null` kalau shift belum ditutup.
+  ///
+  /// Ini angka yang diaudit (PRD §24) — bukan sekadar informasi.
+  int? get variance =>
+      closingCash == null ? null : closingCash! - expectedCash;
+
+  factory Shift.fromJson(Map<String, dynamic> j) => Shift(
+        id: j['id'] as String,
+        operator: ActorRef.fromJson(j['operator'] as Map<String, dynamic>),
+        openedAt: _dt(j['opened_at']) ?? DateTime.now().toUtc(),
+        closedAt: _dt(j['closed_at']),
+        openingCash: _int(j['opening_cash']),
+        closingCash: (j['closing_cash'] as num?)?.toInt(),
+        summary: j['summary'] == null
+            ? ShiftSummary.zero
+            : ShiftSummary.fromJson(j['summary'] as Map<String, dynamic>),
+        note: j['note'] as String?,
+      );
+}
+
 // ─── F&B — kontrak §8 ───────────────────────────────────────────────
 
 class FnbProduct {

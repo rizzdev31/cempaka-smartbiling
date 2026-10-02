@@ -93,4 +93,26 @@ abstract class BillingRepository {
     required String orderId,
     required FnbOrderStatus status,
   });
+
+  // ── Shift — kontrak §10 ───────────────────────────────────────────
+
+  /// Shift yang sedang berjalan, atau `null` kalau belum ada yang dibuka.
+  Future<Shift?> fetchCurrentShift();
+
+  Future<Shift> openShift({
+    required int openingCash,
+    required String idempotencyKey,
+  });
+
+  /// [closingCash] adalah kas yang **dihitung operator**, bukan yang
+  /// dihitung sistem. Selisihnya yang diaudit.
+  Future<Shift> closeShift({
+    required String shiftId,
+    required int closingCash,
+    required String idempotencyKey,
+    String? note,
+  });
+
+  /// Riwayat shift yang sudah ditutup, terbaru di atas.
+  Future<List<Shift>> fetchShiftHistory({int limit = 20});
 }

@@ -219,6 +219,30 @@ Lalu           SESI 2 di lokasi (golden path T01–T17)
 
 ---
 
+## DEC-013 — Satu tablet operator per lokasi (satu kasir)
+**Tanggal:** 2 Okt 2026 · **Status:** APPROVED · **Melengkapi:** PRD §18
+
+Hanya ada **satu** tablet operator di lokasi. Tidak ada tablet kedua untuk dapur, dan tidak ada dua kasir bekerja bersamaan.
+
+**Yang menjadi tidak perlu di V1:**
+
+| Usulan | Status |
+|---|---|
+| Event `fnb.order.updated` | **Tidak perlu di Tahap 1.** Dengan satu tablet, perubahan status order langsung terlihat di layar yang sama — tidak ada layar kedua yang perlu disinkronkan |
+| Event `shift.closed` | **Tidak perlu.** Hanya relevan kalau ada beberapa tablet |
+| Penanganan konflik antar tablet | **Tidak perlu.** Tidak ada dua operator menulis bersamaan |
+| Polling agresif untuk antrian F&B | **Tidak perlu.** Refresh saat layar dibuka sudah cukup |
+
+**Yang TETAP perlu:**
+- WebSocket Reverb — Kotlin TV Agent (Tahap 2) tetap mengkonsumsi `session.started/updated/extended/swapped/expired`. Keputusan ini tentang tablet, bukan tentang TV.
+- `device.offline` (usulan) — itu soal TV, bukan tablet. Masih terbuka.
+- Fitur Shift tetap dibangun. Shift bukan soal beberapa kasir bersamaan, tapi soal **pertanggungjawaban kas per periode kerja** — operator berbeda di hari atau jam berbeda.
+
+**Catatan penting — ini penundaan, bukan penghapusan:**
+`fnb.order.updated` akan **kembali dibutuhkan di Tahap 3C**. PRD §13 mewajibkan "Customer melihat status order dan total sementara", dan Customer Portal adalah layar kedua. Jadi event itu tetap tercatat sebagai usulan di `REALTIME.md` §9, dengan tahap yang digeser.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -236,6 +260,7 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | **OD-009** | Formula profit/margin & target achievement | PRD §35 TBD. Belum blokir karena reporting di Tahap 3B. | Tahap 3B |
 | **OD-010** | Receipt: dicetak (printer model/interface) atau cukup di layar? | Mempengaruhi UI checkout dan hardware yang perlu dibeli. | Tahap 1 (UI), Tahap 3 (hardware) |
 | **OD-011** | Apakah Flutter perlu **penemuan IP server otomatis** (scan subnet), atau cukup DHCP reservation? | **Ditunda oleh user 2 Okt 2026 — tunggu hasil DHCP reservation di SESI 1.** Analisis ada di bawah tabel. | Tahap 1 (opsional) |
+| **OD-013** | Ringkasan shift: `rental`/`fnb` dihitung saat item **dibuat** (nilai transaksi) atau saat **dibayar** (uang masuk)? | Keduanya sudah dibedakan di UI, tapi mana yang jadi dasar laporan belum diputuskan. Mempengaruhi laporan harian dan formula profit (OD-009). `cash`/`qris`/`total` tidak terpengaruh — itu selalu uang masuk | Tahap 3B (reporting) |
 | **OD-012** | Aplikasi akan **dijual ke beberapa pengguna** dengan nama & logo menyesuaikan, tetap di bawah naungan Cempaka Smart Billing. White-label per-instance, atau multi-tenant satu server? | **Keputusan arsitektur terbesar yang belum ada di PRD.** Menentukan schema DB. Retrofit `tenant_id` setelah ada data produksi sangat mahal. Detail di bawah tabel. | **Tahap 0 (schema)** — walau fiturnya nanti |
 
 **Tidak ada lagi Open Decision yang memblokir Tahap 0.** Billing engine sudah boleh ditulis.

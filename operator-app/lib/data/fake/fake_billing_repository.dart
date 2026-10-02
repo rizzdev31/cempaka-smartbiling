@@ -42,6 +42,14 @@ class FakeBillingRepository implements BillingRepository {
   /// Cache idempotency — kontrak §3.
   final Map<String, Object> _idempotency = {};
 
+  /// Log pembayaran. Server punya tabel `payments` (PRD §22); di sini
+  /// dibutuhkan agar ringkasan shift bisa dihitung dari data nyata,
+  /// bukan angka karangan.
+  final List<_PaymentRecord> _paymentLog = [];
+
+  _ShiftState? _currentShift;
+  final List<_ShiftState> _shiftHistory = [];
+
   int _sessionSeq = 0;
   int _orderSeq = 0;
   int _receiptSeq = 0;
@@ -120,6 +128,78 @@ class FakeBillingRepository implements BillingRepository {
   }
 
   static const graceWindow = Duration(minutes: 10);
+
+  void _recordPayment(PaymentMethod method, int amount, DateTime at) {
+    _paymentLog.add(_PaymentRecord(method: method, amount: amount, at: at));
+  }
+
+  /// Ringkasan shift.
+  ///
+  /// SEMANTIK YANG DIPAKAI — lihat OD-013, belum dikonfirmasi tim:
+  /// - `cash` / `qris` / `total` = **uang masuk** selama shift, dari log
+  ///   pembayaran. Ini angka yang dipakai menghitung kas di kotak.
+  /// - `rental` / `fnb` = **nilai transaksi** yang tercatat selama shift,
+  ///   dari `session_items` berdasarkan waktu dibuat.
+  ///
+  /// Keduanya bisa berbeda, dan itu benar: Open Tab yang dibuka di shift
+  /// pagi tapi dibayar di shift malam menghasilkan nilai transaksi di pagi
+  /// dan uang masuk di malam.
+  ShiftSummary _summaryFor(_ShiftState shift) {
+    final from = shift.openedAt;
+    final to = shift.closedAt ?? ServerTime.instance.now;
+
+    bool inWindow(DateTime t) => !t.isBefore(from) && !t.isAfter(to);
+
+    var cash = 0;
+    var qris = 0;
+    for (final p in _paymentLog) {
+      if (!inWindow(p.at)) continue;
+      if (p.method == PaymentMethod.cash) {
+        cash += p.amount;
+      } else if (p.method == PaymentMethod.qrisStatic) {
+        qris += p.amount;
+      }
+    }
+
+    var rental = 0;
+    var fnb = 0;
+    for (final s in _sessions.values) {
+      for (final i in s.items) {
+        if (!inWindow(i.createdAt)) continue;
+        final subtotal = i.unitPrice * i.qty;
+        switch (i.type) {
+          case SessionItemType.rental:
+          case SessionItemType.extend:
+            rental += subtotal;
+          case SessionItemType.fnb:
+            fnb += subtotal;
+          case SessionItemType.discount:
+          case SessionItemType.adjustment:
+          case SessionItemType.unknown:
+            break;
+        }
+      }
+    }
+
+    return ShiftSummary(
+      rental: rental,
+      fnb: fnb,
+      cash: cash,
+      qris: qris,
+      total: cash + qris,
+    );
+  }
+
+  Shift _projectShift(_ShiftState s) => Shift(
+        id: s.id,
+        operator: s.operator,
+        openedAt: s.openedAt,
+        closedAt: s.closedAt,
+        openingCash: s.openingCash,
+        closingCash: s.closingCash,
+        summary: _summaryFor(s),
+        note: s.note,
+      );
 
   // ── Seed ──────────────────────────────────────────────────────────
 
@@ -244,6 +324,15 @@ class FakeBillingRepository implements BillingRepository {
     // ditunjukkan ke operator asli untuk memvalidasi alur kasir.
     final now = DateTime.now().toUtc();
 
+    // Shift dibuka lebih dulu agar pembayaran seed jatuh di dalam
+    // jendela waktunya dan ringkasan shift tidak nol.
+    _currentShift = _ShiftState(
+      id: _uuid.v4(),
+      operator: const ActorRef(id: 'usr-op', name: 'Operator'),
+      openedAt: now.subtract(const Duration(hours: 4)),
+      openingCash: 200000,
+    );
+
     _spawnSeedSession(
       stationId: 'sta-1',
       packageId: 'pkg-60',
@@ -323,7 +412,14 @@ class FakeBillingRepository implements BillingRepository {
       createdAt: state.createdAt,
     ));
 
-    if (rentalPaid) state.paid += pkg.price;
+    if (rentalPaid) {
+      state.paid += pkg.price;
+      _recordPayment(
+        PaymentMethod.cash,
+        pkg.price,
+        startedAt ?? DateTime.now().toUtc(),
+      );
+    }
 
     if (startedAt != null) {
       state.status = SessionStatus.active;
@@ -349,7 +445,10 @@ class FakeBillingRepository implements BillingRepository {
         createdAt: at,
       ));
 
-      if (status == FnbOrderStatus.delivered) state.paid += p.price * qty;
+      if (status == FnbOrderStatus.delivered) {
+        state.paid += p.price * qty;
+        _recordPayment(PaymentMethod.cash, p.price * qty, at);
+      }
 
       _orderSeq++;
       final order = FnbOrder(
@@ -701,6 +800,7 @@ class FakeBillingRepository implements BillingRepository {
 
             final now = ServerTime.instance.now;
             s.paid += amount;
+            _recordPayment(method, amount, now);
 
             // Bayar rental -> sesi mulai (kontrak §7).
             final rental = s.items
@@ -928,6 +1028,9 @@ class FakeBillingRepository implements BillingRepository {
             }
 
             s.paid += totalPaying;
+            for (final p in payments) {
+              _recordPayment(p.method, p.amount, now);
+            }
             for (final i in s.items) {
               i.isPaid = true;
             }
@@ -1093,6 +1196,106 @@ class FakeBillingRepository implements BillingRepository {
         return all.where((o) => statuses.contains(o.status)).toList();
       });
 
+  // ── Shift ─────────────────────────────────────────────────────────
+
+  @override
+  Future<Shift?> fetchCurrentShift() => _call(
+        () => _currentShift == null ? null : _projectShift(_currentShift!),
+      );
+
+  @override
+  Future<Shift> openShift({
+    required int openingCash,
+    required String idempotencyKey,
+  }) =>
+      _idempotent(idempotencyKey, () => _call(() {
+            if (_currentShift != null) {
+              throw const ApiError(
+                code: ApiErrorCode.sessionStatusInvalid,
+                message: 'Masih ada shift yang berjalan. '
+                    'Tutup shift itu dulu.',
+                httpStatus: 409,
+              );
+            }
+            if (openingCash < 0) {
+              throw const ApiError(
+                code: ApiErrorCode.validationFailed,
+                message: 'Data yang dikirim tidak valid.',
+                details: {'opening_cash': ['Kas awal tidak boleh negatif.']},
+                httpStatus: 422,
+              );
+            }
+
+            final shift = _ShiftState(
+              id: _uuid.v4(),
+              operator: const ActorRef(id: 'usr-op', name: 'Operator'),
+              openedAt: ServerTime.instance.now,
+              openingCash: openingCash,
+            );
+            _currentShift = shift;
+            return _projectShift(shift);
+          }));
+
+  @override
+  Future<Shift> closeShift({
+    required String shiftId,
+    required int closingCash,
+    required String idempotencyKey,
+    String? note,
+  }) =>
+      _idempotent(idempotencyKey, () => _call(() {
+            final shift = _currentShift;
+            if (shift == null || shift.id != shiftId) {
+              throw const ApiError(
+                code: ApiErrorCode.notFound,
+                message: 'Shift tidak ditemukan atau sudah ditutup.',
+                httpStatus: 404,
+              );
+            }
+            if (closingCash < 0) {
+              throw const ApiError(
+                code: ApiErrorCode.validationFailed,
+                message: 'Data yang dikirim tidak valid.',
+                details: {'closing_cash': ['Kas akhir tidak boleh negatif.']},
+                httpStatus: 422,
+              );
+            }
+
+            // Shift tidak boleh ditutup kalau masih ada sesi berjalan —
+            // tagihannya belum selesai dan pertanggungjawaban kas jadi
+            // tidak bisa ditutup.
+            final openSessions = _sessions.values
+                .map(_project)
+                .where((s) => s.status.occupiesStation)
+                .length;
+            if (openSessions > 0) {
+              throw ApiError(
+                code: ApiErrorCode.sessionStatusInvalid,
+                message: 'Masih ada $openSessions sesi berjalan. '
+                    'Selesaikan checkout semuanya sebelum menutup shift.',
+                details: {'open_sessions': openSessions},
+                httpStatus: 409,
+              );
+            }
+
+            shift.closedAt = ServerTime.instance.now;
+            shift.closingCash = closingCash;
+            shift.note = note;
+
+            final closed = _projectShift(shift);
+            _shiftHistory.insert(0, shift);
+            _currentShift = null;
+            return closed;
+          }));
+
+  @override
+  Future<List<Shift>> fetchShiftHistory({int limit = 20}) => _call(
+        () => _shiftHistory
+            .take(limit)
+            .map(_projectShift)
+            .toList(growable: false),
+      );
+
   @override
   Future<FnbOrder> updateFnbOrderStatus({
     required String orderId,
@@ -1174,6 +1377,36 @@ class _SessionState {
   final List<_SessionItemState> items = [];
   final DateTime createdAt;
   DateTime updatedAt;
+}
+
+class _PaymentRecord {
+  const _PaymentRecord({
+    required this.method,
+    required this.amount,
+    required this.at,
+  });
+
+  final PaymentMethod method;
+  final int amount;
+  final DateTime at;
+}
+
+class _ShiftState {
+  _ShiftState({
+    required this.id,
+    required this.operator,
+    required this.openedAt,
+    required this.openingCash,
+  });
+
+  final String id;
+  final ActorRef operator;
+  final DateTime openedAt;
+  final int openingCash;
+
+  DateTime? closedAt;
+  int? closingCash;
+  String? note;
 }
 
 class _SessionItemState {

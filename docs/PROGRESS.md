@@ -15,7 +15,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Milestone terdekat** | **Sabtu 3 Okt: SESI 1 recon lokasi (0 kode)** — `TEST-PLAN-SABTU.md` |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
-| **operator-app** | Dashboard + Session Detail + **F&B Queue** jalan di fake repository; **62 test lulus**; design pass 1 selesai |
+| **operator-app** | Dashboard + Session Detail + F&B Queue + **Shift** jalan di fake repository; **78 test lulus**; design pass 1 selesai |
 | **backend / tv-agent** | masih kosong (baru README) |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
@@ -69,12 +69,12 @@ Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat 
 - [x] Payment (cash + QRIS manual)
 - [x] Extend + Station Swap + Tambah F&B
 - [x] Checkout + struk (durasi aktual vs tertagih)
-- [x] 62 test lulus (aturan billing + layout kartu + antrian F&B)
+- [x] 78 test lulus (billing + layout + antrian F&B + shift)
 - [x] Design pass 1: rail status, bar proporsi waktu, brand mark, permukaan bertingkat
 - [ ] Login / auth
 - [ ] Reverb client + auto-reconnect + reconcile
 - [x] F&B Queue (layar antrian + badge di dashboard)
-- [ ] Shift start/close/handover
+- [x] Shift start/close/handover + pertanggungjawaban kas
 - [ ] Device status (layar terpisah)
 - [ ] **Ganti fake repository → `ApiBillingRepository`** (DEC-012 syarat 2)
 - [ ] Bundel font Fira Sans/Code
@@ -420,3 +420,48 @@ Keduanya ditemukan saat menulis test, bukan saat memakai layarnya.
 1. Shift start/close/handover
 2. Device status
 3. Pilih member di Start Session
+
+---
+
+### 2026-10-02 — Satu kasir dikonfirmasi + layar Shift
+
+**Keputusan baru: DEC-013 — satu tablet operator per lokasi**
+User mengkonfirmasi hanya ada satu kasir. Yang jadi tidak perlu: event `fnb.order.updated`, event `shift.closed`, penanganan konflik antar tablet, polling agresif.
+Yang **tetap** perlu: WebSocket Reverb (Kotlin TV Agent tetap mengkonsumsi `session.*` — ini soal tablet, bukan TV) dan fitur Shift itu sendiri.
+
+**Catatan penting:** `fnb.order.updated` hanya **digeser**, bukan dihapus. PRD §13 mewajibkan customer melihat status order, dan Customer Portal (Tahap 3C) adalah layar kedua — jadi event itu akan kembali dibutuhkan. `REALTIME.md` §9 sudah diperbarui.
+
+**Files changed**
+- Baru: `lib/ui/shift/shift_controller.dart`, `lib/ui/shift/shift_screen.dart`, `test/shift_test.dart`
+- Diubah: `lib/domain/models/models.dart` (model `Shift`, `ShiftSummary`), `lib/domain/repositories/billing_repository.dart` (4 method shift), `lib/data/fake/fake_billing_repository.dart` (log pembayaran + state shift), `lib/ui/dashboard/dashboard_screen.dart`
+- Dokumen: `DECISION-LOG.md` (DEC-013, OD-013), `contracts/REALTIME.md` §9
+
+**API/Events** — tidak ada perubahan kontrak. Memakai `/shifts/*` yang sudah ada di `API.md` §10. Empat method ditambahkan ke `BillingRepository`: `fetchCurrentShift`, `openShift`, `closeShift`, `fetchShiftHistory`.
+
+**Tests** — `flutter test`: **78 lulus** (naik dari 62). `flutter analyze`: bersih.
+16 test baru: kas seharusnya, selisih kurang/lebih/pas, penolakan tutup shift saat ada sesi berjalan, serah terima, idempotency, dan pemisahan tunai vs QRIS.
+
+**Yang dibangun**
+Layar shift berpusat pada satu pertanyaan: **berapa kas yang seharusnya ada di kotak?**
+
+- `Kas seharusnya = kas awal + penerimaan tunai`. **QRIS sengaja tidak dihitung** — uangnya tidak masuk kotak kas. Ini kesalahan hitung yang paling mudah terjadi kalau tidak dipisahkan eksplisit.
+- Selisih dihitung **saat operator mengetik** hasil hitungannya, bukan setelah shift ditutup. Operator melihat "Kurang Rp 50.000" sebelum menekan tombol, bukan sesudahnya.
+- Selisih bukan nol → **konfirmasi kedua** dengan peringatan bahwa angkanya dicatat permanen di audit log (PRD §24).
+- **Shift tidak bisa ditutup kalau masih ada sesi berjalan.** Tagihannya belum selesai, jadi pertanggungjawaban kas belum bisa ditutup. Pesan errornya menyebut jumlah sesinya.
+- **Serah terima**: kas akhir shift ini diusulkan sebagai kas awal shift berikutnya, ditampilkan di laporan penutupan.
+- Riwayat shift dengan penanda Pas / Lebih / Kurang.
+
+**Keputusan teknis**
+Fake repo kini punya **log pembayaran**, bukan hanya `paid` per sesi. Tanpa itu ringkasan shift harus diisi angka karangan, dan test tidak akan membuktikan apa pun.
+
+**OD-013 baru**
+Ringkasan shift memisahkan **uang masuk** (`cash`/`qris`/`total`, dari log pembayaran) dan **nilai transaksi** (`rental`/`fnb`, dari waktu item dibuat). Keduanya memang bisa berbeda — Open Tab yang dibuka pagi tapi dibayar malam. Mana yang jadi dasar laporan harian belum diputuskan; mempengaruhi formula profit (OD-009). Sudah dijelaskan di layar supaya tidak menyesatkan.
+
+**Known issues**
+- Shift masih memakai operator dummy (`Operator`) karena belum ada login. Nama sebenarnya ikut setelah auth.
+- Belum diverifikasi secara visual.
+
+**Next step**
+1. Device status
+2. Pilih member di Start Session
+3. Login (butuh backend) lalu Laravel thin slice

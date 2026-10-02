@@ -10,6 +10,7 @@ import '../../domain/models/enums.dart';
 import '../../domain/models/models.dart';
 import '../fnb/fnb_queue_screen.dart';
 import '../session/session_detail_screen.dart';
+import '../shift/shift_screen.dart';
 import '../settings/settings_screen.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/confirm_dialog.dart';
@@ -229,7 +230,7 @@ class _ActionBar extends StatelessWidget {
   const _ActionBar({required this.ctrl, required this.onOpenFnb});
 
   final DashboardController ctrl;
-  final Future<void> Function() onOpenFnb;
+  final VoidCallback onOpenFnb;
 
   @override
   Widget build(BuildContext context) {
@@ -248,6 +249,14 @@ class _ActionBar extends StatelessWidget {
             badge: ctrl.fnbActionableCount,
             onTap: onOpenFnb,
           ),
+          const SizedBox(width: AppSpacing.sm),
+          _ActionTile(
+            icon: Icons.badge_outlined,
+            label: 'Shift',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ShiftScreen()),
+            ),
+          ),
         ],
       ),
     );
@@ -264,7 +273,7 @@ class _ActionTile extends StatelessWidget {
 
   final IconData icon;
   final String label;
-  final Future<void> Function() onTap;
+  final VoidCallback onTap;
   final int badge;
 
   @override
@@ -279,7 +288,7 @@ class _ActionTile extends StatelessWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.card),
         child: InkWell(
-          onTap: () => onTap(),
+          onTap: onTap,
           borderRadius: BorderRadius.circular(AppRadius.card),
           child: Container(
             height: AppSize.minTouchTarget + 4,
