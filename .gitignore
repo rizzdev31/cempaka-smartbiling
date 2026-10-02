@@ -1,0 +1,87 @@
+# ─── Rahasia — JANGAN PERNAH di-commit ───────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.keystore
+*.jks
+google-services.json
+**/android/key.properties
+secrets.properties
+
+# ─── Laravel (backend/) ──────────────────────────────────────
+backend/vendor/
+backend/node_modules/
+backend/public/storage
+backend/public/hot
+backend/public/build/
+backend/storage/*.key
+backend/storage/framework/cache/*
+backend/storage/framework/sessions/*
+backend/storage/framework/testing/*
+backend/storage/framework/views/*
+backend/storage/logs/*
+backend/bootstrap/cache/*
+backend/.phpunit.result.cache
+backend/Homestead.json
+backend/Homestead.yaml
+backend/auth.json
+backend/.phpactor.json
+
+# ─── Flutter (operator-app/) ─────────────────────────────────
+operator-app/.dart_tool/
+operator-app/.flutter-plugins
+operator-app/.flutter-plugins-dependencies
+operator-app/.packages
+operator-app/build/
+operator-app/.pub-cache/
+operator-app/.pub/
+operator-app/coverage/
+operator-app/ios/Pods/
+operator-app/ios/.symlinks/
+operator-app/ios/Flutter/Flutter.framework
+operator-app/ios/Flutter/Generated.xcconfig
+operator-app/ios/Flutter/flutter_export_environment.sh
+operator-app/android/.gradle/
+operator-app/android/local.properties
+operator-app/android/app/debug/
+operator-app/android/app/profile/
+operator-app/android/app/release/
+
+# ─── Kotlin / Android TV (tv-agent/) ─────────────────────────
+tv-agent/.gradle/
+tv-agent/build/
+tv-agent/*/build/
+tv-agent/local.properties
+tv-agent/.cxx/
+tv-agent/captures/
+tv-agent/app/release/
+tv-agent/app/debug/
+
+# ─── IDE & editor ────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+!.vscode/launch.json
+!.vscode/extensions.json
+.fleet/
+*.swp
+*~
+
+# ─── OS ──────────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.DS_Store
+$RECYCLE.BIN/
+
+# ─── Lain-lain ───────────────────────────────────────────────
+*.log
+*.sqlite
+*.sqlite3
+*.db
+/tmp/
+/scratch/
+~$*.docx
+~$*.xlsx
