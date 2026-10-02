@@ -126,6 +126,10 @@ Booking + conflict check · Midtrans/gateway + webhook idempotent · T14, T17
 
 ---
 
+> ⚠️ **Urutan ini ditahan pada 2 Okt 2026 — lihat DEC-015.**
+> Tahap 0 (Laravel) ditunda; TV Agent dibangun lebih dulu sebagai kiosk
+> kontrol-langsung untuk membuktikan R01 dan menjawab OD-005.
+
 ## Urutan kerja nyata (solo, sekuensial) — DEC-012
 
 Tahap 0 dan Tahap 1 **tidak dikerjakan berurutan penuh**. Tahap 1 dimulai lebih dulu dengan fake repository, Tahap 0 menyusul sebagai thin slice.

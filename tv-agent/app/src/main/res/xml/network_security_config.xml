@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Agen ini melayani HTTP di jaringan lokal, dan nanti (Tahap 2) akan memanggil
+  Laravel yang selama pengembangan juga HTTP di LAN. Cleartext diizinkan
+  karena itu.
+
+  Saat pindah ke VPS (Tahap 3A), panggilan keluar harus HTTPS dan file ini
+  diperketat ke domain tertentu saja.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

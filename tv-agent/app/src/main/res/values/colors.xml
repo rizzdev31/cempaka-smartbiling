@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Diselaraskan dengan docs/UI-UX-SPEC.md agar TV dan operator app memakai
+  bahasa warna yang sama. Latar TV sengaja hitam murni: kontras maksimum
+  dari jarak 2-3 meter, dan hemat daya di panel OLED.
+-->
+<resources>
+    <color name="tv_background">#FF000000</color>
+    <color name="tv_surface">#FF0F131D</color>
+    <color name="tv_surface_high">#FF262A35</color>
+
+    <color name="tv_on_surface">#FFFFFFFF</color>
+    <color name="tv_on_surface_variant">#FFBAC9CC</color>
+    <color name="tv_outline">#FF849396</color>
+
+    <!-- Status: sama persis dengan operator app -->
+    <color name="status_available">#FFC3F5FF</color>
+    <color name="status_active">#FF4EDEA3</color>
+    <color name="status_warning">#FFFFB95F</color>
+    <color name="status_expired">#FFFF5A5A</color>
+    <color name="status_pending">#FFFFE9D3</color>
+
+    <color name="accent_primary">#FF00E5FF</color>
+</resources>

@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">Cempaka TV</string>
+
+    <string name="idle_title">Tersedia</string>
+    <string name="idle_hint">Hubungi operator untuk memulai</string>
+
+    <string name="status_playing">Bermain</string>
+    <string name="status_warning">Waktu hampir habis</string>
+    <string name="status_expired">Waktu habis</string>
+    <string name="status_pending">Menunggu pembayaran</string>
+
+    <string name="pairing_title">Belum dipasangkan</string>
+    <string name="pairing_hint">Masukkan kode ini di aplikasi operator</string>
+    <string name="pairing_waiting">Menunggu operator…</string>
+
+    <string name="service_channel_name">Agen TV</string>
+    <string name="service_channel_desc">Menjaga agen tetap berjalan dan menerima perintah operator</string>
+    <string name="service_notification_title">Cempaka TV aktif</string>
+</resources>

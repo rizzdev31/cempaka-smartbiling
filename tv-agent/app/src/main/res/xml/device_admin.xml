@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Kebijakan device admin sengaja KOSONG.
+
+  Keberadaan receiver ini hanya membuka kemungkinan Lock Task mode. Kebijakan
+  lain — memblokir Pengaturan, membatasi aplikasi lain, memaksa kata sandi —
+  adalah keputusan bisnis yang belum ada, dan menambahkannya tanpa keputusan
+  berarti TV pelanggan dibatasi dengan cara yang tidak diminta siapa pun.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies />
+</device-admin>

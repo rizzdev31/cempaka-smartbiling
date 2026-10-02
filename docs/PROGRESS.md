@@ -9,14 +9,15 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 
 | | |
 |---|---|
-| **Tahap aktif** | TAHAP 1 — Flutter Operator, pakai fake repository (DEC-012) |
+| **Tahap aktif** | **TAHAP 2 — Kotlin TV Agent** (kiosk kontrol-langsung, DEC-015). Tahap 0 ditahan |
 | **Blocker** | **tidak ada** — kontrak sudah fix, billing rule sudah fix |
 | **Blocker Tahap 2** | OD-004 (perilaku warning), OD-005 (fakta TV — **dicek besok**) |
 | **Milestone terdekat** | **Sabtu 3 Okt: SESI 1 recon lokasi (0 kode)** — `TEST-PLAN-SABTU.md` |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 selesai kecuali Login & Booking; **redesign sesuai `contoh.html`** (DEC-014); **128 test lulus** |
-| **backend / tv-agent** | masih kosong (baru README) |
+| **tv-agent** | kiosk + timer + kontrol HTTP lokal jalan; **31 test lulus**; APK 4,0 MB |
+| **backend** | masih kosong — **ditahan** (DEC-015) |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -662,3 +663,116 @@ kombinasi ukuran + status, termasuk penskalaan teks 1.3×.
 1. User melihat hasilnya dan memberi koreksi
 2. Putuskan OD-012 (multi-tenant) + OD-015 (tarif per konsol)
 3. Laravel thin slice
+
+---
+
+### 2026-10-02 — TV Agent: kiosk + kontrol langsung lewat LAN (DEC-015)
+
+User menahan Laravel dan memilih membangun **APK TV lebih dulu** sebagai kiosk
+yang dikontrol operator lewat WiFi/jaringan lokal, tanpa login dan tanpa
+backend.
+
+**Files changed** — `tv-agent/` sebelumnya hanya README; kini project Android
+penuh.
+- Build: `settings.gradle.kts`, `build.gradle.kts`, `gradle/libs.versions.toml`,
+  `app/build.gradle.kts`, `app/proguard-rules.pro`
+- Manifest + resources: `AndroidManifest.xml`, `values/{colors,strings,themes,dimens}.xml`,
+  `layout/activity_kiosk.xml`, `drawable/`, `xml/{network_security_config,device_admin}.xml`,
+  `font/` (5 TTF)
+- Kotlin: `AgentApp`, `AgentState`, `StateStore`, `TimeSync`, `AgentPorts`,
+  `CommandSource` (+`CommandApplier`), `LocalHttpCommandSource`, `Pairing`,
+  `Json`, `DeviceCapabilities`, `AgentService`, `BootReceiver`, `KioskActivity`,
+  `AgentDeviceAdminReceiver`
+- Test: `Fakes`, `TimeSyncTest`, `PairingTest`, `CommandApplierTest`
+- Dokumen: `tv-agent/README.md`, `DECISION-LOG.md` (DEC-015), `ROADMAP.md`
+
+**Tests** — 31 unit test JVM lulus, tanpa emulator. APK debug ter-build (4,0 MB),
+terdeteksi sebagai aplikasi Android TV (leanback launcher), targetSdk 34.
+
+**Konflik dengan PRD — diangkat, bukan disembunyikan**
+PRD §8 menyatakan TV Agent bukan source of truth dan client tidak menentukan
+state; PRD §16 menyatakan TV menerima `end_at` dari Laravel lewat WebSocket.
+Kontrol langsung operator → TV melanggar keduanya.
+
+Tetap dijalankan karena **R01 (HIGH) belum tersentuh**: apakah TV bisa
+dijadikan kiosk sama sekali belum terbukti, dan tidak ada gunanya
+menyelesaikan Laravel kalau ternyata TV-nya tidak bisa dipasangi APK. Jadi ini
+diperlakukan sebagai **spike untuk membuktikan kendali TV**, bukan perubahan
+arsitektur. Dicatat utuh di DEC-015.
+
+**Empat hal yang membuat pekerjaan ini tidak terbuang**
+1. **`CommandSource` sebagai batas.** `LocalHttpCommandSource` sekarang,
+   `ReverbCommandSource` di Tahap 2. Layar kiosk, timer, persistence, dan
+   recovery tidak tahu mana yang dipakai — yang diganti hanya satu blok di
+   `AgentService.ensureCommandSource()`.
+2. **`AgentCommand` dibentuk mengikuti event `REALTIME.md` §5**, bukan mengikuti
+   bentuk HTTP lokal.
+3. **Timer dihitung dari `end_at`** persis seperti PRD §16, jadi tidak perlu
+   diubah nanti. Ini juga yang membuat timer tetap benar saat koneksi terputus.
+4. **Bentuk error mengikuti kontrak §2**, sehingga penanganannya di operator app
+   sama untuk agen maupun Laravel.
+
+**Autentikasi tidak ditunda — ini yang paling penting**
+Kontrol langsung tanpa autentikasi berarti siapa pun di WiFi yang sama bisa
+menyetel timer TV; customer di Guest Wi-Fi bisa memperpanjang sesinya sendiri
+secara gratis. Kelas risiko yang sama dengan *prank order* (PRD §13) dan R05.
+
+Jadi dipakai **pairing**: TV menampilkan kode 6 digit, operator memasukkannya
+sekali, TV memberi device token. Kode sekali pakai; 10 percobaan salah mengunci
+pairing. Polanya sama dengan `enrollment_code` di kontrak §9, jadi tidak
+terbuang.
+
+Batasnya dicatat jujur: siapa pun yang melihat layar TV bisa membaca kodenya.
+Memadai untuk jaringan operasional, **bukan** untuk TV yang terjangkau dari
+Guest Wi-Fi — pemisahan guest di PRD §9 tetap wajib.
+
+**Kiosk punya dua tingkat, dan yang kedua belum pasti**
+
+| Tingkat | Cara | Bisa keluar? |
+|---|---|---|
+| 1 — selalu | fullscreen immersive, layar menyala, back ditahan, foreground service, auto-start saat boot | Ya, lewat HOME |
+| 2 — kiosk sebenarnya | Lock Task mode + Device Owner | Tidak |
+
+Aplikasi **melaporkan** tingkat mana yang aktif lewat `GET /health` dan baris
+diagnostik di layar — tidak mengklaim. PRD §5 melarang klaim sebelum terbukti.
+`AgentDeviceAdminReceiver` ditambahkan supaya perintah
+`adb shell dpm set-device-owner` bisa dipakai; itu hanya berhasil pada perangkat
+tanpa akun (OD-005 / V10).
+
+**Satu kelemahan desain ditemukan test, bukan mata**
+`CommandApplier` awalnya menerima `station_code` apa pun dari perintah.
+Akibatnya perintah yang **salah kirim** — operator menekan ST01 padahal TV itu
+ST02 — akan mengubah label TV diam-diam, sehingga dua TV mengaku station yang
+sama dan tidak ada yang tahu mana yang benar. Sekarang perintah untuk station
+lain **ditolak**; pemindahan harus eksplisit lewat unpair/pair agar tercatat
+(PRD §10).
+
+**Dua masalah build yang layak dicatat**
+1. `local.properties` ditulis dengan backslash. Di file `.properties` Java,
+   `\` adalah karakter escape, jadi `C:\Users\...` terbaca `C:Users...` dan
+   Gradle gagal dengan pesan menyesatkan. Harus garis miring.
+2. `TimeSync` semula memakai `SystemClock.elapsedRealtime()`, yang melempar
+   `Stub!` di unit test JVM — 14 test gagal. Diganti `System.nanoTime()`:
+   sama-sama monotonik tapi murni Java, sehingga aturan waktu (bagian paling
+   mahal kalau salah) bisa diuji tanpa emulator.
+
+**Konsekuensi penahanan Tahap 0 — dicatat supaya tidak dianggap selesai**
+- Operator app masih memakai fake repository (DEC-012 syarat 2 belum terpenuhi)
+- **Tidak ada audit trail** untuk apa pun yang dilakukan lewat kontrol langsung
+- **Tidak ada recovery dari server** kalau TV kehilangan state-nya
+- Belum ada login
+
+Ketiganya akan dibutuhkan sebelum produksi.
+
+**Known issues**
+- Belum pernah dijalankan di TV atau emulator — baru terbukti **compile dan
+  test lulus**, bukan berjalan.
+- Integrasi dari aplikasi operator belum ada; sekarang hanya bisa dicoba lewat
+  `curl` (lihat `tv-agent/README.md`).
+- Peringatan 10/5/1 menit belum ada suara (OD-004); `LOCKED` belum berefek
+  (OD-001).
+
+**Next step**
+1. Pasang APK ke TV atau emulator dan buktikan layarnya benar
+2. Penemuan TV + panel kontrol di aplikasi operator
+3. Kalau sudah terbukti: putuskan OD-012 + OD-015, lalu Laravel

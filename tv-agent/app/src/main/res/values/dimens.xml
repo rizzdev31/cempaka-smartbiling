@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Overscan: TV memotong tepi layar. 5% dari 1920x1080 = 96 x 54 dp.
+  Nilai tetap dipakai, bukan persen, karena atribut padding tidak menerima
+  persen dan TV praktis selalu 1080p atau 720p dengan rasio sama.
+-->
+<resources>
+    <dimen name="overscan_h">48dp</dimen>
+    <dimen name="overscan_v">27dp</dimen>
+</resources>

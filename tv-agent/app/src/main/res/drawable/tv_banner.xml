@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Banner wajib untuk aplikasi Android TV (320x180). Sementara pakai
+     bentuk sederhana; diganti aset merek saat tersedia (OD-012). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/tv_surface" />
+        </shape>
+    </item>
+    <item android:gravity="center">
+        <shape android:shape="oval">
+            <size android:width="72dp" android:height="72dp" />
+            <solid android:color="@color/accent_primary" />
+        </shape>
+    </item>
+</layer-list>

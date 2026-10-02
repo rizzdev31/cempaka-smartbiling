@@ -285,6 +285,81 @@ indikator koneksi yang memang nyata.
 
 ---
 
+## DEC-015 — Tahap 0 ditahan; TV Agent dibangun lebih dulu sebagai kiosk kontrol-langsung
+**Tanggal:** 2 Okt 2026 · **Status:** APPROVED · **Menahan:** DEC-012 urutan kerja
+
+User menahan Laravel dan memilih membangun **APK TV lebih dulu**, sebagai kiosk
+yang dikontrol operator lewat WiFi/jaringan lokal, **tanpa login dan tanpa
+backend**.
+
+### Konflik dengan PRD — dan kenapa tetap dijalankan
+
+PRD §8 menyatakan TV Agent "bukan source of truth" dan client "tidak boleh
+menentukan harga/state". PRD §16 menyatakan TV menerima `start_at`/`end_at`
+dari Laravel lewat WebSocket. Kontrol langsung operator → TV **melanggar
+keduanya**.
+
+Tapi kebutuhan di belakangnya sah dan mendesak:
+1. **R01 adalah risiko HIGH yang belum tersentuh.** Apakah TV bisa dijadikan
+   kiosk sama sekali belum terbukti. Tidak ada gunanya menyelesaikan Laravel
+   kalau ternyata TV-nya tidak bisa dipasangi APK.
+2. **OD-005 dijawab lebih baik dengan APK nyata** daripada dengan browser TV.
+3. PRD §29 sendiri meminta vertical slice lebih dulu, bukan sistem lengkap.
+
+Jadi ini diperlakukan sebagai **technical spike untuk membuktikan kendali TV**,
+bukan perubahan arsitektur permanen.
+
+### Yang mengikat agar pekerjaannya tidak terbuang
+
+1. **Sumber perintah di belakang interface.** Kotlin memakai `CommandSource`
+   dengan dua implementasi: `LocalHttpCommandSource` (sekarang) dan
+   `ReverbCommandSource` (Tahap 2 sebenarnya). Layar kiosk, timer, persistence,
+   dan recovery **tidak tahu** dari mana perintahnya datang — jadi saat Laravel
+   masuk, yang diganti hanya satu kelas.
+2. **Timer tetap dihitung dari `end_at`**, bukan dari hitungan mundur yang
+   dikirim per detik. Sama seperti PRD §16, jadi tidak perlu diubah nanti.
+3. **Kontrol langsung WAJIB berautentikasi** — lihat di bawah.
+4. **Tidak ada logika billing di TV.** TV hanya menampilkan `end_at` yang
+   diberikan. Harga, kelayakan extend, dan rounding tetap tidak pernah ada di
+   TV, bahkan dalam mode langsung ini.
+
+### Kenapa autentikasi tidak bisa ditunda
+
+Kontrol langsung tanpa autentikasi berarti **siapa pun di WiFi yang sama bisa
+menyetel timer TV**. Customer yang terhubung ke Guest Wi-Fi bisa memperpanjang
+sesinya sendiri secara gratis — ini kelas risiko yang sama dengan *prank order*
+di PRD §13, dan R05 (unauthorized customer access, HIGH).
+
+Jadi kontrol langsung memakai **pairing**: TV menampilkan kode, operator
+memasukkannya sekali, lalu menerima token device. Setiap perintah berikutnya
+membawa token itu. Token dapat dicabut — sejalan dengan PRD §10 dan §24, dan
+polanya sama dengan `enrollment_code` di kontrak §9, jadi tidak terbuang.
+
+### Mode kiosk punya dua tingkat — dan tingkat 2 belum pasti
+
+| Tingkat | Cara | Bisa keluar? |
+|---|---|---|
+| **1** — selalu bisa | fullscreen immersive + foreground service + auto-start saat boot | Ya, lewat tombol HOME |
+| **2** — kiosk sebenarnya | Lock Task mode + Device Owner | Tidak |
+
+Tingkat 2 butuh **Device Owner**, yang umumnya hanya bisa di-set pada TV tanpa
+akun Google — artinya factory reset (OD-005 / V10). Jadi aplikasi melaporkan
+tingkat mana yang aktif lewat `GET /health`, dan **tidak mengklaim** kiosk
+penuh sebelum terbukti. PRD §5 melarang klaim itu.
+
+### Yang ditahan
+
+Tahap 0 (Laravel API Core) ditahan, termasuk login. Konsekuensinya:
+- Operator app tetap memakai fake repository (DEC-012 syarat 2 belum bisa
+  dipenuhi)
+- Tidak ada audit trail untuk apa pun yang dilakukan lewat kontrol langsung
+- Tidak ada recovery dari server kalau TV kehilangan state-nya
+
+Ketiganya **akan** dibutuhkan sebelum produksi. Dicatat di sini supaya tidak
+dianggap sudah selesai.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**

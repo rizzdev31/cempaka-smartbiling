@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Layar kiosk — 10-foot UI (docs/UI-UX-SPEC.md §9).
+
+  Padding 5% tiap sisi: TV memotong tepi layar (overscan), dan tanpa itu
+  elemen di pinggir bisa terpotong pada TV lama.
+
+  Maksimum tiga blok informasi. Timer adalah elemen dominan; segala yang lain
+  mendukungnya, bukan bersaing dengannya.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/tv_background"
+    android:paddingStart="@dimen/overscan_h"
+    android:paddingTop="@dimen/overscan_v"
+    android:paddingEnd="@dimen/overscan_h"
+    android:paddingBottom="@dimen/overscan_v">
+
+    <!-- ── Keadaan: ada sesi / idle ──────────────────────────────── -->
+    <LinearLayout
+        android:id="@+id/sessionPane"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/stationCode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/space_grotesk_bold"
+            android:letterSpacing="0.08"
+            android:textColor="@color/tv_on_surface_variant"
+            android:textSize="34sp"
+            tools:ignore="SpUsage"
+            android:text="ST01" />
+
+        <TextView
+            android:id="@+id/timer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:fontFamily="@font/jetbrains_mono_bold"
+            android:includeFontPadding="false"
+            android:textColor="@color/tv_on_surface"
+            android:textSize="132sp"
+            android:text="00:00:00" />
+
+        <!-- Status: warna + ikon-titik + teks. Aturan color-not-only. -->
+        <LinearLayout
+            android:id="@+id/statusRow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <View
+                android:id="@+id/statusDot"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:background="@drawable/status_dot" />
+
+            <TextView
+                android:id="@+id/statusText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:fontFamily="@font/plus_jakarta_semibold"
+                android:textColor="@color/status_active"
+                android:textSize="28sp"
+                android:text="@string/status_playing" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/customerLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:fontFamily="@font/plus_jakarta_regular"
+            android:textColor="@color/tv_outline"
+            android:textSize="24sp"
+            android:visibility="gone"
+            tools:visibility="visible"
+            tools:text="Budi Santoso" />
+    </LinearLayout>
+
+    <!-- ── Keadaan: belum dipasangkan ────────────────────────────── -->
+    <LinearLayout
+        android:id="@+id/pairingPane"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone"
+        tools:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/plus_jakarta_semibold"
+            android:textColor="@color/tv_on_surface_variant"
+            android:textSize="30sp"
+            android:text="@string/pairing_title" />
+
+        <TextView
+            android:id="@+id/pairingCode"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:fontFamily="@font/jetbrains_mono_bold"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.18"
+            android:textColor="@color/accent_primary"
+            android:textSize="104sp"
+            android:text="000000" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:fontFamily="@font/plus_jakarta_regular"
+            android:textColor="@color/tv_outline"
+            android:textSize="24sp"
+            android:text="@string/pairing_hint" />
+
+        <!-- Alamat IP ditampilkan supaya operator tidak perlu menebak atau
+             memindai jaringan kalau scan-nya gagal. -->
+        <TextView
+            android:id="@+id/pairingAddress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:fontFamily="@font/jetbrains_mono_medium"
+            android:textColor="@color/tv_on_surface_variant"
+            android:textSize="26sp"
+            tools:text="192.168.0.77:8787" />
+    </LinearLayout>
+
+    <!-- ── Baris diagnostik bawah ────────────────────────────────── -->
+    <!-- Kecil dan redup: dibutuhkan saat troubleshooting di lokasi, tapi
+         tidak boleh mengganggu customer yang sedang bermain. -->
+    <TextView
+        android:id="@+id/diagnostics"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:alpha="0.6"
+        android:fontFamily="@font/jetbrains_mono_medium"
+        android:textColor="@color/tv_outline"
+        android:textSize="16sp"
+        tools:text="192.168.0.77:8787 · jam sinkron · soft kiosk" />
+
+    <!-- Indikator koneksi: kecil, di pojok, tidak menutupi timer.
+         PRD §16 — customer tidak perlu tahu kalau koneksi terputus. -->
+    <View
+        android:id="@+id/linkDot"
+        android:layout_width="14dp"
+        android:layout_height="14dp"
+        android:layout_gravity="top|end"
+        android:background="@drawable/status_dot" />
+</FrameLayout>
