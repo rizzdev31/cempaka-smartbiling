@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -9,24 +10,24 @@ import '../../core/util/format.dart';
 import '../../domain/models/enums.dart';
 import '../../domain/models/models.dart';
 import '../../domain/repositories/billing_repository.dart';
-import '../device/device_screen.dart';
-import '../fnb/fnb_queue_screen.dart';
+import '../session/session_actions.dart';
+import '../session/session_detail_controller.dart';
 import '../session/session_detail_screen.dart';
-import '../shift/shift_screen.dart';
-import '../settings/settings_screen.dart';
-import '../widgets/brand_mark.dart';
 import '../widgets/confirm_dialog.dart';
 import '../widgets/connection_banner.dart';
 import '../widgets/station_card.dart';
 import 'dashboard_controller.dart';
 import 'start_session_sheet.dart';
 
-/// Layar utama operator.
+/// Monitor stasiun — layar utama operator.
 ///
-/// UI-UX-SPEC §3: enam station harus terlihat **tanpa scroll** —
-/// grid 3×2 landscape, 2×3 portrait. Operator melirik, tidak membaca.
+/// UI-UX-SPEC §3: enam station harus terlihat **tanpa scroll**.
+/// Grid 3×2 di layar lebar, menyesuaikan jumlah kolom pada layar sempit.
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({super.key, this.embedded = false});
+
+  /// `true` saat dipasang di dalam `AppShell` — shell sudah punya header.
+  final bool embedded;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -37,88 +38,194 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<DashboardController>().load();
+      final ctrl = context.read<DashboardController>();
+      if (!ctrl.hasData) ctrl.load();
     });
   }
 
-  Future<void> _openStation(Station station) async {
-    final ctrl = context.read<DashboardController>();
+  DashboardController get _ctrl => context.read<DashboardController>();
 
-    // Station kosong -> mulai sesi baru.
-    if (station.session == null) {
-      if (station.status != StationMasterStatus.active) return;
-      final session = await showStartSessionSheet(
-        context,
-        station: station,
-        packages: ctrl.packages,
-        repo: context.read<BillingRepository>(),
-        onSubmit: ({
-          required packageId,
-          required mode,
-          customerId,
-          customerName,
-          required idempotencyKey,
-        }) =>
-            ctrl.startSession(
-          stationId: station.id,
-          packageId: packageId,
-          mode: mode,
-          customerId: customerId,
-          customerName: customerName,
-          idempotencyKey: idempotencyKey,
-        ),
-      );
-      if (session == null || !mounted) return;
-      showSuccess(context, 'Sesi ${session.code} dibuat di ${station.code}.');
-      await _openSessionDetail(session.id);
-      return;
-    }
+  // ── Aksi ────────────────────────────────────────────────────────────
 
-    await _openSessionDetail(station.session!.id);
-  }
-
-  Future<void> _openSessionDetail(String sessionId) async {
+  Future<void> _openDetail(String sessionId) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => SessionDetailScreen(sessionId: sessionId),
       ),
     );
-    if (!mounted) return;
-    await context.read<DashboardController>().refresh();
+    if (mounted) await _ctrl.refresh();
+  }
+
+  Future<void> _start(Station station) async {
+    if (station.status != StationMasterStatus.active) return;
+
+    final session = await showStartSessionSheet(
+      context,
+      station: station,
+      packages: _ctrl.packages,
+      repo: context.read<BillingRepository>(),
+      onSubmit: ({
+        required packageId,
+        required mode,
+        customerId,
+        customerName,
+        required idempotencyKey,
+      }) =>
+          _ctrl.startSession(
+        stationId: station.id,
+        packageId: packageId,
+        mode: mode,
+        customerId: customerId,
+        customerName: customerName,
+        idempotencyKey: idempotencyKey,
+      ),
+    );
+
+    if (session == null || !mounted) return;
+    showSuccess(context, 'Sesi ${session.code} dibuat di ${station.code}.');
+    await _openDetail(session.id);
+  }
+
+  /// Controller sementara untuk satu aksi cepat dari kartu.
+  ///
+  /// Dibuang setelah dipakai; layar detail punya controller-nya sendiri.
+  Future<SessionDetailController> _sessionController(String sessionId) async {
+    final c = SessionDetailController(
+      context.read<BillingRepository>(),
+      sessionId,
+    );
+    await c.load();
+    return c;
+  }
+
+  /// Tambah durasi langsung dari kartu.
+  ///
+  /// Tetap pakai konfirmasi walau ini "aksi cepat": salah tap +1j menagih
+  /// customer satu jam yang tidak diminta, dan kontrak tidak punya jalur
+  /// pembatalan untuk itu. Satu tap tambahan lebih murah daripada
+  /// salah tagih.
+  Future<void> _quickExtend(Station station, int minutes) async {
+    final sessionId = station.session?.id;
+    if (sessionId == null) return;
+
+    final ctrl = await _sessionController(sessionId);
+    final session = ctrl.session;
+    if (session == null || !mounted) {
+      ctrl.dispose();
+      return;
+    }
+
+    final price = ((session.hourlyRate * minutes) + 59) ~/ 60;
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Tambah ${formatDurationLabel(minutes)}?',
+      message: '${station.code} · ${session.customerLabel}\n'
+          'Perkiraan tambahan ${formatRupiah(price)}. '
+          'Harga final dihitung server dan masuk Open Tab.',
+      confirmLabel: 'Tambah ${formatDurationLabel(minutes)}',
+    );
+
+    if (!ok || !mounted) {
+      ctrl.dispose();
+      return;
+    }
+
+    try {
+      final result = await ctrl.extend(
+        durationMinutes: minutes,
+        idempotencyKey: SessionDetailController.newIdempotencyKey(),
+      );
+      if (!mounted) return;
+      showSuccess(
+        context,
+        '${station.code} +${formatDurationLabel(result.durationMinutes)} · '
+        '${formatRupiah(result.price)} · selesai '
+        '${formatClock(result.newEndAt)}',
+      );
+      await _ctrl.refresh();
+    } catch (e) {
+      if (mounted) showApiError(context, e);
+    } finally {
+      ctrl.dispose();
+    }
+  }
+
+  Future<void> _quickFnb(Station station) async {
+    final sessionId = station.session?.id;
+    if (sessionId == null) return;
+
+    final ctrl = await _sessionController(sessionId);
+    if (!mounted) {
+      ctrl.dispose();
+      return;
+    }
+    await showAddFnbSheet(context, ctrl: ctrl);
+    ctrl.dispose();
+    if (mounted) await _ctrl.refresh();
+  }
+
+  Future<void> _quickPay(Station station) async {
+    final sessionId = station.session?.id;
+    if (sessionId == null) return;
+
+    final ctrl = await _sessionController(sessionId);
+    final session = ctrl.session;
+    if (session == null || !mounted) {
+      ctrl.dispose();
+      return;
+    }
+
+    if (session.status == SessionStatus.pendingPayment) {
+      final paid = await showPaymentDialog(
+        context,
+        ctrl: ctrl,
+        session: session,
+        suggestedAmount: session.totals.balanceDue,
+        title: 'Pembayaran Rental — ${station.code}',
+      );
+      if (paid && mounted) {
+        showSuccess(context, 'Pembayaran diterima. Sesi dimulai.');
+      }
+    } else {
+      // Sesi berjalan -> checkout. Ini menutup sesi, jadi dibuka lewat
+      // dialog checkout yang menampilkan rincian lengkap, bukan tap cepat.
+      final result = await showCheckoutDialog(
+        context,
+        ctrl: ctrl,
+        session: session,
+      );
+      if (result != null && mounted) {
+        await showReceiptDialog(context, receipt: result.receipt);
+      }
+    }
+
+    ctrl.dispose();
+    if (mounted) await _ctrl.refresh();
   }
 
   @override
   Widget build(BuildContext context) {
     final ctrl = context.watch<DashboardController>();
 
+    final content = Column(
+      children: [
+        const DevDiagnosticBar(),
+        _FilterBar(ctrl: ctrl),
+        Expanded(child: _buildGrid(ctrl)),
+        if (ctrl.hasData) _ShiftStrip(ctrl: ctrl),
+      ],
+    );
+
+    if (widget.embedded) return content;
+
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            _Header(ctrl: ctrl),
-            const DevDiagnosticBar(),
-            if (ctrl.hasData) _SummaryStrip(ctrl: ctrl),
-            Expanded(child: _buildBody(ctrl)),
-            if (ctrl.hasData) _ActionBar(ctrl: ctrl, onOpenFnb: _openFnbQueue),
-          ],
-        ),
-      ),
+      appBar: AppBar(title: const Text('Monitor Stasiun')),
+      body: SafeArea(child: content),
     );
   }
 
-  Future<void> _openFnbQueue() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const FnbQueueScreen()),
-    );
-    if (!mounted) return;
-    // Status order mempengaruhi Open Tab, jadi dashboard ikut disegarkan.
-    await context.read<DashboardController>().refresh();
-  }
-
-  Widget _buildBody(DashboardController ctrl) {
-    if (ctrl.loading && !ctrl.hasData) {
-      return const _StationGridSkeleton();
-    }
+  Widget _buildGrid(DashboardController ctrl) {
+    if (ctrl.loading && !ctrl.hasData) return const _GridSkeleton();
 
     if (ctrl.error != null && !ctrl.hasData) {
       return _ErrorState(
@@ -127,52 +234,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
+    final stations = ctrl.visibleStations;
+    if (stations.isEmpty) {
+      return _EmptyFilterState(ctrl: ctrl);
+    }
+
     return RefreshIndicator(
       onRefresh: ctrl.refresh,
-      backgroundColor: AppColors.surfaceRaised,
-      color: AppColors.primary,
+      backgroundColor: AppColors.surfaceLow,
+      color: AppColors.primaryContainer,
       child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Grid 3×2 di landscape, 2×3 di portrait — enam kartu tanpa scroll.
-          final landscape = constraints.maxWidth >= constraints.maxHeight;
-          final columns = landscape ? 3 : 2;
-          final rows = landscape ? 2 : 3;
+        builder: (context, c) {
+          const gutter = AppSpacing.gutter;
+          const pad = AppSpacing.gutterLg;
 
-          const gutter = AppSpacing.md;
-          final gridHeight =
-              constraints.maxHeight - (gutter * 2) - (gutter * (rows - 1));
-          final gridWidth =
-              constraints.maxWidth - (gutter * 2) - (gutter * (columns - 1));
+          // Kolom ditentukan lebar yang tersedia, bukan orientasi: shell
+          // sudah memakan sebagian lebar, jadi orientasi perangkat bukan
+          // ukuran yang tepat.
+          final columns = c.maxWidth >= 1100
+              ? 3
+              : c.maxWidth >= 700
+                  ? 2
+                  : 1;
+          final rows = (stations.length / columns).ceil();
 
-          final tileWidth = gridWidth / columns;
+          final tileWidth =
+              (c.maxWidth - pad * 2 - gutter * (columns - 1)) / columns;
+          final available = c.maxHeight - pad * 2 - gutter * (rows - 1);
 
-          // Tinggi kartu dijamin minimum [minStationCardHeight].
-          //
-          // Target spec adalah enam kartu tanpa scroll (UI-UX-SPEC §3), dan
-          // pada tablet tinggi kartu selalu jauh di atas minimum ini. Tapi
-          // di jendela yang sangat pendek — misalnya Chrome saat
-          // pengembangan — membagi rata akan membuat kartu lebih pendek
-          // daripada isinya dan memunculkan overflow. Lebih baik grid-nya
-          // bisa di-scroll daripada tampilan rusak.
+          // Tinggi kartu dijamin minimum; kalau ruangnya kurang, grid
+          // di-scroll alih-alih kartunya dipaksa mengecil sampai rusak.
           final tileHeight =
-              math.max(gridHeight / rows, minStationCardHeight);
-          final tileWidth2 = tileWidth <= 0 ? 1.0 : tileWidth;
+              math.max(available / rows, AppSize.stationCardMinHeight);
 
           return GridView.builder(
-            padding: const EdgeInsets.all(gutter),
+            padding: const EdgeInsets.all(pad),
             physics: const AlwaysScrollableScrollPhysics(),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
               mainAxisSpacing: gutter,
               crossAxisSpacing: gutter,
-              childAspectRatio: tileWidth2 / tileHeight,
+              childAspectRatio:
+                  (tileWidth <= 0 ? 1.0 : tileWidth) / tileHeight,
             ),
-            itemCount: ctrl.stations.length,
+            itemCount: stations.length,
             itemBuilder: (context, i) {
-              final station = ctrl.stations[i];
+              final station = stations[i];
+              final hasSession = station.session != null;
+
               return StationCard(
                 station: station,
-                onTap: () => _openStation(station),
+                hourlyRateHint: ctrl.cheapestHourlyRate,
+                onTap: hasSession
+                    ? () => _openDetail(station.session!.id)
+                    : () => _start(station),
+                onStart: hasSession ? null : () => _start(station),
+                onExtend:
+                    hasSession ? (m) => _quickExtend(station, m) : null,
+                onAddFnb: hasSession ? () => _quickFnb(station) : null,
+                onPay: hasSession ? () => _quickPay(station) : null,
               );
             },
           );
@@ -182,162 +302,212 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-/// Header: merek di kiri, status koneksi dan aksi di kanan.
-///
-/// Memakai [BrandMark] supaya nama dan logo tetap benar saat mereknya
-/// berganti per pengguna (OD-012).
-class _Header extends StatelessWidget {
-  const _Header({required this.ctrl});
+// ─── Bar filter ───────────────────────────────────────────────────────
+
+class _FilterBar extends StatefulWidget {
+  const _FilterBar({required this.ctrl});
 
   final DashboardController ctrl;
 
   @override
+  State<_FilterBar> createState() => _FilterBarState();
+}
+
+class _FilterBarState extends State<_FilterBar> {
+  final _search = TextEditingController();
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _search.dispose();
+    super.dispose();
+  }
+
+  /// Debounce 250 ms: tanpa ini setiap ketikan membangun ulang grid enam
+  /// kartu, dan terasa tersendat di tablet.
+  void _onQuery(String v) {
+    _debounce?.cancel();
+    _debounce = Timer(
+      const Duration(milliseconds: 250),
+      () => widget.ctrl.setQuery(v),
+    );
+    setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final ctrl = widget.ctrl;
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+
     return Container(
-      height: AppSize.headerHeight,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.gutterLg,
+        vertical: AppSpacing.sm + 2,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLow.withValues(alpha: 0.4),
+        border: const Border(
+          bottom: BorderSide(color: AppColors.surfaceHigh),
+        ),
+      ),
       child: Row(
         children: [
-          const BrandMark(),
-          const Spacer(),
-          const ConnectionBanner(),
-          const SizedBox(width: AppSpacing.sm),
-          IconButton(
-            onPressed: ctrl.loading ? null : () => ctrl.refresh(),
-            icon: ctrl.loading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.refresh),
-            tooltip: 'Muat ulang',
-          ),
-          IconButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final f in StationFilter.values)
+                    Padding(
+                      padding: const EdgeInsets.only(right: AppSpacing.sm),
+                      child: _FilterChip(
+                        filter: f,
+                        count: ctrl.countFor(f),
+                        selected: ctrl.filter == f,
+                        onTap: () => ctrl.setFilter(f),
+                      ),
+                    ),
+                ],
+              ),
             ),
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Pengaturan',
           ),
+          if (wide) ...[
+            const SizedBox(width: AppSpacing.md),
+            SizedBox(
+              width: 240,
+              child: TextField(
+                controller: _search,
+                onChanged: _onQuery,
+                textInputAction: TextInputAction.search,
+                style: AppTypography.bodySm
+                    .copyWith(color: AppColors.onSurface),
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: 'Cari station atau customer',
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  prefixIconConstraints:
+                      const BoxConstraints(minWidth: 38, minHeight: 38),
+                  suffixIcon: _search.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear, size: 16),
+                          tooltip: 'Hapus',
+                          onPressed: () {
+                            _search.clear();
+                            ctrl.setQuery('');
+                            setState(() {});
+                          },
+                        ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.sm + 2,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-/// Bar aksi di bawah grid.
-///
-/// Bukan navigasi utama — ini pintasan ke layar kerja yang sering dibuka.
-/// Ditaruh di bawah karena paling mudah dijangkau jempol saat tablet
-/// diletakkan di meja kasir. Akan menampung Shift dan Device nanti.
-class _ActionBar extends StatelessWidget {
-  const _ActionBar({required this.ctrl, required this.onOpenFnb});
-
-  final DashboardController ctrl;
-  final VoidCallback onOpenFnb;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        0,
-        AppSpacing.md,
-        AppSpacing.md,
-      ),
-      child: Row(
-        children: [
-          _ActionTile(
-            icon: Icons.restaurant_outlined,
-            label: 'Antrian F&B',
-            badge: ctrl.fnbActionableCount,
-            onTap: onOpenFnb,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          _ActionTile(
-            icon: Icons.badge_outlined,
-            label: 'Shift',
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ShiftScreen()),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          _ActionTile(
-            icon: Icons.tv_outlined,
-            label: 'Status TV',
-            badge: ctrl.offlineDeviceCount,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const DeviceScreen()),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({
-    required this.icon,
-    required this.label,
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.filter,
+    required this.count,
+    required this.selected,
     required this.onTap,
-    this.badge = 0,
   });
 
-  final IconData icon;
-  final String label;
+  final StationFilter filter;
+  final int count;
+  final bool selected;
   final VoidCallback onTap;
-  final int badge;
+
+  /// Warna titik mengikuti status yang diwakili filter, supaya chip dan
+  /// kartu memakai bahasa warna yang sama.
+  Color? get _dotColor => switch (filter) {
+        StationFilter.all => null,
+        StationFilter.playing => AppColors.statusActive,
+        StationFilter.available => AppColors.statusAvailable,
+        StationFilter.warning => AppColors.statusWarning,
+        StationFilter.pending => AppColors.statusPendingPayment,
+      };
 
   @override
   Widget build(BuildContext context) {
-    final hasBadge = badge > 0;
+    final dot = _dotColor;
 
     return Semantics(
       button: true,
-      label: hasBadge ? '$label, $badge order menunggu' : label,
+      selected: selected,
+      label: '${filter.label}, $count station',
       excludeSemantics: true,
       child: Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        color: selected ? AppColors.primaryContainer : AppColors.surfaceLow,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(AppRadius.card),
+          borderRadius: BorderRadius.circular(AppRadius.pill),
           child: Container(
-            height: AppSize.minTouchTarget + 4,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            height: 36,
+            padding:
+                const EdgeInsets.symmetric(horizontal: AppSpacing.md - 2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(
+                color: selected
+                    ? Colors.transparent
+                    : AppColors.surfaceHigh,
+              ),
+              boxShadow: selected ? AppShadow.glowPrimary : null,
+            ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  icon,
-                  size: 20,
-                  color: hasBadge ? AppColors.accent : AppColors.textMuted,
-                ),
-                const SizedBox(width: AppSpacing.sm + 2),
-                Text(label, style: AppTypography.cardLabel),
-                if (hasBadge) ...[
-                  const SizedBox(width: AppSpacing.sm + 2),
+                if (dot != null && !selected) ...[
                   Container(
-                    constraints: const BoxConstraints(minWidth: 22),
-                    height: 22,
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm - 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.accent,
-                      borderRadius: BorderRadius.circular(AppRadius.chip),
-                    ),
-                    child: Text(
-                      '$badge',
-                      style: AppTypography.moneySmall.copyWith(
-                        color: AppColors.bg,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    width: 8,
+                    height: 8,
+                    decoration:
+                        BoxDecoration(color: dot, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: AppSpacing.sm - 2),
+                ],
+                Text(
+                  filter.label,
+                  style: AppTypography.labelMd.copyWith(
+                    color: selected
+                        ? AppColors.onPrimaryContainer
+                        : AppColors.onSurfaceVariant,
+                    fontWeight:
+                        selected ? FontWeight.w600 : FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm - 2),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 20),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? AppColors.onPrimaryContainer
+                            .withValues(alpha: 0.22)
+                        : AppColors.surfaceHigh,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: AppTypography.labelSm.copyWith(
+                      color: selected
+                          ? AppColors.onPrimaryContainer
+                          : AppColors.outline,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ],
+                ),
               ],
             ),
           ),
@@ -347,143 +517,150 @@ class _ActionTile extends StatelessWidget {
   }
 }
 
-/// Ringkasan di atas grid — angka yang paling sering ditanya.
-class _SummaryStrip extends StatelessWidget {
-  const _SummaryStrip({required this.ctrl});
+// ─── Strip shift di bawah grid ────────────────────────────────────────
+
+class _ShiftStrip extends StatelessWidget {
+  const _ShiftStrip({required this.ctrl});
 
   final DashboardController ctrl;
 
   @override
   Widget build(BuildContext context) {
+    final shift = ctrl.currentShift;
+
     return Container(
       margin: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        AppSpacing.xs,
-        AppSpacing.md,
+        AppSpacing.gutterLg,
         0,
+        AppSpacing.gutterLg,
+        AppSpacing.md,
       ),
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm + 4,
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.sm + 2,
       ),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        boxShadow: AppShadow.card,
+        color: AppColors.surfaceLow,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.surfaceHigh),
       ),
       child: Row(
         children: [
-          _Stat(
-            color: AppColors.statusActive,
-            label: 'Bermain',
-            value: '${ctrl.activeCount}',
-          ),
-          const _StatDivider(),
-          _Stat(
-            color: AppColors.statusAvailable,
-            label: 'Tersedia',
-            value: '${ctrl.availableCount}',
-          ),
-          if (ctrl.offlineDeviceCount > 0) ...[
-            const _StatDivider(),
-            _Stat(
-              color: AppColors.statusOffline,
-              label: 'TV offline',
-              value: '${ctrl.offlineDeviceCount}',
-            ),
-          ],
-          const Spacer(),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                'TAGIHAN BERJALAN',
-                style: AppTypography.overline
-                    .copyWith(color: AppColors.textFaint),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                formatRupiah(ctrl.openBalance),
-                style: AppTypography.moneyLarge
-                    .copyWith(color: AppColors.accent),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat({
-    required this.color,
-    required this.label,
-    required this.value,
-  });
-
-  final Color color;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: '$label: $value',
-      excludeSemantics: true,
-      child: Row(
-        children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          Icon(
+            shift == null ? Icons.badge_outlined : Icons.badge,
+            size: 16,
+            color: shift == null ? AppColors.outline : AppColors.secondary,
           ),
           const SizedBox(width: AppSpacing.sm),
-          Text(value, style: AppTypography.money.copyWith(color: color)),
-          const SizedBox(width: AppSpacing.xs + 2),
-          Text(
-            label,
-            style: AppTypography.caption.copyWith(color: AppColors.textMuted),
+          Flexible(
+            child: Text(
+              shift == null
+                  ? 'Shift belum dibuka'
+                  : 'Shift ${shift.operator.name} · '
+                      'buka ${formatClock(shift.openedAt)}',
+              style: AppTypography.bodySm
+                  .copyWith(color: AppColors.onSurfaceVariant),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
+          const Spacer(),
+          if (ctrl.fnbActionableCount > 0) ...[
+            const Icon(Icons.receipt_outlined,
+                size: 15, color: AppColors.tertiaryContainer),
+            const SizedBox(width: AppSpacing.xs + 2),
+            Text(
+              '${ctrl.fnbActionableCount} antrian F&B',
+              style: AppTypography.labelSm
+                  .copyWith(color: AppColors.tertiaryContainer),
+            ),
+            const SizedBox(width: AppSpacing.md),
+          ],
+          if (shift != null)
+            Text(
+              'Tunai ${formatRupiah(shift.summary.cash)}',
+              style:
+                  AppTypography.labelSm.copyWith(color: AppColors.outline),
+            ),
         ],
       ),
     );
   }
 }
 
-class _StatDivider extends StatelessWidget {
-  const _StatDivider();
+// ─── Keadaan kosong & error ───────────────────────────────────────────
+
+class _EmptyFilterState extends StatelessWidget {
+  const _EmptyFilterState({required this.ctrl});
+
+  final DashboardController ctrl;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 18,
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      color: AppColors.borderSubtle,
+    final filtered = ctrl.filter != StationFilter.all;
+    final searching = ctrl.query.isNotEmpty;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLow,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+              ),
+              child: Icon(
+                searching ? Icons.search_off : Icons.filter_alt_off_outlined,
+                size: 24,
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              searching
+                  ? 'Tidak ada station yang cocok dengan "${ctrl.query}"'
+                  : 'Tidak ada station berstatus '
+                      '"${ctrl.filter.label}" saat ini',
+              textAlign: TextAlign.center,
+              style: AppTypography.bodyMd,
+            ),
+            if (filtered) ...[
+              const SizedBox(height: AppSpacing.md),
+              OutlinedButton.icon(
+                onPressed: () => ctrl.setFilter(StationFilter.all),
+                icon: const Icon(Icons.clear_all, size: 18),
+                label: const Text('Tampilkan semua'),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
 
-/// Skeleton, bukan spinner penuh layar — UI-UX-SPEC §5.
-class _StationGridSkeleton extends StatelessWidget {
-  const _StationGridSkeleton();
+class _GridSkeleton extends StatelessWidget {
+  const _GridSkeleton();
 
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.gutterLg),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        mainAxisSpacing: AppSpacing.md,
-        crossAxisSpacing: AppSpacing.md,
-        childAspectRatio: 1.4,
+        mainAxisSpacing: AppSpacing.gutter,
+        crossAxisSpacing: AppSpacing.gutter,
+        childAspectRatio: 1.15,
       ),
       itemCount: 6,
       itemBuilder: (_, __) => Container(
         decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.card),
+          color: AppColors.surfaceLow,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
         ),
       ),
     );
@@ -505,48 +682,31 @@ class _ErrorState extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 56,
-              height: 56,
+              width: 52,
+              height: 52,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppRadius.card),
+                color: AppColors.surfaceLow,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
               ),
               child: const Icon(Icons.cloud_off_outlined,
-                  size: 26, color: AppColors.statusOffline),
+                  size: 24, color: AppColors.statusOffline),
             ),
             const SizedBox(height: AppSpacing.md),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: AppTypography.body,
-            ),
+            Text(message,
+                textAlign: TextAlign.center, style: AppTypography.bodyMd),
             const SizedBox(height: AppSpacing.xs),
             Text(
               'Periksa alamat server di Pengaturan.',
               textAlign: TextAlign.center,
-              style:
-                  AppTypography.caption.copyWith(color: AppColors.textMuted),
+              style: AppTypography.bodySm
+                  .copyWith(color: AppColors.onSurfaceVariant),
             ),
             const SizedBox(height: AppSpacing.lg),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const SettingsScreen(),
-                    ),
-                  ),
-                  icon: const Icon(Icons.settings_outlined, size: 18),
-                  label: const Text('Pengaturan'),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                FilledButton.icon(
-                  onPressed: onRetry,
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Coba lagi'),
-                ),
-              ],
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Coba lagi'),
             ),
           ],
         ),

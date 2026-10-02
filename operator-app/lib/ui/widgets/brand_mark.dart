@@ -27,9 +27,9 @@ class BrandMark extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [AppColors.primary, AppColors.primaryDim],
+          colors: [AppColors.primary, AppColors.primaryContainer],
         ),
-        borderRadius: BorderRadius.circular(AppRadius.button),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       alignment: Alignment.center,
       child: Brand.logoAsset != null
@@ -40,7 +40,7 @@ class BrandMark extends StatelessWidget {
           : Text(
               Brand.monogram,
               style: TextStyle(
-                fontFamily: AppTypography.fontFamily,
+                fontFamily: AppTypography.heading,
                 fontSize: size * 0.5,
                 fontWeight: FontWeight.w700,
                 color: AppColors.onPrimary,
@@ -62,15 +62,15 @@ class BrandMark extends StatelessWidget {
           children: [
             Text(
               Brand.appName,
-              style: AppTypography.sectionTitle.copyWith(
-                color: AppColors.text,
+              style: AppTypography.headlineSm.copyWith(
+                color: AppColors.onSurface,
                 height: 1.1,
               ),
             ),
             Text(
               Brand.tagline,
-              style: AppTypography.caption.copyWith(
-                color: AppColors.textFaint,
+              style: AppTypography.bodySm.copyWith(
+                color: AppColors.outline,
                 fontSize: 11,
                 height: 1.2,
               ),

@@ -6,31 +6,26 @@ import '../../core/theme/status_style.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/time/server_time.dart';
 import '../../core/time/ticker.dart';
+import '../../core/util/format.dart';
 import '../../domain/models/enums.dart';
 import '../../domain/models/models.dart';
 import 'countdown_text.dart';
-import 'money_text.dart';
-import 'status_chip.dart';
 
 /// Tinggi minimum kartu station agar isinya tidak pernah overflow.
 ///
 /// Dipakai `DashboardScreen` saat menghitung rasio grid. Kalau jendela
 /// terlalu pendek untuk enam kartu setinggi ini, grid-nya di-scroll —
-/// bukan kartunya yang dipaksa mengecil sampai rusak.
-///
-/// Diuji di `test/station_card_layout_test.dart`.
-const double minStationCardHeight = 200;
+/// bukan kartunya dipaksa mengecil sampai rusak.
+const double minStationCardHeight = AppSize.stationCardMinHeight;
 
 /// Status yang DITAMPILKAN, diturunkan dari `end_at` di client.
 ///
-/// Kenapa tidak langsung memakai `session.status` dari server:
-/// server menandai `WARNING`/`EXPIRED` lewat scheduler, jadi bisa terlambat
+/// Server menandai `WARNING`/`EXPIRED` lewat scheduler, jadi bisa terlambat
 /// beberapa detik (REALTIME.md §5). Kalau kartu hanya memakai snapshot
 /// server, timer bisa menunjukkan `-00:00:14` sementara label masih
 /// "Bermain" — operator jadi tidak percaya pada layar.
 ///
-/// Ini pola yang sama dengan Kotlin TV Agent: warning dihitung lokal dari
-/// `end_at`, tidak menunggu event (PRD §16).
+/// Pola yang sama dipakai Kotlin TV Agent (PRD §16).
 StationViewStatus deriveStationViewStatus(Station station) {
   final base = station.viewStatus;
   final endAt = station.session?.endAt;
@@ -47,65 +42,87 @@ StationViewStatus deriveStationViewStatus(Station station) {
   return StationViewStatus.active;
 }
 
+typedef StationQuickAction = Future<void> Function();
+
 /// Kartu satu station di dashboard.
 ///
-/// UI-UX-SPEC §3: operator **melirik**, tidak membaca. Enam kartu harus
-/// terlihat tanpa scroll, dan status harus terbaca dalam sekali pandang.
+/// Susunan mengikuti `contoh.html`:
+/// header (kode + tipe konsol | status) → timer + bar waktu → blok customer
+/// → baris aksi cepat.
 ///
-/// Susunan: rail status di tepi kiri → kode station → chip status →
-/// timer sebagai elemen dominan → bar proporsi waktu → customer & tagihan.
-/// Rail dan bar memberi dua isyarat visual tambahan di luar warna, sehingga
-/// kartu tetap terbaca dari jarak beberapa meter.
+/// Aksi cepat (+30m, +1j, F&B, Bayar) ada di kartu supaya operator tidak
+/// perlu membuka detail sesi untuk pekerjaan yang paling sering dilakukan.
 ///
-/// Kartu ini TIDAK berlangganan ticker. Hanya chip status, timer, dan bar
-/// progres yang rebuild per detik (UI-UX-SPEC §4).
+/// Kartu TIDAK berlangganan ticker. Hanya timer, bar waktu, dan label status
+/// yang rebuild per detik (UI-UX-SPEC §4).
 class StationCard extends StatelessWidget {
-  const StationCard({super.key, required this.station, this.onTap});
+  const StationCard({
+    super.key,
+    required this.station,
+    this.onTap,
+    this.onExtend,
+    this.onAddFnb,
+    this.onPay,
+    this.onStart,
+    this.hourlyRateHint,
+  });
 
   final Station station;
+
+  /// Buka detail sesi.
   final VoidCallback? onTap;
+
+  /// Tambah durasi. Menerima menit — selalu kelipatan 30 (DEC-007).
+  final Future<void> Function(int minutes)? onExtend;
+
+  final StationQuickAction? onAddFnb;
+  final StationQuickAction? onPay;
+  final StationQuickAction? onStart;
+
+  /// Tarif per jam termurah, untuk ditampilkan pada station kosong.
+  final int? hourlyRateHint;
 
   @override
   Widget build(BuildContext context) {
-    final view = station.viewStatus;
     final session = station.session;
     final idle = session == null;
-    final maintenance = view == StationViewStatus.maintenance;
-    final tappable = onTap != null && !maintenance;
+    final maintenance = station.viewStatus == StationViewStatus.maintenance;
 
     return Semantics(
-      button: tappable,
-      label: '${station.name}, ${StatusStyle.of(view).label}',
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppRadius.card),
-          boxShadow: maintenance ? null : AppShadow.card,
-        ),
+      button: onTap != null,
+      label: '${station.name}, ${StatusStyle.of(station.viewStatus).label}',
+      child: Opacity(
+        opacity: maintenance ? 0.8 : 1,
         child: Material(
-          color: maintenance ? AppColors.surfaceSunken : AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.card),
+          color: AppColors.surfaceLow,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: tappable ? onTap : null,
-            child: Row(
-              children: [
-                // Rail status — isyarat paling cepat terbaca.
-                _StatusRail(station: station),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.md - 2,
-                      AppSpacing.sm + 4,
-                      AppSpacing.md - 2,
-                      AppSpacing.sm + 4,
-                    ),
-                    child: idle
-                        ? _IdleContent(
-                            station: station, maintenance: maintenance)
-                        : _ActiveContent(station: station, session: session),
+            onTap: maintenance ? null : onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.sm + 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _CardHeader(station: station),
+                  Expanded(
+                    child: maintenance
+                        ? const _MaintenanceBody()
+                        : idle
+                            ? _IdleBody(hourlyRateHint: hourlyRateHint)
+                            : _ActiveBody(session: session),
                   ),
-                ),
-              ],
+                  _CustomerBlock(station: station),
+                  const SizedBox(height: AppSpacing.sm),
+                  _ActionRow(
+                    station: station,
+                    onExtend: onExtend,
+                    onAddFnb: onAddFnb,
+                    onPay: onPay,
+                    onStart: onStart,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -114,9 +131,10 @@ class StationCard extends StatelessWidget {
   }
 }
 
-/// Batang warna status setinggi kartu di tepi kiri.
-class _StatusRail extends StatelessWidget {
-  const _StatusRail({required this.station});
+// ─── Header ───────────────────────────────────────────────────────────
+
+class _CardHeader extends StatelessWidget {
+  const _CardHeader({required this.station});
 
   final Station station;
 
@@ -125,195 +143,179 @@ class _StatusRail extends StatelessWidget {
     return Consumer<AppTicker>(
       builder: (context, _, __) {
         final style = StatusStyle.of(deriveStationViewStatus(station));
-        return AnimatedContainer(
-          duration: AppMotion.normal,
-          curve: AppMotion.easeOut,
-          width: AppSize.statusRail,
-          color: style.color,
+        final offline = station.device?.status == DeviceStatus.offline;
+
+        return Container(
+          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: AppColors.surfaceHigh)),
+          ),
+          // Kode station tetap penuh; label tipe konsol dan status
+          // sama-sama fleksibel. Pada kartu sempit badge di-ellipsis dan
+          // label status mengecil — bukan overflow.
+          child: Row(
+            children: [
+              Text(
+                station.code,
+                style: AppTypography.headlineMd.copyWith(
+                  color: style.color,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (station.consoleType != null) ...[
+                const SizedBox(width: AppSpacing.sm - 2),
+                Flexible(
+                  flex: 3,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm - 2,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceHigh,
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: Text(
+                      station.consoleType!.toUpperCase(),
+                      style: AppTypography.labelSm.copyWith(color: style.color),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(width: AppSpacing.sm - 2),
+              if (offline)
+                const Padding(
+                  padding: EdgeInsets.only(right: AppSpacing.xs),
+                  child: Tooltip(
+                    message: 'TV tidak mengirim heartbeat',
+                    child: Icon(Icons.wifi_off,
+                        size: 15, color: AppColors.statusOffline),
+                  ),
+                ),
+              Flexible(
+                flex: 4,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: _StatusLabel(style: style),
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
   }
 }
 
-/// Isi kartu saat ada sesi berjalan.
-class _ActiveContent extends StatelessWidget {
-  const _ActiveContent({required this.station, required this.session});
+/// Titik warna + teks. Memenuhi `color-not-only` tanpa chip penuh yang akan
+/// bersaing dengan timer.
+class _StatusLabel extends StatelessWidget {
+  const _StatusLabel({required this.style});
 
-  final Station station;
+  final StatusStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: style.color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: AppSpacing.sm - 2),
+        Text(
+          style.label,
+          style: AppTypography.labelMd.copyWith(
+            color: style.color,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Isi: sesi berjalan ───────────────────────────────────────────────
+
+class _ActiveBody extends StatelessWidget {
+  const _ActiveBody({required this.session});
+
   final StationSessionSummary session;
 
   @override
   Widget build(BuildContext context) {
-    final deviceOffline = station.device?.status == DeviceStatus.offline;
-
-    // `spaceBetween` dipakai alih-alih `Spacer()`: dengan Spacer, kartu
-    // yang pendek (jendela kecil, portrait sempit) langsung overflow.
-    // Dengan spaceBetween, sisa ruang dibagi dan tidak pernah negatif.
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        // Blok 1 — kode station, status device, status sesi
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(station.code, style: AppTypography.display),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: CountdownText(endAt: session.endAt),
                 ),
-                if (deviceOffline) const _OfflineBadge(),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            _LiveStatusChip(station: station),
-          ],
-        ),
-
-        // Blok 2 — elemen dominan: timer + bar proporsi waktu
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CountdownText(endAt: session.endAt),
-            const SizedBox(height: AppSpacing.sm),
-            _TimeProgressBar(session: session),
-          ],
-        ),
-
-        // Blok 3 — customer & tagihan berjalan
-        Row(
-          children: [
-            Expanded(
-              child: Row(
-                children: [
-                  const Icon(Icons.person_outline,
-                      size: 14, color: AppColors.textFaint),
-                  const SizedBox(width: AppSpacing.xs + 2),
-                  Expanded(
-                    child: Text(
-                      session.customerLabel ?? 'Walk-in',
-                      style: AppTypography.caption
-                          .copyWith(color: AppColors.textMuted),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
               ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            // Nominal bisa panjang (mis. Rp 9.850.000) dan kartu bisa sempit.
-            // FittedBox mengecilkan sedikit daripada menabrak nama customer.
-            Flexible(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerRight,
-                child: session.balanceDue > 0
-                    ? MoneyText.small(
-                        session.balanceDue,
-                        color: AppColors.accent,
-                      )
-                    : Row(
-                        children: [
-                          const Icon(Icons.check_circle_outline,
-                              size: 13, color: AppColors.statusAvailable),
-                          const SizedBox(width: AppSpacing.xs),
-                          Text(
-                            'Lunas',
-                            style: AppTypography.caption
-                                .copyWith(color: AppColors.statusAvailable),
-                          ),
-                        ],
-                      ),
+              const SizedBox(width: AppSpacing.sm),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  'Sisa Waktu',
+                  style:
+                      AppTypography.labelSm.copyWith(color: AppColors.outline),
+                ),
               ),
-            ),
-          ],
-        ),
-      ],
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _TimeProgressBar(session: session),
+          const SizedBox(height: AppSpacing.sm - 2),
+          Row(
+            children: [
+              Flexible(
+                child: Text(
+                  session.startedAt == null
+                      ? 'Belum mulai'
+                      : 'Mulai ${formatClock(session.startedAt!)}',
+                  style:
+                      AppTypography.labelSm.copyWith(color: AppColors.outline),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Flexible(
+                child: Text(
+                  session.endAt == null
+                      ? '—'
+                      : 'Selesai ${formatClock(session.endAt!)}',
+                  style:
+                      AppTypography.labelSm.copyWith(color: AppColors.outline),
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// Isi kartu saat station kosong atau maintenance.
-///
-/// Sengaja TIDAK menampilkan `--:--:--`. Deretan tanda hubung terlihat
-/// seperti data gagal dimuat; station kosong justru keadaan normal dan
-/// seharusnya mengundang untuk ditekan.
-class _IdleContent extends StatelessWidget {
-  const _IdleContent({required this.station, required this.maintenance});
-
-  final Station station;
-  final bool maintenance;
-
-  @override
-  Widget build(BuildContext context) {
-    final style = StatusStyle.of(station.viewStatus);
-    final deviceOffline = station.device?.status == DeviceStatus.offline;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    station.code,
-                    style: AppTypography.display.copyWith(
-                      color:
-                          maintenance ? AppColors.textFaint : AppColors.text,
-                    ),
-                  ),
-                ),
-                if (deviceOffline && !maintenance) const _OfflineBadge(),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            StatusChip(status: style, compact: true),
-          ],
-        ),
-        Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: maintenance
-                    ? AppColors.overlaySubtle
-                    : AppColors.primary.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(AppRadius.button),
-              ),
-              child: Icon(
-                maintenance ? Icons.build_outlined : Icons.add,
-                size: 19,
-                color: maintenance ? AppColors.textFaint : AppColors.primary,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm + 2),
-            Expanded(
-              child: Text(
-                maintenance ? 'Tidak bisa dipakai' : 'Mulai sesi',
-                style: AppTypography.cardLabel.copyWith(
-                  color: maintenance ? AppColors.textFaint : AppColors.text,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-/// Bar tipis proporsi waktu terpakai.
-///
-/// Warnanya mengikuti status, jadi saat mendekati habis seluruh kartu
-/// berubah serentak: rail, chip, timer, dan bar ini.
+/// Bar proporsi waktu. Warnanya ikut status, jadi saat mendekati habis
+/// seluruh kartu berubah serentak.
 class _TimeProgressBar extends StatelessWidget {
   const _TimeProgressBar({required this.session});
 
@@ -324,8 +326,7 @@ class _TimeProgressBar extends StatelessWidget {
     return Consumer<AppTicker>(
       builder: (context, _, __) {
         final now = ServerTime.instance.now;
-        final progress = session.progressAt(now);
-        if (progress == null) return const SizedBox(height: AppSize.progressBar);
+        final progress = session.progressAt(now) ?? 0.0;
 
         final remaining = session.endAt == null
             ? Duration.zero
@@ -335,7 +336,7 @@ class _TimeProgressBar extends StatelessWidget {
             ? AppColors.statusExpired
             : remaining <= const Duration(minutes: 10)
                 ? AppColors.statusWarning
-                : AppColors.statusActive;
+                : AppColors.primaryContainer;
 
         return ClipRRect(
           borderRadius: BorderRadius.circular(AppSize.progressBar / 2),
@@ -343,9 +344,9 @@ class _TimeProgressBar extends StatelessWidget {
             height: AppSize.progressBar,
             child: Stack(
               children: [
-                Container(color: AppColors.surfaceSunken),
+                Container(color: AppColors.surfaceHighest),
                 FractionallySizedBox(
-                  widthFactor: progress,
+                  widthFactor: progress.clamp(0.0, 1.0),
                   child: AnimatedContainer(
                     duration: AppMotion.normal,
                     curve: AppMotion.easeOut,
@@ -361,40 +362,403 @@ class _TimeProgressBar extends StatelessWidget {
   }
 }
 
-/// Chip status yang ikut berubah saat melewati ambang 10 menit / habis.
-///
-/// Hanya chip ini yang berlangganan ticker — bukan seluruh kartu.
-class _LiveStatusChip extends StatelessWidget {
-  const _LiveStatusChip({required this.station});
+// ─── Isi: station kosong & maintenance ────────────────────────────────
 
-  final Station station;
+class _IdleBody extends StatelessWidget {
+  const _IdleBody({this.hourlyRateHint});
+
+  final int? hourlyRateHint;
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AppTicker>(
-      builder: (context, _, __) => StatusChip(
-        status: StatusStyle.of(deriveStationViewStatus(station)),
-        compact: true,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            '--:--',
+            style: AppTypography.timerCard.copyWith(
+              color: AppColors.outlineVariant,
+              letterSpacing: 2,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            hourlyRateHint == null
+                ? 'Siap dipakai'
+                : 'Tarif mulai ${formatRupiah(hourlyRateHint!)} / jam',
+            style: AppTypography.bodySm
+                .copyWith(color: AppColors.onSurfaceVariant),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
 }
 
-class _OfflineBadge extends StatelessWidget {
-  const _OfflineBadge();
+class _MaintenanceBody extends StatelessWidget {
+  const _MaintenanceBody();
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'TV tidak mengirim heartbeat',
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.xs + 1),
-        decoration: BoxDecoration(
-          color: AppColors.overlaySubtle,
-          borderRadius: BorderRadius.circular(AppRadius.button - 2),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.handyman_outlined,
+              size: 26, color: AppColors.outline),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Sedang diperbaiki',
+            style: AppTypography.bodySm
+                .copyWith(color: AppColors.onSurfaceVariant),
+          ),
+          // Teknisi, nomor tiket, dan estimasi selesai sengaja TIDAK
+          // ditampilkan: data itu tidak ada di kontrak, dan memalsukannya
+          // membuat operator mengandalkan informasi yang tidak pernah ada.
+          // Lihat OD-016.
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Blok customer ────────────────────────────────────────────────────
+
+class _CustomerBlock extends StatelessWidget {
+  const _CustomerBlock({required this.station});
+
+  final Station station;
+
+  @override
+  Widget build(BuildContext context) {
+    final session = station.session;
+    final maintenance = station.viewStatus == StationViewStatus.maintenance;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md - 2,
+        vertical: AppSpacing.sm + 2,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLowest.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: session == null
+                ? Text(
+                    maintenance ? 'Tidak bisa dipakai' : 'Tidak ada pemain',
+                    style:
+                        AppTypography.bodySm.copyWith(color: AppColors.outline),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        session.customerLabel ?? 'Walk-in',
+                        style: AppTypography.bodySm.copyWith(
+                          color: AppColors.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 1),
+                      _RemainingHint(endAt: session.endAt),
+                    ],
+                  ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          if (session != null)
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  formatRupiah(session.balanceDue),
+                  style: AppTypography.money.copyWith(
+                    color: session.balanceDue > 0
+                        ? AppColors.tertiaryContainer
+                        : AppColors.secondary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            )
+          else
+            Text(
+              maintenance ? '—' : 'Siap Pakai',
+              style: AppTypography.labelSm.copyWith(
+                color: maintenance ? AppColors.outline : AppColors.secondary,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RemainingHint extends StatelessWidget {
+  const _RemainingHint({required this.endAt});
+
+  final DateTime? endAt;
+
+  @override
+  Widget build(BuildContext context) {
+    if (endAt == null) {
+      return Text(
+        'Menunggu pembayaran',
+        style: AppTypography.labelSm.copyWith(color: AppColors.outline),
+      );
+    }
+
+    return Consumer<AppTicker>(
+      builder: (context, _, __) {
+        final r = ServerTime.instance.remainingUntil(endAt!);
+        return Text(
+          r.isNegative
+              ? 'Lewat ${formatDurationLabel(r.abs().inMinutes)}'
+              : 'Sisa ${formatDurationLabel(r.inMinutes)}',
+          style: AppTypography.labelSm.copyWith(
+            color: r.isNegative ? AppColors.statusExpired : AppColors.outline,
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─── Baris aksi ───────────────────────────────────────────────────────
+
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({
+    required this.station,
+    this.onExtend,
+    this.onAddFnb,
+    this.onPay,
+    this.onStart,
+  });
+
+  final Station station;
+  final Future<void> Function(int minutes)? onExtend;
+  final StationQuickAction? onAddFnb;
+  final StationQuickAction? onPay;
+  final StationQuickAction? onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final session = station.session;
+
+    if (station.viewStatus == StationViewStatus.maintenance) {
+      return const SizedBox.shrink();
+    }
+
+    // Station kosong -> satu CTA utama (aturan `primary-action`).
+    if (session == null) {
+      return _PrimaryAction(
+        label: 'Mulai Sesi Baru',
+        icon: Icons.play_arrow,
+        onPressed: onStart,
+      );
+    }
+
+    // Belum bayar -> extend & F&B tidak relevan; yang penting pembayaran.
+    if (session.status == SessionStatus.pendingPayment) {
+      return _PrimaryAction(
+        label: 'Proses Bayar',
+        icon: Icons.payments_outlined,
+        onPressed: onPay,
+      );
+    }
+
+    final canOrderFnb = const {SessionStatus.active, SessionStatus.warning}
+        .contains(session.status);
+
+    // Semua tombol `Expanded` supaya baris ini tidak pernah overflow
+    // horizontal, berapa pun lebar kartunya. "Bayar" diberi porsi dua kali
+    // karena itu aksi yang paling sering dicari.
+    return Row(
+      children: [
+        Expanded(
+          child: _MiniAction(
+            label: '+30m',
+            onPressed: onExtend == null ? null : () => onExtend!(30),
+          ),
         ),
-        child: const Icon(Icons.wifi_off,
-            size: 15, color: AppColors.statusOffline),
+        const SizedBox(width: AppSpacing.sm - 2),
+        Expanded(
+          child: _MiniAction(
+            label: '+1j',
+            onPressed: onExtend == null ? null : () => onExtend!(60),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm - 2),
+        Expanded(
+          child: _MiniAction(
+            label: 'F&B',
+            accent: true,
+            onPressed: canOrderFnb ? onAddFnb : null,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm - 2),
+        Expanded(
+          flex: 2,
+          child: _MiniAction(label: 'Bayar', filled: true, onPressed: onPay),
+        ),
+      ],
+    );
+  }
+}
+
+class _PrimaryAction extends StatefulWidget {
+  const _PrimaryAction({
+    required this.label,
+    required this.icon,
+    this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final StationQuickAction? onPressed;
+
+  @override
+  State<_PrimaryAction> createState() => _PrimaryActionState();
+}
+
+class _PrimaryActionState extends State<_PrimaryAction> {
+  bool _busy = false;
+
+  Future<void> _run() async {
+    setState(() => _busy = true);
+    try {
+      await widget.onPressed!();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null && !_busy;
+
+    return SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: FilledButton(
+        onPressed: enabled ? _run : null,
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          minimumSize: const Size(0, 44),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (_busy)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              Icon(widget.icon, size: 18),
+            const SizedBox(width: AppSpacing.sm),
+            Flexible(
+              child: Text(widget.label, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Tombol aksi cepat.
+///
+/// Menonaktifkan diri selama request berjalan — pertahanan pertama terhadap
+/// tap ganda pada aksi yang mengubah uang.
+class _MiniAction extends StatefulWidget {
+  const _MiniAction({
+    required this.label,
+    this.onPressed,
+    this.filled = false,
+    this.accent = false,
+  });
+
+  final String label;
+  final StationQuickAction? onPressed;
+  final bool filled;
+  final bool accent;
+
+  @override
+  State<_MiniAction> createState() => _MiniActionState();
+}
+
+class _MiniActionState extends State<_MiniAction> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null && !_busy;
+
+    final bg = widget.filled
+        ? AppColors.secondaryContainer
+        : AppColors.surfaceContainer;
+    final fg = widget.filled
+        ? AppColors.onSecondary
+        : widget.accent
+            ? AppColors.primary
+            : AppColors.onSurface;
+
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      child: Material(
+        color: enabled ? bg : AppColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          onTap: enabled
+              ? () async {
+                  setState(() => _busy = true);
+                  try {
+                    await widget.onPressed!();
+                  } finally {
+                    if (mounted) setState(() => _busy = false);
+                  }
+                }
+              : null,
+          child: Container(
+            height: 44,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm - 2),
+            child: _busy
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      widget.label,
+                      maxLines: 1,
+                      style: AppTypography.labelMd.copyWith(
+                        color: enabled ? fg : AppColors.outline,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+          ),
+        ),
       ),
     );
   }

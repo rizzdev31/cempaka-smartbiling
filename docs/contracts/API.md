@@ -187,6 +187,7 @@ Error: `401 INVALID_CREDENTIALS`, `403 USER_INACTIVE`, `429 TOO_MANY_ATTEMPTS`
       "id": "uuid",
       "code": "ST01",
       "name": "Station 1",
+      "console_type": "PS5 VIP",
       "status": "ACTIVE",
       "session": {
         "id": "uuid",
@@ -208,6 +209,7 @@ Error: `401 INVALID_CREDENTIALS`, `403 USER_INACTIVE`, `429 TOO_MANY_ATTEMPTS`
 ```
 
 - `station.status` ∈ `ACTIVE` | `MAINTENANCE` | `DISABLED` — ini status **master data**, bukan status sesi.
+- `station.console_type` = label konsol dari master data, mis. `PS5 VIP`, `PS4 PRO`. Nullable. Teks bebas, **bukan** enum: tiap rental punya penamaan sendiri. Ditampilkan apa adanya, tidak memengaruhi harga (lihat OD-015).
 - `session` = `null` kalau station kosong. Inilah yang membuat station tampil `AVAILABLE` di dashboard.
 - `session.started_at` = `null` saat `PENDING_PAYMENT`. Bersama `end_at`, dipakai client untuk menggambar proporsi waktu terpakai tanpa perlu memuat detail sesi.
 - `device` = `null` kalau belum ada TV Agent terdaftar (normal sampai Tahap 2).

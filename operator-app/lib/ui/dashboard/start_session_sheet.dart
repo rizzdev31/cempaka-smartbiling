@@ -35,7 +35,7 @@ Future<Session?> showStartSessionSheet(
   return showModalBottomSheet<Session>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppColors.surfaceRaised,
+    backgroundColor: AppColors.surfaceLow,
     barrierColor: AppColors.scrim,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(
@@ -131,7 +131,7 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                   Expanded(
                     child: Text(
                       'Mulai Sesi — ${widget.station.code}',
-                      style: AppTypography.screenTitle,
+                      style: AppTypography.headlineSm,
                     ),
                   ),
                   IconButton(
@@ -144,7 +144,7 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
               const SizedBox(height: AppSpacing.lg),
 
               // ── Paket ────────────────────────────────────────────
-              Text('Paket', style: AppTypography.cardLabel),
+              Text('Paket', style: AppTypography.bodyLg),
               const SizedBox(height: AppSpacing.sm),
               Wrap(
                 spacing: AppSpacing.sm,
@@ -162,14 +162,14 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
               const SizedBox(height: AppSpacing.lg),
 
               // ── Mode pembayaran ──────────────────────────────────
-              Text('Pembayaran', style: AppTypography.cardLabel),
+              Text('Pembayaran', style: AppTypography.bodyLg),
               const SizedBox(height: AppSpacing.xs),
               Text(
                 _mode == SessionMode.prepaid
                     ? 'Bayar rental di depan. Sesi mulai setelah pembayaran dikonfirmasi.'
                     : 'Sesi langsung jalan. Rental masuk Open Tab, ditagih saat checkout.',
                 style:
-                    AppTypography.caption.copyWith(color: AppColors.textMuted),
+                    AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
               ),
               const SizedBox(height: AppSpacing.sm),
               Row(
@@ -198,7 +198,7 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
               const SizedBox(height: AppSpacing.lg),
 
               // ── Customer ─────────────────────────────────────────
-              Text('Customer', style: AppTypography.cardLabel),
+              Text('Customer', style: AppTypography.bodyLg),
               const SizedBox(height: AppSpacing.sm),
               _CustomerRow(
                 choice: _customer,
@@ -219,8 +219,8 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.card),
-                    border: Border.all(color: AppColors.border),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    border: Border.all(color: AppColors.surfaceHigh),
                   ),
                   child: Column(
                     children: [
@@ -236,7 +236,7 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
                             : 'Masuk Open Tab',
                         amount: pkg.price,
                         emphasize: true,
-                        amountColor: AppColors.accent,
+                        amountColor: AppColors.tertiaryContainer,
                       ),
                     ],
                   ),
@@ -284,10 +284,10 @@ class _ChoiceTile extends StatelessWidget {
         color: selected
             ? AppColors.primary.withValues(alpha: 0.16)
             : AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.button),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(AppRadius.button),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           child: Container(
             constraints: const BoxConstraints(
               minHeight: AppSize.minTouchTarget + 8,
@@ -297,9 +297,9 @@ class _ChoiceTile extends StatelessWidget {
               vertical: AppSpacing.sm + 2,
             ),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppRadius.button),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               border: Border.all(
-                color: selected ? AppColors.primary : AppColors.border,
+                color: selected ? AppColors.primary : AppColors.surfaceHigh,
                 width: selected ? 2 : 1,
               ),
             ),
@@ -315,14 +315,14 @@ class _ChoiceTile extends StatelessWidget {
                         child: Icon(Icons.check_circle,
                             size: 16, color: AppColors.primary),
                       ),
-                    Text(title, style: AppTypography.cardLabel),
+                    Text(title, style: AppTypography.bodyLg),
                   ],
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: AppTypography.caption
-                      .copyWith(color: AppColors.textMuted),
+                  style: AppTypography.bodySm
+                      .copyWith(color: AppColors.onSurfaceVariant),
                 ),
               ],
             ),
@@ -351,17 +351,17 @@ class _CustomerRow extends StatelessWidget {
 
     return Material(
       color: AppColors.surface,
-      borderRadius: BorderRadius.circular(AppRadius.card),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         child: Container(
           constraints:
               const BoxConstraints(minHeight: AppSize.minTouchTarget + 8),
           padding: const EdgeInsets.all(AppSpacing.md - 2),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.card),
-            border: Border.all(color: AppColors.borderSubtle),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: AppColors.surfaceHigh),
           ),
           child: Row(
             children: [
@@ -371,14 +371,14 @@ class _CustomerRow extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: AppColors.overlaySubtle,
-                  borderRadius: BorderRadius.circular(AppRadius.button),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
                 child: Icon(
                   choice.isMember ? Icons.badge_outlined : Icons.person_outline,
                   size: 18,
                   color: choice.isMember
-                      ? AppColors.accent
-                      : AppColors.textMuted,
+                      ? AppColors.tertiaryContainer
+                      : AppColors.onSurfaceVariant,
                 ),
               ),
               const SizedBox(width: AppSpacing.sm + 4),
@@ -386,25 +386,25 @@ class _CustomerRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(choice.label, style: AppTypography.cardLabel),
+                    Text(choice.label, style: AppTypography.bodyLg),
                     Text(
                       choice.isMember
                           ? (expired
                               ? 'Member ${m.tier} — sudah habis'
                               : 'Member ${m?.tier ?? ''}'.trim())
                           : 'Bukan member',
-                      style: AppTypography.caption.copyWith(
+                      style: AppTypography.bodySm.copyWith(
                         color: expired
                             ? AppColors.statusWarning
                             : choice.isMember
-                                ? AppColors.accent
-                                : AppColors.textFaint,
+                                ? AppColors.tertiaryContainer
+                                : AppColors.outline,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.textMuted),
+              const Icon(Icons.chevron_right, color: AppColors.onSurfaceVariant),
             ],
           ),
         ),

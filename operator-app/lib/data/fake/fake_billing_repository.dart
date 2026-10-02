@@ -322,6 +322,7 @@ class FakeBillingRepository implements BillingRepository {
         id: 'sta-$i',
         code: code,
         name: 'Station $i',
+        consoleType: _seedConsoleFor(code),
         status: i == 6
             ? StationMasterStatus.maintenance
             : StationMasterStatus.active,
@@ -591,6 +592,7 @@ class FakeBillingRepository implements BillingRepository {
       id: old.id,
       code: old.code,
       name: old.name,
+      consoleType: old.consoleType,
       status: old.status,
       device: old.device,
       session: projected.status.occupiesStation
@@ -614,6 +616,7 @@ class FakeBillingRepository implements BillingRepository {
       id: old.id,
       code: old.code,
       name: old.name,
+      consoleType: old.consoleType,
       status: old.status,
       device: old.device,
     );
@@ -1282,6 +1285,15 @@ class FakeBillingRepository implements BillingRepository {
           offlineThreshold: offlineThreshold,
         );
       });
+
+  static String _seedConsoleFor(String stationCode) => switch (stationCode) {
+        'ST01' => 'PS5 VIP',
+        'ST02' => 'PS5 Reguler',
+        'ST03' => 'PS5 Reguler',
+        'ST04' => 'PS4 Pro',
+        'ST05' => 'PS5 VIP',
+        _ => 'PS4 Slim',
+      };
 
   static String _seedModelFor(String stationCode) => switch (stationCode) {
         'ST01' => 'Xiaomi TV A2 43',

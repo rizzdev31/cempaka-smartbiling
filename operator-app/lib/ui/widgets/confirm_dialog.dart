@@ -20,10 +20,10 @@ Future<bool> showConfirmDialog(
     context: context,
     barrierColor: AppColors.scrim,
     builder: (ctx) => AlertDialog(
-      title: Text(title, style: AppTypography.screenTitle),
+      title: Text(title, style: AppTypography.headlineSm),
       content: Text(
         message,
-        style: AppTypography.body.copyWith(color: AppColors.textMuted),
+        style: AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant),
       ),
       actionsPadding: const EdgeInsets.fromLTRB(
         AppSpacing.md,
@@ -39,7 +39,7 @@ Future<bool> showConfirmDialog(
         const SizedBox(width: AppSpacing.sm),
         FilledButton(
           style: destructive
-              ? FilledButton.styleFrom(backgroundColor: AppColors.danger)
+              ? FilledButton.styleFrom(backgroundColor: AppColors.error)
               : null,
           onPressed: () => Navigator.of(ctx).pop(true),
           child: Text(confirmLabel),
@@ -60,8 +60,8 @@ void showApiError(BuildContext context, Object error) {
   if (messenger == null) return;
 
   final (message, color) = switch (error) {
-    ApiError e => (e.message, e.isRetryable ? AppColors.statusWarning : AppColors.danger),
-    _ => ('Terjadi kesalahan tidak terduga.', AppColors.danger),
+    ApiError e => (e.message, e.isRetryable ? AppColors.statusWarning : AppColors.error),
+    _ => ('Terjadi kesalahan tidak terduga.', AppColors.error),
   };
 
   messenger.hideCurrentSnackBar();
@@ -77,7 +77,7 @@ void showApiError(BuildContext context, Object error) {
             size: 20,
           ),
           const SizedBox(width: AppSpacing.sm + 2),
-          Expanded(child: Text(message, style: AppTypography.body)),
+          Expanded(child: Text(message, style: AppTypography.bodyMd)),
         ],
       ),
       duration: const Duration(seconds: 5),
@@ -99,7 +99,7 @@ void showWarning(BuildContext context, String message) {
           const Icon(Icons.info_outline,
               color: AppColors.statusWarning, size: 20),
           const SizedBox(width: AppSpacing.sm + 2),
-          Expanded(child: Text(message, style: AppTypography.body)),
+          Expanded(child: Text(message, style: AppTypography.bodyMd)),
         ],
       ),
       duration: const Duration(seconds: 4),
@@ -120,7 +120,7 @@ void showSuccess(BuildContext context, String message) {
           const Icon(Icons.check_circle_outline,
               color: AppColors.statusAvailable, size: 20),
           const SizedBox(width: AppSpacing.sm + 2),
-          Expanded(child: Text(message, style: AppTypography.body)),
+          Expanded(child: Text(message, style: AppTypography.bodyMd)),
         ],
       ),
       duration: const Duration(seconds: 3),
@@ -195,8 +195,8 @@ class _AsyncButtonState extends State<AsyncButton> {
         onPressed: enabled ? _run : null,
         style: widget.destructive
             ? OutlinedButton.styleFrom(
-                foregroundColor: AppColors.danger,
-                side: const BorderSide(color: AppColors.danger),
+                foregroundColor: AppColors.error,
+                side: const BorderSide(color: AppColors.error),
               )
             : null,
         child: child,
@@ -206,7 +206,7 @@ class _AsyncButtonState extends State<AsyncButton> {
     return FilledButton(
       onPressed: enabled ? _run : null,
       style: widget.destructive
-          ? FilledButton.styleFrom(backgroundColor: AppColors.danger)
+          ? FilledButton.styleFrom(backgroundColor: AppColors.error)
           : null,
       child: child,
     );

@@ -15,7 +15,10 @@ import '../widgets/confirm_dialog.dart';
 /// dan tanpa cara mengubahnya dari dalam app, setiap salah IP berarti
 /// rebuild APK di lokasi (TEST-PLAN-SABTU.md §2.2 nomor 6).
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.embedded = false});
+
+  /// `true` saat dipasang di dalam [AppShell] — shell sudah punya header.
+  final bool embedded;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -98,10 +101,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final cfg = context.watch<ApiConfig>();
+    final content = _content(cfg);
+
+    if (widget.embedded) return content;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Pengaturan')),
-      body: SafeArea(
+      body: content,
+    );
+  }
+
+  Widget _content(ApiConfig cfg) {
+    return SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Center(
@@ -110,13 +121,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Server', style: AppTypography.screenTitle),
+                  Text('Server', style: AppTypography.headlineSm),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     'Alamat Laravel di jaringan lokal. Contoh: '
                     '192.168.0.50:8000',
-                    style: AppTypography.caption
-                        .copyWith(color: AppColors.textMuted),
+                    style: AppTypography.bodySm
+                        .copyWith(color: AppColors.onSurfaceVariant),
                   ),
                   const SizedBox(height: AppSpacing.md),
 
@@ -189,7 +200,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const Divider(),
                   const SizedBox(height: AppSpacing.md),
 
-                  Text('Diagnostik', style: AppTypography.screenTitle),
+                  Text('Diagnostik', style: AppTypography.headlineSm),
                   const SizedBox(height: AppSpacing.md),
                   _DiagRow(
                     label: 'Alamat API aktif',
@@ -225,7 +236,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
                       color: AppColors.statusWarning.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(AppRadius.card),
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
                       border: Border.all(
                         color: AppColors.statusWarning.withValues(alpha: 0.3),
                       ),
@@ -239,7 +250,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: Text(
                             'Build ini masih memakai data palsu di memori. '
                             'Alamat server belum dipanggil sama sekali.',
-                            style: AppTypography.caption
+                            style: AppTypography.bodySm
                                 .copyWith(color: AppColors.statusWarning),
                           ),
                         ),
@@ -251,8 +262,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 }
 
@@ -279,13 +289,13 @@ class _DiagRow extends StatelessWidget {
             child: Text(
               label,
               style:
-                  AppTypography.caption.copyWith(color: AppColors.textMuted),
+                  AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: AppTypography.moneySmall.copyWith(color: valueColor),
+              style: AppTypography.moneySm.copyWith(color: valueColor),
             ),
           ),
         ],

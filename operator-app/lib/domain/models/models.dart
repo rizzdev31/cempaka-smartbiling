@@ -184,6 +184,7 @@ class Station {
     required this.code,
     required this.name,
     required this.status,
+    this.consoleType,
     this.session,
     this.device,
   });
@@ -192,6 +193,12 @@ class Station {
   final String code;
   final String name;
   final StationMasterStatus status;
+
+  /// Label konsol dari master data, mis. `PS5 VIP`. Teks bebas, bukan enum —
+  /// tiap rental punya penamaan sendiri (kontrak §6, CHANGELOG DRAFT 4).
+  ///
+  /// Hanya informasi: **tidak** memengaruhi harga. Lihat OD-015.
+  final String? consoleType;
 
   /// `null` = station kosong -> tampil AVAILABLE di dashboard.
   final StationSessionSummary? session;
@@ -206,6 +213,7 @@ class Station {
         id: j['id'] as String,
         code: j['code'] as String,
         name: j['name'] as String? ?? j['code'] as String,
+        consoleType: j['console_type'] as String?,
         status: StationMasterStatus.parse(j['status'] as String?),
         session: j['session'] == null
             ? null

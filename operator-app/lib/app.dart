@@ -8,7 +8,7 @@ import 'core/time/ticker.dart';
 import 'data/fake/fake_billing_repository.dart';
 import 'domain/repositories/billing_repository.dart';
 import 'ui/dashboard/dashboard_controller.dart';
-import 'ui/dashboard/dashboard_screen.dart';
+import 'ui/shell/app_shell.dart';
 import 'ui/widgets/connection_banner.dart';
 
 class OperatorApp extends StatelessWidget {
@@ -60,7 +60,7 @@ class OperatorApp extends StatelessWidget {
           );
         },
 
-        home: const DashboardScreen(),
+        home: const AppShell(),
       ),
     );
   }

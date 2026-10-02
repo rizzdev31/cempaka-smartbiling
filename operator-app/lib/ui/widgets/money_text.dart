@@ -19,11 +19,11 @@ class MoneyText extends StatelessWidget {
 
   /// Nominal besar — total akhir, tagihan.
   const MoneyText.large(this.amount, {super.key, this.color, this.withPrefix = true})
-      : style = AppTypography.moneyLarge;
+      : style = AppTypography.moneyLg;
 
   /// Nominal kecil — baris item.
   const MoneyText.small(this.amount, {super.key, this.color, this.withPrefix = true})
-      : style = AppTypography.moneySmall;
+      : style = AppTypography.moneySm;
 
   final int amount;
   final TextStyle? style;
@@ -35,7 +35,7 @@ class MoneyText extends StatelessWidget {
     final base = style ?? AppTypography.money;
     return Text(
       formatRupiah(amount, withPrefix: withPrefix),
-      style: base.copyWith(color: color ?? base.color ?? AppColors.text),
+      style: base.copyWith(color: color ?? base.color ?? AppColors.onSurface),
     );
   }
 }
@@ -60,8 +60,8 @@ class MoneyRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final labelStyle = emphasize
-        ? AppTypography.cardLabel.copyWith(color: AppColors.text)
-        : AppTypography.body.copyWith(color: AppColors.textMuted);
+        ? AppTypography.bodyLg.copyWith(color: AppColors.onSurface)
+        : AppTypography.bodyMd.copyWith(color: AppColors.onSurfaceVariant);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
@@ -78,8 +78,8 @@ class MoneyRow extends StatelessWidget {
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       sublabel!,
-                      style: AppTypography.caption
-                          .copyWith(color: AppColors.textMuted),
+                      style: AppTypography.bodySm
+                          .copyWith(color: AppColors.onSurfaceVariant),
                     ),
                   ),
               ],

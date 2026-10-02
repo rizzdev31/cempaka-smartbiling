@@ -82,6 +82,24 @@ Kontrak awal. Belum ada implementasi, jadi belum ada breaking change.
 
 ---
 
+## v1 · DRAFT 4 — 2026-10-02
+
+**ADDED — API** · terdampak: Flutter (sudah menyesuaikan), Backend (belum ada)
+
+- `GET /stations` → `station.console_type` (string, nullable)
+
+**Alasan:** desain dashboard yang disetujui menampilkan label konsol per station (`PS5 VIP`, `PS4 PRO`). Operator memakainya untuk memilih station yang sesuai permintaan customer — "yang PS5" adalah permintaan sehari-hari.
+
+**Teks bebas, bukan enum:** tiap rental punya penamaan sendiri. Membuatnya enum berarti setiap pelanggan baru butuh perubahan kode.
+
+**Tidak memengaruhi harga.** Harga tetap dari `packages`. Apakah tarif harus berbeda per tipe konsol masih **OD-015** — label ini hanya informasi.
+
+**Non-breaking:** field tambahan, nullable.
+
+**Aksi untuk backend:** tambahkan kolom `console_type` (nullable string) ke tabel `stations` dan sertakan di response `GET /stations`.
+
+---
+
 ## Template entry berikutnya
 
 ```

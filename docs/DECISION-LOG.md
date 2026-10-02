@@ -243,6 +243,48 @@ Hanya ada **satu** tablet operator di lokasi. Tidak ada tablet kedua untuk dapur
 
 ---
 
+## DEC-014 — Desain UI mengikuti `contoh.html`
+**Tanggal:** 2 Okt 2026 · **Status:** APPROVED · **Override:** `UI-UX-SPEC.md` versi pertama
+
+User menilai desain pertama belum pas dan memberi `operator-app/contoh.html`
+sebagai acuan. Arah visual sekarang: **Material 3 dark** dengan aksen cyan +
+mint, permukaan biru-gelap bertingkat, glow halus pada elemen aktif, dan
+shell bersidebar.
+
+**Yang berubah:**
+
+| | Sebelum | Sekarang |
+|---|---|---|
+| Navigasi | bar aksi di bawah grid | **sidebar** dengan lima tujuan + badge |
+| Palet | biru-slate, aksen amber | **cyan + mint**, Material 3 roles |
+| Font | font sistem | **Space Grotesk / Plus Jakarta Sans / JetBrains Mono**, dibundel |
+| Kartu station | rail status, chip, bar waktu | header (kode + tipe konsol \| status) → timer → bar → blok customer → **aksi cepat** |
+| Filter | tidak ada | chip Semua / Bermain / Tersedia / Hampir Habis / Menunggu Bayar + pencarian |
+
+**Tiga penyesuaian yang sengaja menyimpang dari contoh**, karena contoh itu
+mockup web sementara targetnya tablet sentuh:
+
+1. **Tombol aksi 44 px, bukan 34 px.** Contoh memakai tombol kecil dengan
+   asumsi presisi mouse. Aksi di kartu ini mengubah uang; mis-tap mahal.
+   44 px adalah minimum sentuh iOS. Material meminta 48 px, tapi 48 membuat
+   enam kartu tidak muat tanpa scroll di tablet 1280x800 — 44 px kompromi
+   yang disengaja.
+2. **Sidebar menyusut jadi rail ikon di bawah 1040 px.** 288 px dari 800 px
+   layar portrait adalah 36% untuk navigasi saja (aturan
+   `adaptive-navigation`).
+3. **Tombol +30m / +1j tetap pakai konfirmasi.** Contoh tidak punya
+   konfirmasi, tapi salah tap +1j menagih customer satu jam yang tidak
+   diminta dan kontrak tidak punya jalur pembatalan.
+
+**Yang TIDAK diambil dari contoh karena datanya tidak ada:**
+bel notifikasi (tidak ada sistem notifikasi), badge terminal POS-01 (tidak
+ada konsep terminal; DEC-013 satu kasir), indikator "Auto Refresh Aktif"
+(tidak ada auto-refresh — menampilkannya akan menjadi klaim palsu), teknisi
+dan nomor tiket pada kartu maintenance (OD-016). Slot bel diisi dengan
+indikator koneksi yang memang nyata.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -260,6 +302,8 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | **OD-009** | Formula profit/margin & target achievement | PRD §35 TBD. Belum blokir karena reporting di Tahap 3B. | Tahap 3B |
 | **OD-010** | Receipt: dicetak (printer model/interface) atau cukup di layar? | Mempengaruhi UI checkout dan hardware yang perlu dibeli. | Tahap 1 (UI), Tahap 3 (hardware) |
 | **OD-011** | Apakah Flutter perlu **penemuan IP server otomatis** (scan subnet), atau cukup DHCP reservation? | **Ditunda oleh user 2 Okt 2026 — tunggu hasil DHCP reservation di SESI 1.** Analisis ada di bawah tabel. | Tahap 1 (opsional) |
+| **OD-015** | Apakah **tarif berbeda per tipe konsol**? PS5 VIP lebih mahal daripada PS4 Slim? | Desain menampilkan label konsol per station dan contoh aslinya menunjukkan tarif berbeda per station. PRD §22 hanya punya harga di `packages`, tidak per station. Kalau jawabannya ya, `packages` perlu relasi ke tipe station — perubahan schema, bukan tambalan UI | **Tahap 0 (schema)** |
+| **OD-016** | Apakah **maintenance perlu data pendukung** — teknisi, nomor tiket, estimasi selesai? | Desain contoh menampilkannya, tapi tidak ada entity-nya di PRD §22. Sekarang kartu maintenance hanya menampilkan "Sedang diperbaiki" — tidak memalsukan data yang tidak ada | Tahap 3B (Admin) |
 | **OD-014** | Bolehkah **operator mendaftarkan member baru** di meja kasir, atau hanya Admin? | PRD §6 memberi akses `customer` hanya kepada Admin/Owner — operator tidak termasuk. Tapi customer yang ingin jadi member di tempat adalah kejadian harian. Sekarang operator hanya bisa mencari & memilih member yang sudah ada; yang belum terdaftar dilayani sebagai Walk-in | Tahap 1 (UI sudah siap), Tahap 3B (Admin) |
 | **OD-013** | Ringkasan shift: `rental`/`fnb` dihitung saat item **dibuat** (nilai transaksi) atau saat **dibayar** (uang masuk)? | Keduanya sudah dibedakan di UI, tapi mana yang jadi dasar laporan belum diputuskan. Mempengaruhi laporan harian dan formula profit (OD-009). `cash`/`qris`/`total` tidak terpengaruh — itu selalu uang masuk | Tahap 3B (reporting) |
 | **OD-012** | Aplikasi akan **dijual ke beberapa pengguna** dengan nama & logo menyesuaikan, tetap di bawah naungan Cempaka Smart Billing. White-label per-instance, atau multi-tenant satu server? | **Keputusan arsitektur terbesar yang belum ada di PRD.** Menentukan schema DB. Retrofit `tenant_id` setelah ada data produksi sangat mahal. Detail di bawah tabel. | **Tahap 0 (schema)** — walau fiturnya nanti |

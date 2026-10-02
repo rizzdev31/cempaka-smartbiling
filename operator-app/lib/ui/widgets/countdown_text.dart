@@ -39,7 +39,7 @@ class CountdownText extends StatelessWidget {
     if (endAt == null) {
       return Text(
         '--:--:--',
-        style: base.copyWith(color: AppColors.textMuted),
+        style: base.copyWith(color: AppColors.onSurfaceVariant),
         semanticsLabel: 'Timer belum berjalan',
       );
     }
@@ -55,7 +55,7 @@ class CountdownText extends StatelessWidget {
             ? AppColors.statusExpired
             : nearEnd
                 ? AppColors.statusWarning
-                : (base.color ?? AppColors.text);
+                : (base.color ?? AppColors.onSurface);
 
         return Text(
           formatCountdown(remaining),
@@ -92,8 +92,8 @@ class RemainingLabel extends StatelessWidget {
 
         return Text(
           label,
-          style: (style ?? AppTypography.caption).copyWith(
-            color: r.isNegative ? AppColors.statusExpired : AppColors.textMuted,
+          style: (style ?? AppTypography.bodySm).copyWith(
+            color: r.isNegative ? AppColors.statusExpired : AppColors.onSurfaceVariant,
           ),
         );
       },

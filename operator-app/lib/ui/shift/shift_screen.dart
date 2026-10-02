@@ -19,23 +19,31 @@ import 'shift_controller.dart';
 /// Fokusnya satu pertanyaan: **berapa kas yang seharusnya ada di kotak?**
 /// Semua angka lain mendukung pertanyaan itu.
 class ShiftScreen extends StatelessWidget {
-  const ShiftScreen({super.key});
+  const ShiftScreen({super.key, this.embedded = false});
+
+  /// `true` saat dipasang di dalam [AppShell] — shell sudah punya header.
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (ctx) => ShiftController(ctx.read<BillingRepository>())..load(),
-      child: const _ShiftBody(),
+      child: _ShiftBody(embedded: embedded),
     );
   }
 }
 
 class _ShiftBody extends StatelessWidget {
-  const _ShiftBody();
+  const _ShiftBody({required this.embedded});
+
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
     final ctrl = context.watch<ShiftController>();
+    final content = _content(context, ctrl);
+
+    if (embedded) return content;
 
     return Scaffold(
       appBar: AppBar(
@@ -55,7 +63,12 @@ class _ShiftBody extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
         ],
       ),
-      body: SafeArea(
+      body: SafeArea(child: content),
+    );
+  }
+
+  Widget _content(BuildContext context, ShiftController ctrl) {
+    return SafeArea(
         child: ctrl.loading && ctrl.current == null && ctrl.history.isEmpty
             ? const Center(child: CircularProgressIndicator())
             : ctrl.error != null && ctrl.current == null
@@ -79,8 +92,8 @@ class _ShiftBody extends StatelessWidget {
                               const SizedBox(height: AppSpacing.lg),
                               Text(
                                 'RIWAYAT SHIFT',
-                                style: AppTypography.overline
-                                    .copyWith(color: AppColors.textFaint),
+                                style: AppTypography.labelSm
+                                    .copyWith(color: AppColors.outline),
                               ),
                               const SizedBox(height: AppSpacing.sm),
                               ...ctrl.history.map(
@@ -96,8 +109,7 @@ class _ShiftBody extends StatelessWidget {
                       ),
                     ),
                   ),
-      ),
-    );
+      );
   }
 }
 
@@ -128,7 +140,7 @@ class _OpenShiftPanel extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Text('Shift berjalan', style: AppTypography.sectionTitle),
+              Text('Shift berjalan', style: AppTypography.headlineSm),
               const Spacer(),
               _ShiftDuration(openedAt: shift.openedAt),
             ],
@@ -137,19 +149,19 @@ class _OpenShiftPanel extends StatelessWidget {
           Row(
             children: [
               const Icon(Icons.person_outline,
-                  size: 15, color: AppColors.textMuted),
+                  size: 15, color: AppColors.onSurfaceVariant),
               const SizedBox(width: AppSpacing.sm - 2),
               Text(
                 shift.operator.name,
-                style: AppTypography.body,
+                style: AppTypography.bodyMd,
               ),
               const SizedBox(width: AppSpacing.md),
-              const Icon(Icons.login, size: 15, color: AppColors.textMuted),
+              const Icon(Icons.login, size: 15, color: AppColors.onSurfaceVariant),
               const SizedBox(width: AppSpacing.sm - 2),
               Text(
                 'Buka ${formatClock(shift.openedAt)}',
                 style:
-                    AppTypography.caption.copyWith(color: AppColors.textMuted),
+                    AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
               ),
             ],
           ),
@@ -160,8 +172,8 @@ class _OpenShiftPanel extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: AppColors.surfaceSunken,
-              borderRadius: BorderRadius.circular(AppRadius.card),
+              color: AppColors.surfaceContainer,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
             ),
             child: Column(
               children: [
@@ -176,7 +188,7 @@ class _OpenShiftPanel extends StatelessWidget {
                   label: 'Kas seharusnya',
                   amount: shift.expectedCash,
                   emphasize: true,
-                  amountColor: AppColors.accent,
+                  amountColor: AppColors.tertiaryContainer,
                 ),
               ],
             ),
@@ -185,7 +197,7 @@ class _OpenShiftPanel extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Text(
             'UANG MASUK',
-            style: AppTypography.overline.copyWith(color: AppColors.textFaint),
+            style: AppTypography.labelSm.copyWith(color: AppColors.outline),
           ),
           MoneyRow(label: 'Tunai', amount: s.cash),
           MoneyRow(label: 'QRIS', amount: s.qris),
@@ -195,7 +207,7 @@ class _OpenShiftPanel extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Text(
             'NILAI TRANSAKSI SHIFT INI',
-            style: AppTypography.overline.copyWith(color: AppColors.textFaint),
+            style: AppTypography.labelSm.copyWith(color: AppColors.outline),
           ),
           MoneyRow(label: 'Rental + Extend', amount: s.rental),
           MoneyRow(label: 'F&B', amount: s.fnb),
@@ -205,7 +217,7 @@ class _OpenShiftPanel extends StatelessWidget {
               'Nilai transaksi bisa berbeda dari uang masuk. Open Tab yang '
               'dibuka di shift ini tapi dibayar di shift berikutnya terhitung '
               'di sini, uangnya terhitung di sana.',
-              style: AppTypography.caption.copyWith(color: AppColors.textFaint),
+              style: AppTypography.bodySm.copyWith(color: AppColors.outline),
             ),
           ),
 
@@ -243,7 +255,7 @@ class _ShiftDuration extends StatelessWidget {
         final d = ServerTime.instance.now.difference(openedAt);
         return Text(
           formatDurationLabel(d.inMinutes),
-          style: AppTypography.moneySmall.copyWith(color: AppColors.textMuted),
+          style: AppTypography.moneySm.copyWith(color: AppColors.onSurfaceVariant),
         );
       },
     );
@@ -274,14 +286,14 @@ class _NoShiftPanel extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
-              Text('Belum ada shift', style: AppTypography.sectionTitle),
+              Text('Belum ada shift', style: AppTypography.headlineSm),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
             'Buka shift dengan menghitung kas awal di kotak. Angka itu yang '
             'nanti dibandingkan saat shift ditutup.',
-            style: AppTypography.caption.copyWith(color: AppColors.textMuted),
+            style: AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpacing.lg),
           AsyncButton(
@@ -316,8 +328,8 @@ class _HistoryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md - 2),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSunken,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        color: AppColors.surfaceContainer,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -327,13 +339,13 @@ class _HistoryCard extends StatelessWidget {
               Text(
                 '${formatClock(shift.openedAt)} – '
                 '${shift.closedAt == null ? '?' : formatClock(shift.closedAt!)}',
-                style: AppTypography.moneySmall,
+                style: AppTypography.moneySm,
               ),
               const SizedBox(width: AppSpacing.sm),
               Text(
                 shift.operator.name,
                 style:
-                    AppTypography.caption.copyWith(color: AppColors.textMuted),
+                    AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
               ),
               const Spacer(),
               Icon(
@@ -348,7 +360,7 @@ class _HistoryCard extends StatelessWidget {
                 exact
                     ? 'Pas'
                     : '${variance > 0 ? '+' : ''}${formatRupiah(variance)}',
-                style: AppTypography.moneySmall.copyWith(color: color),
+                style: AppTypography.moneySm.copyWith(color: color),
               ),
             ],
           ),
@@ -358,14 +370,14 @@ class _HistoryCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Diterima ${formatRupiah(shift.summary.total)}',
-                  style: AppTypography.caption
-                      .copyWith(color: AppColors.textMuted),
+                  style: AppTypography.bodySm
+                      .copyWith(color: AppColors.onSurfaceVariant),
                 ),
               ),
               Text(
                 'Kas akhir ${formatRupiah(shift.closingCash ?? 0)}',
                 style:
-                    AppTypography.caption.copyWith(color: AppColors.textMuted),
+                    AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
               ),
             ],
           ),
@@ -373,7 +385,7 @@ class _HistoryCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.xs),
             Text(
               shift.note!,
-              style: AppTypography.caption.copyWith(color: AppColors.textFaint),
+              style: AppTypography.bodySm.copyWith(color: AppColors.outline),
             ),
           ],
         ],
@@ -435,7 +447,7 @@ class _OpenShiftDialogState extends State<_OpenShiftDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Buka Shift', style: AppTypography.screenTitle),
+      title: const Text('Buka Shift', style: AppTypography.headlineSm),
       content: SizedBox(
         width: 420,
         child: Column(
@@ -444,7 +456,7 @@ class _OpenShiftDialogState extends State<_OpenShiftDialog> {
           children: [
             Text(
               'Hitung uang yang ada di kotak kas sekarang.',
-              style: AppTypography.caption.copyWith(color: AppColors.textMuted),
+              style: AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
             ),
             const SizedBox(height: AppSpacing.md),
             TextField(
@@ -556,7 +568,7 @@ class _CloseShiftDialogState extends State<_CloseShiftDialog> {
     final v = _variance;
 
     return AlertDialog(
-      title: const Text('Tutup Shift', style: AppTypography.screenTitle),
+      title: const Text('Tutup Shift', style: AppTypography.headlineSm),
       content: SizedBox(
         width: 440,
         child: SingleChildScrollView(
@@ -596,7 +608,7 @@ class _CloseShiftDialogState extends State<_CloseShiftDialog> {
                                 ? AppColors.statusWarning
                                 : AppColors.statusExpired)
                         .withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(AppRadius.button),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: Row(
                     children: [
@@ -619,7 +631,7 @@ class _CloseShiftDialogState extends State<_CloseShiftDialog> {
                               : v > 0
                                   ? 'Lebih ${formatRupiah(v)}'
                                   : 'Kurang ${formatRupiah(v.abs())}',
-                          style: AppTypography.cardLabel.copyWith(
+                          style: AppTypography.bodyLg.copyWith(
                             color: v == 0
                                 ? AppColors.statusAvailable
                                 : v > 0
@@ -685,7 +697,7 @@ Future<void> showShiftReportDialog(
           ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text('Shift Ditutup', style: AppTypography.screenTitle),
+            child: Text('Shift Ditutup', style: AppTypography.headlineSm),
           ),
         ],
       ),
@@ -700,7 +712,7 @@ Future<void> showShiftReportDialog(
                 '${formatClock(shift.openedAt)} – '
                 '${shift.closedAt == null ? '?' : formatClock(shift.closedAt!)}'
                 '  ·  ${shift.operator.name}',
-                style: AppTypography.caption.copyWith(color: AppColors.textMuted),
+                style: AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
               ),
               const Divider(height: AppSpacing.lg),
               MoneyRow(label: 'Kas awal', amount: shift.openingCash),
@@ -725,22 +737,22 @@ Future<void> showShiftReportDialog(
                 Text(
                   shift.note!,
                   style:
-                      AppTypography.caption.copyWith(color: AppColors.textMuted),
+                      AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
                 ),
               ],
               const SizedBox(height: AppSpacing.md),
               Container(
                 padding: const EdgeInsets.all(AppSpacing.sm + 4),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceSunken,
-                  borderRadius: BorderRadius.circular(AppRadius.button),
+                  color: AppColors.surfaceContainer,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
                 child: Text(
                   'Serah terima: kas yang dihitung '
                   '(${formatRupiah(shift.closingCash ?? 0)}) menjadi kas awal '
                   'shift berikutnya.',
                   style:
-                      AppTypography.caption.copyWith(color: AppColors.textMuted),
+                      AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
                 ),
               ),
             ],
@@ -772,7 +784,7 @@ class _Panel extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md + 2),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         boxShadow: AppShadow.card,
       ),
       child: child,
@@ -794,10 +806,10 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 44, color: AppColors.danger),
+            const Icon(Icons.error_outline, size: 44, color: AppColors.error),
             const SizedBox(height: AppSpacing.md),
             Text(message, textAlign: TextAlign.center,
-                style: AppTypography.body),
+                style: AppTypography.bodyMd),
             const SizedBox(height: AppSpacing.lg),
             AsyncButton(
                 label: 'Coba lagi', icon: Icons.refresh, onPressed: onRetry),

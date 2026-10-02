@@ -50,7 +50,7 @@ Future<CustomerChoice?> showCustomerPicker(
   return showModalBottomSheet<CustomerChoice>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppColors.surfaceRaised,
+    backgroundColor: AppColors.surfaceLow,
     barrierColor: AppColors.scrim,
     shape: const RoundedRectangleBorder(
       borderRadius:
@@ -158,7 +158,7 @@ class _CustomerPickerSheetState extends State<_CustomerPickerSheet> {
                       children: [
                         Expanded(
                           child: Text('Pilih Customer',
-                              style: AppTypography.screenTitle),
+                              style: AppTypography.headlineSm),
                         ),
                         IconButton(
                           onPressed: () => Navigator.of(context).pop(),
@@ -223,11 +223,11 @@ class _CustomerPickerSheetState extends State<_CustomerPickerSheet> {
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           children: [
-            const Icon(Icons.error_outline, color: AppColors.danger, size: 32),
+            const Icon(Icons.error_outline, color: AppColors.error, size: 32),
             const SizedBox(height: AppSpacing.sm),
             Text(
               'Gagal memuat daftar customer.',
-              style: AppTypography.body,
+              style: AppTypography.bodyMd,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.md),
@@ -247,7 +247,7 @@ class _CustomerPickerSheetState extends State<_CustomerPickerSheet> {
         child: Column(
           children: [
             const Icon(Icons.person_search_outlined,
-                color: AppColors.textMuted, size: 32),
+                color: AppColors.onSurfaceVariant, size: 32),
             const SizedBox(height: AppSpacing.sm),
             Text(
               _search.text.trim().isEmpty
@@ -255,14 +255,14 @@ class _CustomerPickerSheetState extends State<_CustomerPickerSheet> {
                   : 'Tidak ada member yang cocok dengan '
                       '"${_search.text.trim()}".',
               style:
-                  AppTypography.caption.copyWith(color: AppColors.textMuted),
+                  AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
               'Gunakan Walk-in di atas kalau customer bukan member.',
               style:
-                  AppTypography.caption.copyWith(color: AppColors.textFaint),
+                  AppTypography.bodySm.copyWith(color: AppColors.outline),
               textAlign: TextAlign.center,
             ),
           ],
@@ -306,10 +306,10 @@ class _WalkInRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: selected
             ? AppColors.primary.withValues(alpha: 0.12)
-            : AppColors.surfaceSunken,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+            : AppColors.surfaceContainer,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(
-          color: selected ? AppColors.primary : AppColors.borderSubtle,
+          color: selected ? AppColors.primary : AppColors.surfaceHigh,
           width: selected ? 2 : 1,
         ),
       ),
@@ -320,10 +320,10 @@ class _WalkInRow extends StatelessWidget {
             height: 36,
             decoration: BoxDecoration(
               color: AppColors.overlaySubtle,
-              borderRadius: BorderRadius.circular(AppRadius.button),
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             child: const Icon(Icons.person_outline,
-                size: 18, color: AppColors.textMuted),
+                size: 18, color: AppColors.onSurfaceVariant),
           ),
           const SizedBox(width: AppSpacing.sm + 4),
           Expanded(
@@ -392,14 +392,14 @@ class _CustomerRow extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: AppColors.overlaySubtle,
-                  borderRadius: BorderRadius.circular(AppRadius.button),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
                 child: Text(
                   customer.name.isEmpty
                       ? '?'
                       : customer.name.characters.first.toUpperCase(),
-                  style: AppTypography.cardLabel
-                      .copyWith(color: AppColors.textMuted),
+                  style: AppTypography.bodyLg
+                      .copyWith(color: AppColors.onSurfaceVariant),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm + 4),
@@ -407,12 +407,12 @@ class _CustomerRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(customer.name, style: AppTypography.cardLabel),
+                    Text(customer.name, style: AppTypography.bodyLg),
                     if (customer.phone != null)
                       Text(
                         customer.phone!,
-                        style: AppTypography.caption
-                            .copyWith(color: AppColors.textFaint),
+                        style: AppTypography.bodySm
+                            .copyWith(color: AppColors.outline),
                       ),
                   ],
                 ),
@@ -445,7 +445,7 @@ class _MembershipBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final active = membership.isActive;
-    final color = active ? AppColors.accent : AppColors.textFaint;
+    final color = active ? AppColors.tertiaryContainer : AppColors.outline;
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -454,7 +454,7 @@ class _MembershipBadge extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(AppRadius.chip),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -467,7 +467,7 @@ class _MembershipBadge extends StatelessWidget {
           const SizedBox(width: AppSpacing.xs),
           Text(
             active ? membership.tier : '${membership.tier} habis',
-            style: AppTypography.caption
+            style: AppTypography.bodySm
                 .copyWith(color: color, fontSize: 11, fontWeight: FontWeight.w600),
           ),
         ],
@@ -488,17 +488,17 @@ class _OperatorScopeNote extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.md),
-      color: AppColors.surfaceSunken,
+      color: AppColors.surfaceContainer,
       child: Row(
         children: [
-          const Icon(Icons.info_outline, size: 15, color: AppColors.textFaint),
+          const Icon(Icons.info_outline, size: 15, color: AppColors.outline),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
               'Pendaftaran member baru dilakukan Admin. Customer yang belum '
               'terdaftar bisa dilayani sebagai Walk-in.',
               style:
-                  AppTypography.caption.copyWith(color: AppColors.textFaint),
+                  AppTypography.bodySm.copyWith(color: AppColors.outline),
             ),
           ),
         ],

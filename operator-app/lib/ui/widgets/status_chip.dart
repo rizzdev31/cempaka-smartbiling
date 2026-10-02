@@ -20,7 +20,7 @@ class StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textStyle = (compact ? AppTypography.caption : AppTypography.cardLabel)
+    final textStyle = (compact ? AppTypography.bodySm : AppTypography.bodyLg)
         .copyWith(color: status.color, fontWeight: FontWeight.w600);
 
     return Semantics(
@@ -33,7 +33,7 @@ class StatusChip extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: status.color.withValues(alpha: 0.13),
-          borderRadius: BorderRadius.circular(AppRadius.chip),
+          borderRadius: BorderRadius.circular(AppRadius.pill),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -80,7 +80,7 @@ class StatusDot extends StatelessWidget {
             const SizedBox(width: AppSpacing.sm - 2),
             Text(
               status.label,
-              style: AppTypography.caption.copyWith(color: AppColors.textMuted),
+              style: AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
             ),
           ],
         ],

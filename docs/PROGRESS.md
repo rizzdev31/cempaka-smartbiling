@@ -15,7 +15,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Milestone terdekat** | **Sabtu 3 Okt: SESI 1 recon lokasi (0 kode)** — `TEST-PLAN-SABTU.md` |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
-| **operator-app** | Semua screen PRD §18 selesai kecuali Login & Booking; **103 test lulus**; jalan di fake repository |
+| **operator-app** | Semua screen PRD §18 selesai kecuali Login & Booking; **redesign sesuai `contoh.html`** (DEC-014); **128 test lulus** |
 | **backend / tv-agent** | masih kosong (baru README) |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
@@ -23,6 +23,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | ID | Pertanyaan | Ditunda sejak | Pemicu peninjauan |
 |---|---|---|---|
 | **OD-011** | Perlukah penemuan IP server otomatis (scan subnet) di Flutter? | 2 Okt 2026 | **Setelah DHCP reservation diuji di SESI 1.** Kalau IP laptop tetap stabil → tidak perlu. Kalau masih sering berubah → pasang scan subnet (± 100 baris) |
+| **OD-015** | Tarif berbeda per tipe konsol (PS5 VIP vs PS4 Slim)? | 2 Okt 2026 | **Sebelum migration pertama.** Kalau ya, `packages` butuh relasi ke tipe station — perubahan schema |
 | **OD-012** | Aplikasi dijual ke beberapa pengguna: **white-label per-instance atau multi-tenant?** | 2 Okt 2026 | **Sebelum migration pertama Laravel ditulis.** Kalau multi-tenant, `tenant_id` harus ada sejak awal — retrofit setelah ada data produksi sangat mahal. Rekomendasi: per-instance |
 
 Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat heartbeat) dan OD-012.
@@ -69,7 +70,7 @@ Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat 
 - [x] Payment (cash + QRIS manual)
 - [x] Extend + Station Swap + Tambah F&B
 - [x] Checkout + struk (durasi aktual vs tertagih)
-- [x] 103 test lulus (billing + layout + F&B + shift + device + customer)
+- [x] 128 test lulus (billing + layout + F&B + shift + device + customer + filter)
 - [x] Design pass 1: rail status, bar proporsi waktu, brand mark, permukaan bertingkat
 - [ ] Login / auth
 - [ ] Reverb client + auto-reconnect + reconcile
@@ -562,3 +563,102 @@ Tapi ini perlu keputusan: customer yang ingin jadi member di meja kasir adalah k
 1. **User melihat hasilnya dan memberi koreksi** — ini yang paling berharga sekarang
 2. Laravel thin slice (auth, stations, packages, sessions, payments)
 3. Ganti fake repository → `ApiBillingRepository` (DEC-012 syarat 2)
+
+---
+
+### 2026-10-02 — Redesign UI mengikuti `contoh.html` (DEC-014)
+
+User menilai desain pertama belum pas dan memberi `operator-app/contoh.html`
+sebagai acuan. Arah visual baru: **Material 3 dark, aksen cyan + mint,
+shell bersidebar**.
+
+**Files changed**
+- Baru: `lib/ui/shell/app_shell.dart`, `test/dashboard_filter_test.dart`,
+  `assets/fonts/` (11 TTF + 3 lisensi OFL + README)
+- Ditulis ulang: `lib/core/theme/{tokens,app_theme}.dart`,
+  `lib/ui/widgets/station_card.dart`, `lib/ui/dashboard/dashboard_screen.dart`,
+  `docs/UI-UX-SPEC.md`
+- Diubah: `pubspec.yaml` (font), `lib/app.dart`, `lib/core/brand.dart`,
+  `lib/ui/dashboard/dashboard_controller.dart` (filter, pencarian, shift),
+  `lib/domain/models/models.dart`, `lib/data/fake/fake_billing_repository.dart`,
+  + 14 file UI lain (migrasi nama token)
+- Dokumen: `contracts/API.md`, `contracts/CHANGELOG.md` (DRAFT 4),
+  `DECISION-LOG.md` (DEC-014, OD-015, OD-016)
+
+**API/Events** — satu penambahan, non-breaking:
+`GET /stations` → `station.console_type` (string, nullable). Desain menampilkan
+label konsol per station; operator memakainya untuk memenuhi permintaan
+"yang PS5". Teks bebas, **bukan enum** — tiap rental punya penamaan sendiri.
+Tercatat di `contracts/CHANGELOG.md` DRAFT 4.
+
+**Tests** — `flutter test`: **128 lulus** (naik dari 103). `flutter analyze`: bersih.
+`flutter build bundle` lolos, font terverifikasi ikut ke bundle.
+25 test baru: filter & pencarian station, tipe konsol, dan layout kartu pada
+ukuran yang benar-benar bisa dihasilkan grid.
+
+**Yang berubah**
+
+| | Sebelum | Sekarang |
+|---|---|---|
+| Navigasi | bar aksi di bawah grid | sidebar 5 tujuan + badge, menyusut jadi rail di bawah 1040 px |
+| Palet | biru-slate, aksen amber | cyan + mint, Material 3 roles, 6 tingkat permukaan |
+| Font | font sistem | Space Grotesk / Plus Jakarta Sans / JetBrains Mono, **dibundel** |
+| Kartu | rail status + chip | header (kode + tipe konsol \| status) → timer → bar → blok customer → **aksi cepat** |
+| Filter | tidak ada | chip 5 status + pencarian (debounce 250 ms) |
+
+**Font: dibundel, dan static — dua keputusan terpisah**
+1. **Dibundel, bukan `google_fonts`.** Paket itu mengunduh saat runtime; app
+   ini dipakai di jaringan lokal tanpa internet (DEC-002), jadi build pertama
+   di lokasi akan memakai font sistem dan tampilannya beda dari rancangan.
+2. **Static, bukan variable.** Google Fonts hanya menyediakan variable font
+   untuk ketiganya. Variable font di Flutter butuh `fontVariations` di setiap
+   `TextStyle`; `fontWeight` saja tidak mengubah ketebalan — mudah terlewat di
+   satu widget. Static instance di-generate dengan `fontTools`, jadi
+   `fontWeight` bekerja normal. Lisensi OFL disertakan.
+
+**Tiga penyimpangan dari contoh — disengaja, karena contoh itu mockup web**
+1. **Tombol aksi 44 px, bukan 34 px.** Contoh mengasumsikan presisi mouse.
+   Aksi di kartu ini mengubah uang; mis-tap mahal. 48 px (Material) membuat
+   enam kartu tidak muat tanpa scroll di tablet 1280×800, jadi 44 px (minimum
+   iOS) dipilih sebagai kompromi — dicatat, bukan kelalaian.
+2. **Sidebar menyusut jadi rail di bawah 1040 px.** 288 px dari 800 px layar
+   portrait adalah 36% untuk navigasi saja.
+3. **`+30m` / `+1j` tetap pakai konfirmasi** berisi perkiraan harga. Contoh
+   tidak punya konfirmasi, tapi salah tap `+1j` menagih customer satu jam yang
+   tidak diminta dan kontrak tidak punya jalur pembatalan.
+
+**Empat elemen contoh yang TIDAK diambil**
+Bel notifikasi (tidak ada sistem notifikasi — slotnya diisi indikator koneksi
+yang nyata), badge terminal `POS-01` (DEC-013 satu kasir), "Auto Refresh
+Aktif" (tidak ada auto-refresh; menampilkannya jadi klaim palsu), teknisi &
+nomor tiket pada kartu maintenance (OD-016).
+
+Prinsipnya: **UI yang menjanjikan data yang tidak ada lebih buruk daripada UI
+yang kosong.** Operator akan mengandalkannya lalu kehilangan kepercayaan pada
+seluruh layar.
+
+**Masalah layout yang ditemukan test, bukan mata**
+Kartu versi redesign tingginya **279 px**, sementara tablet 1280×800 landscape
+hanya menyisakan ±265 px per baris setelah header, bar filter, strip shift,
+dan footer. Kalau tidak ketahuan, enam kartu tidak muat tanpa scroll — target
+utama UI-UX-SPEC §4 gagal justru oleh desain barunya.
+
+Diperbaiki dengan merampingkan padding (12 px), padding body (8 px), dan jarak
+aksi (8 px). Header dibuat anti-overflow: kode station tetap penuh, badge tipe
+konsol di-ellipsis, label status mengecil lewat `FittedBox`. Baris aksi semua
+`Expanded` sehingga tidak pernah overflow horizontal berapa pun lebarnya.
+Tinggi minimum kartu ditetapkan **300 × 264** dan ada test untuk sembilan
+kombinasi ukuran + status, termasuk penskalaan teks 1.3×.
+
+**Known issues**
+- **Belum diverifikasi secara visual.** Analyze, 128 test, dan build bundle
+  bersih — tapi rasa visualnya hanya user yang bisa menilai.
+- OD-015 (tarif per tipe konsol) kini **ikut memblokir migration pertama**,
+  bersama OD-012.
+- `contoh.html` masih ada di `operator-app/` sebagai acuan. Bisa dihapus
+  setelah desain dianggap final.
+
+**Next step**
+1. User melihat hasilnya dan memberi koreksi
+2. Putuskan OD-012 (multi-tenant) + OD-015 (tarif per konsol)
+3. Laravel thin slice

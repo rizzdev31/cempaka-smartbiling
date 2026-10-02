@@ -5,6 +5,7 @@ import '../../domain/errors/api_error.dart';
 import '../../domain/models/enums.dart';
 import '../../domain/models/models.dart';
 import '../../domain/repositories/billing_repository.dart';
+import '../widgets/station_card.dart';
 
 /// State dashboard.
 ///
@@ -24,8 +25,13 @@ class DashboardController extends ChangeNotifier {
   List<Station> _stations = const [];
   List<Package> _packages = const [];
   int _fnbActionable = 0;
+  Shift? _currentShift;
   bool _loading = false;
   Object? _error;
+
+  /// Shift yang sedang berjalan. Dipakai sidebar untuk menampilkan nama
+  /// operator dan jam buka — `null` kalau belum ada shift.
+  Shift? get currentShift => _currentShift;
 
   List<Station> get stations => _stations;
   List<Package> get packages => _packages;
@@ -38,6 +44,75 @@ class DashboardController extends ChangeNotifier {
   int get fnbActionableCount => _fnbActionable;
 
   bool get hasData => _stations.isNotEmpty;
+
+  // ── Filter & pencarian ────────────────────────────────────────────
+
+  StationFilter _filter = StationFilter.all;
+  String _query = '';
+
+  StationFilter get filter => _filter;
+  String get query => _query;
+
+  void setFilter(StationFilter f) {
+    if (_filter == f) return;
+    _filter = f;
+    notifyListeners();
+  }
+
+  void setQuery(String q) {
+    final v = q.trim();
+    if (_query == v) return;
+    _query = v;
+    notifyListeners();
+  }
+
+  /// Station yang lolos filter + pencarian.
+  ///
+  /// Status WARNING/EXPIRED diturunkan dari `end_at` di sini juga, sama
+  /// seperti di kartu — kalau tidak, filter "Hampir Habis" akan memakai
+  /// snapshot server yang bisa terlambat beberapa detik.
+  List<Station> get visibleStations {
+    Iterable<Station> list = _stations;
+
+    if (_query.isNotEmpty) {
+      final q = _query.toLowerCase();
+      list = list.where((s) =>
+          s.code.toLowerCase().contains(q) ||
+          s.name.toLowerCase().contains(q) ||
+          (s.consoleType ?? '').toLowerCase().contains(q) ||
+          (s.session?.customerLabel ?? '').toLowerCase().contains(q));
+    }
+
+    if (_filter != StationFilter.all) {
+      list = list.where((s) => _matches(s, _filter));
+    }
+
+    return list.toList(growable: false);
+  }
+
+  int countFor(StationFilter f) => f == StationFilter.all
+      ? _stations.length
+      : _stations.where((s) => _matches(s, f)).length;
+
+  bool _matches(Station s, StationFilter f) {
+    final view = deriveStationViewStatus(s);
+    return switch (f) {
+      StationFilter.all => true,
+      StationFilter.playing => view == StationViewStatus.active,
+      StationFilter.available => view == StationViewStatus.available,
+      StationFilter.warning => view == StationViewStatus.warning ||
+          view == StationViewStatus.expired,
+      StationFilter.pending => view == StationViewStatus.pendingPayment ||
+          view == StationViewStatus.checkout,
+    };
+  }
+
+  /// Tarif per jam termurah dari paket aktif — ditampilkan pada station
+  /// kosong sebagai ancang-ancang harga. Harga final tetap dari server.
+  int? get cheapestHourlyRate {
+    if (_packages.isEmpty) return null;
+    return _packages.map((p) => p.hourlyRate).reduce((a, b) => a < b ? a : b);
+  }
 
   int get activeCount => _stations
       .where((s) => s.session?.status.hasTimer ?? false)
@@ -71,10 +146,12 @@ class DashboardController extends ChangeNotifier {
           FnbOrderStatus.pending,
           FnbOrderStatus.processing,
         }),
+        _repo.fetchCurrentShift(),
       ]);
       _stations = results[0] as List<Station>;
       _packages = results[1] as List<Package>;
       _fnbActionable = (results[2] as List<FnbOrder>).length;
+      _currentShift = results[3] as Shift?;
       _error = null;
     } catch (e) {
       _error = e;
@@ -126,6 +203,7 @@ class DashboardController extends ChangeNotifier {
         id: old.id,
         code: old.code,
         name: old.name,
+        consoleType: old.consoleType,
         status: old.status,
         device: old.device,
         session: session.status.occupiesStation
@@ -147,4 +225,20 @@ class DashboardController extends ChangeNotifier {
         null => null,
         _ => 'Terjadi kesalahan tidak terduga.',
       };
+}
+
+/// Filter kartu station di dashboard.
+///
+/// Dengan enam station filter terasa berlebihan — tapi PRD §10 menyatakan
+/// jumlah station "dapat ditambah", dan pada 12–20 station mencari satu
+/// station yang hampir habis tanpa filter jadi melelahkan.
+enum StationFilter {
+  all('Semua'),
+  playing('Bermain'),
+  available('Tersedia'),
+  warning('Hampir Habis'),
+  pending('Menunggu Bayar');
+
+  const StationFilter(this.label);
+  final String label;
 }

@@ -24,20 +24,26 @@ import 'fnb_queue_controller.dart';
 /// Order dikelompokkan per status, bukan satu daftar panjang: "belum
 /// disentuh" dan "siap diantar" adalah dua pertanyaan berbeda.
 class FnbQueueScreen extends StatelessWidget {
-  const FnbQueueScreen({super.key});
+  const FnbQueueScreen({super.key, this.embedded = false});
+
+  /// `true` saat dipasang di dalam [AppShell]: shell sudah punya header,
+  /// jadi layar ini tidak membuat AppBar sendiri.
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (ctx) =>
           FnbQueueController(ctx.read<BillingRepository>())..load(),
-      child: const _FnbQueueBody(),
+      child: _FnbQueueBody(embedded: embedded),
     );
   }
 }
 
 class _FnbQueueBody extends StatefulWidget {
-  const _FnbQueueBody();
+  const _FnbQueueBody({required this.embedded});
+
+  final bool embedded;
 
   @override
   State<_FnbQueueBody> createState() => _FnbQueueBodyState();
@@ -82,37 +88,33 @@ class _FnbQueueBodyState extends State<_FnbQueueBody> {
   Widget build(BuildContext context) {
     final ctrl = context.watch<FnbQueueController>();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Antrian F&B'),
-        actions: [
-          IconButton(
-            onPressed: ctrl.loading ? null : () => ctrl.refresh(),
-            icon: ctrl.loading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.refresh),
-            tooltip: 'Muat ulang',
-          ),
-          const SizedBox(width: AppSpacing.sm),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
+    final content = Column(
+      children: [
             _SegmentedToggle(
               showDone: _showDone,
               activeCount: ctrl.active.length,
               doneCount: ctrl.done.length,
               onChanged: (v) => setState(() => _showDone = v),
             ),
-            Expanded(child: _buildBody(ctrl)),
-          ],
-        ),
+        Expanded(child: _buildBody(ctrl)),
+      ],
+    );
+
+    if (widget.embedded) return content;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Antrian F&B'),
+        actions: [
+          IconButton(
+            onPressed: ctrl.loading ? null : () => ctrl.refresh(),
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Muat ulang',
+          ),
+          const SizedBox(width: AppSpacing.sm),
+        ],
       ),
+      body: SafeArea(child: content),
     );
   }
 
@@ -138,7 +140,7 @@ class _FnbQueueBodyState extends State<_FnbQueueBody> {
       }
       return RefreshIndicator(
         onRefresh: ctrl.refresh,
-        backgroundColor: AppColors.surfaceRaised,
+        backgroundColor: AppColors.surfaceLow,
         color: AppColors.primary,
         child: ListView.separated(
           padding: const EdgeInsets.all(AppSpacing.md),
@@ -169,7 +171,7 @@ class _FnbQueueBodyState extends State<_FnbQueueBody> {
 
     return RefreshIndicator(
       onRefresh: ctrl.refresh,
-      backgroundColor: AppColors.surfaceRaised,
+      backgroundColor: AppColors.surfaceLow,
       color: AppColors.primary,
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -206,7 +208,7 @@ Color _statusColor(FnbOrderStatus s) => switch (s) {
       FnbOrderStatus.pending => AppColors.statusPendingPayment,
       FnbOrderStatus.processing => AppColors.statusActive,
       FnbOrderStatus.ready => AppColors.statusAvailable,
-      FnbOrderStatus.delivered => AppColors.textMuted,
+      FnbOrderStatus.delivered => AppColors.onSurfaceVariant,
       FnbOrderStatus.cancelled => AppColors.statusOffline,
       FnbOrderStatus.unknown => AppColors.statusOffline,
     };
@@ -253,12 +255,12 @@ class _OrderCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         boxShadow: readOnly ? null : AppShadow.card,
       ),
       child: Material(
-        color: readOnly ? AppColors.surfaceSunken : AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        color: readOnly ? AppColors.surfaceContainer : AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           // Ketuk kartu -> buka sesi terkait. Operator sering perlu melihat
@@ -283,17 +285,17 @@ class _OrderCard extends StatelessWidget {
                         children: [
                           Text(
                             order.stationCode,
-                            style: AppTypography.sectionTitle.copyWith(
+                            style: AppTypography.headlineSm.copyWith(
                               color: readOnly
-                                  ? AppColors.textMuted
-                                  : AppColors.text,
+                                  ? AppColors.onSurfaceVariant
+                                  : AppColors.onSurface,
                             ),
                           ),
                           const SizedBox(width: AppSpacing.sm),
                           Text(
                             order.code,
-                            style: AppTypography.caption
-                                .copyWith(color: AppColors.textFaint),
+                            style: AppTypography.bodySm
+                                .copyWith(color: AppColors.outline),
                           ),
                           if (fromCustomer) ...[
                             const SizedBox(width: AppSpacing.sm),
@@ -310,9 +312,9 @@ class _OrderCard extends StatelessWidget {
                         order.items
                             .map((i) => '${i.qty}× ${i.name}')
                             .join(' · '),
-                        style: AppTypography.body.copyWith(
+                        style: AppTypography.bodyMd.copyWith(
                           color:
-                              readOnly ? AppColors.textMuted : AppColors.text,
+                              readOnly ? AppColors.onSurfaceVariant : AppColors.onSurface,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -322,13 +324,13 @@ class _OrderCard extends StatelessWidget {
                         Row(
                           children: [
                             const Icon(Icons.sticky_note_2_outlined,
-                                size: 13, color: AppColors.accent),
+                                size: 13, color: AppColors.tertiaryContainer),
                             const SizedBox(width: AppSpacing.xs + 2),
                             Expanded(
                               child: Text(
                                 order.note!,
-                                style: AppTypography.caption
-                                    .copyWith(color: AppColors.accent),
+                                style: AppTypography.bodySm
+                                    .copyWith(color: AppColors.tertiaryContainer),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -346,12 +348,12 @@ class _OrderCard extends StatelessWidget {
                           const SizedBox(width: AppSpacing.xs + 2),
                           Text(
                             order.status.label,
-                            style: AppTypography.caption.copyWith(color: color),
+                            style: AppTypography.bodySm.copyWith(color: color),
                           ),
                           const SizedBox(width: AppSpacing.md),
                           MoneyText.small(
                             order.total,
-                            color: AppColors.textMuted,
+                            color: AppColors.onSurfaceVariant,
                           ),
                           const Spacer(),
                           if (!readOnly) ...[
@@ -365,7 +367,7 @@ class _OrderCard extends StatelessWidget {
                                 icon: const Icon(Icons.close, size: 18),
                                 tooltip: 'Batalkan order',
                                 style: IconButton.styleFrom(
-                                  foregroundColor: AppColors.textFaint,
+                                  foregroundColor: AppColors.outline,
                                   minimumSize: const Size(40, 40),
                                 ),
                               ),
@@ -417,12 +419,12 @@ class _OrderAge extends StatelessWidget {
         final veryStale = stale && age >= const Duration(minutes: 20);
 
         final color = muted
-            ? AppColors.textFaint
+            ? AppColors.outline
             : veryStale
                 ? AppColors.statusExpired
                 : stale
                     ? AppColors.statusWarning
-                    : AppColors.textMuted;
+                    : AppColors.onSurfaceVariant;
 
         return Row(
           children: [
@@ -434,7 +436,7 @@ class _OrderAge extends StatelessWidget {
             const SizedBox(width: AppSpacing.xs),
             Text(
               formatRelative(order.createdAt, now),
-              style: AppTypography.caption.copyWith(color: color),
+              style: AppTypography.bodySm.copyWith(color: color),
             ),
           ],
         );
@@ -455,11 +457,11 @@ class _SourceBadge extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: AppColors.statusCheckout.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(AppRadius.chip),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Text(
         'Customer',
-        style: AppTypography.caption.copyWith(
+        style: AppTypography.bodySm.copyWith(
           color: AppColors.statusCheckout,
           fontSize: 11,
         ),
@@ -494,8 +496,8 @@ class _SegmentedToggle extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(AppSpacing.xs),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSunken,
-        borderRadius: BorderRadius.circular(AppRadius.button + 2),
+        color: AppColors.surfaceContainer,
+        borderRadius: BorderRadius.circular(AppRadius.md + 2),
       ),
       child: Row(
         children: [
@@ -541,17 +543,17 @@ class _ToggleTab extends StatelessWidget {
       button: true,
       child: Material(
         color: selected ? AppColors.surface : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppRadius.button),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(AppRadius.button),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           child: Container(
             height: AppSize.minTouchTarget - 8,
             alignment: Alignment.center,
             child: Text(
               count > 0 ? '$label ($count)' : label,
-              style: AppTypography.cardLabel.copyWith(
-                color: selected ? AppColors.text : AppColors.textMuted,
+              style: AppTypography.bodyLg.copyWith(
+                color: selected ? AppColors.onSurface : AppColors.onSurfaceVariant,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
@@ -585,12 +587,12 @@ class _SectionHeader extends StatelessWidget {
         const SizedBox(width: AppSpacing.sm),
         Text(
           title.toUpperCase(),
-          style: AppTypography.overline.copyWith(color: AppColors.textMuted),
+          style: AppTypography.labelSm.copyWith(color: AppColors.onSurfaceVariant),
         ),
         const SizedBox(width: AppSpacing.sm),
         Text(
           '$count',
-          style: AppTypography.overline.copyWith(color: color),
+          style: AppTypography.labelSm.copyWith(color: color),
         ),
       ],
     );
@@ -621,18 +623,18 @@ class _EmptyState extends StatelessWidget {
               height: 56,
               decoration: BoxDecoration(
                 color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppRadius.card),
+                borderRadius: BorderRadius.circular(AppRadius.lg),
               ),
-              child: Icon(icon, size: 26, color: AppColors.textMuted),
+              child: Icon(icon, size: 26, color: AppColors.onSurfaceVariant),
             ),
             const SizedBox(height: AppSpacing.md),
-            Text(title, style: AppTypography.sectionTitle),
+            Text(title, style: AppTypography.headlineSm),
             const SizedBox(height: AppSpacing.xs),
             Text(
               message,
               textAlign: TextAlign.center,
               style:
-                  AppTypography.caption.copyWith(color: AppColors.textMuted),
+                  AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
             ),
           ],
         ),
@@ -655,10 +657,10 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 44, color: AppColors.danger),
+            const Icon(Icons.error_outline, size: 44, color: AppColors.error),
             const SizedBox(height: AppSpacing.md),
             Text(message, textAlign: TextAlign.center,
-                style: AppTypography.body),
+                style: AppTypography.bodyMd),
             const SizedBox(height: AppSpacing.lg),
             AsyncButton(
               label: 'Coba lagi',

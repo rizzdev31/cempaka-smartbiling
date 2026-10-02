@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_app/core/theme/app_theme.dart';
+import 'package:operator_app/core/theme/tokens.dart';
 import 'package:operator_app/core/time/server_time.dart';
 import 'package:operator_app/core/time/ticker.dart';
 import 'package:operator_app/domain/models/enums.dart';
@@ -8,15 +9,18 @@ import 'package:operator_app/domain/models/models.dart';
 import 'package:operator_app/ui/widgets/station_card.dart';
 import 'package:provider/provider.dart';
 
-/// Mengunci perbaikan layout kartu station.
+/// Mengunci layout kartu station.
 ///
-/// Versi pertama memakai dua `Spacer()` di dalam `Column`. Pada kartu yang
-/// pendek — jendela kecil, portrait sempit, atau penskalaan teks sistem —
-/// itu langsung menyebabkan RenderFlex overflow. Diganti `spaceBetween`.
+/// Riwayat kenapa test ini ada:
+/// 1. Versi pertama memakai dua `Spacer()` di dalam `Column`, yang overflow
+///    28–48 px pada kartu pendek.
+/// 2. Redesign menambah header (tipe konsol + status) dan baris aksi empat
+///    tombol, sehingga kartu tumbuh 279 px — melebihi ruang yang tersedia
+///    di tablet 1280x800 landscape (±265 px per baris).
 ///
-/// Test ini membangun kartu pada beberapa ukuran dan memastikan tidak ada
-/// exception. Overflow di Flutter memunculkan FlutterError saat debug,
-/// jadi `takeException()` akan menangkapnya.
+/// Ukuran yang diuji adalah ukuran yang **benar-benar bisa dihasilkan grid**:
+/// `DashboardScreen` menjamin lebar lewat breakpoint kolom dan tinggi lewat
+/// [AppSize.stationCardMinHeight].
 
 Station _station({
   required StationMasterStatus master,
@@ -24,12 +28,14 @@ Station _station({
   Duration? remaining,
   DeviceStatus device = DeviceStatus.online,
   int balanceDue = 125000,
+  String? consoleType = 'PS5 Reguler',
 }) {
   final now = DateTime.now().toUtc();
   return Station(
     id: 'sta-1',
     code: 'ST01',
     name: 'Station 1',
+    consoleType: consoleType,
     status: master,
     device: DeviceSummary(
       id: 'dev-1',
@@ -68,7 +74,15 @@ Future<void> _pumpCard(
               child: SizedBox(
                 width: size.width,
                 height: size.height,
-                child: StationCard(station: station, onTap: () {}),
+                child: StationCard(
+                  station: station,
+                  onTap: () {},
+                  onExtend: (_) async {},
+                  onAddFnb: () async {},
+                  onPay: () async {},
+                  onStart: () async {},
+                  hourlyRateHint: 20000,
+                ),
               ),
             ),
           ),
@@ -85,16 +99,15 @@ void main() {
     ServerTime.instance.sync(DateTime.now().toUtc());
   });
 
-  // Ukuran yang benar-benar bisa dihasilkan grid.
-  //
-  // `DashboardScreen` menjamin tinggi kartu tidak pernah di bawah
-  // [minStationCardHeight]; kalau jendela terlalu pendek, grid-nya
-  // di-scroll. Jadi batas bawah yang perlu diuji adalah nilai itu,
-  // bukan ukuran sembarang yang lebih kecil.
+  // Ukuran yang bisa dihasilkan grid dashboard.
+  const minW = AppSize.stationCardMinWidth;
+  const minH = AppSize.stationCardMinHeight;
+
   const sizes = <String, Size>{
-    'tablet landscape (grid 3x2)': Size(300, 280),
-    'tablet portrait (grid 2x3)': Size(340, minStationCardHeight),
-    'jendela kecil, lebar minimum': Size(210, minStationCardHeight),
+    'tablet landscape, 3 kolom': Size(340, 268),
+    'tablet portrait, 2 kolom': Size(360, 280),
+    'satu kolom, layar sempit': Size(640, 300),
+    'batas minimum grid': Size(minW, minH),
   };
 
   group('StationCard tidak overflow', () {
@@ -119,31 +132,61 @@ void main() {
         );
         expect(tester.takeException(), isNull);
       });
+
+      testWidgets('menunggu bayar — ${entry.key}', (tester) async {
+        await _pumpCard(
+          tester,
+          _station(
+            master: StationMasterStatus.active,
+            sessionStatus: SessionStatus.pendingPayment,
+          ),
+          size: entry.value,
+        );
+        expect(tester.takeException(), isNull);
+      });
     }
 
     testWidgets('maintenance tidak overflow', (tester) async {
       await _pumpCard(
         tester,
         _station(master: StationMasterStatus.maintenance),
-        size: const Size(300, 280),
+        size: const Size(minW, minH),
       );
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('TV offline + nama panjang tidak overflow', (tester) async {
+    testWidgets('TV offline + status terpanjang tidak overflow',
+        (tester) async {
+      // "Menunggu Bayar" adalah label status terpanjang, dan ikon offline
+      // mengambil ruang tambahan di header yang sama.
       await _pumpCard(
         tester,
         _station(
           master: StationMasterStatus.active,
-          sessionStatus: SessionStatus.active,
+          sessionStatus: SessionStatus.pendingPayment,
           device: DeviceStatus.offline,
         ),
-        size: const Size(210, minStationCardHeight),
+        size: const Size(minW, minH),
       );
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('tagihan besar + nama panjang tidak menabrak', (tester) async {
+    testWidgets('tipe konsol panjang tidak mendorong status keluar',
+        (tester) async {
+      await _pumpCard(
+        tester,
+        _station(
+          master: StationMasterStatus.active,
+          sessionStatus: SessionStatus.warning,
+          remaining: const Duration(minutes: 4),
+          consoleType: 'PlayStation 5 VIP Room Lantai 2',
+        ),
+        size: const Size(minW, minH),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('tagihan besar tidak menabrak nama customer', (tester) async {
       await _pumpCard(
         tester,
         _station(
@@ -151,7 +194,20 @@ void main() {
           sessionStatus: SessionStatus.active,
           balanceDue: 9850000,
         ),
-        size: const Size(210, minStationCardHeight),
+        size: const Size(minW, minH),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('tanpa tipe konsol tetap rapi', (tester) async {
+      await _pumpCard(
+        tester,
+        _station(
+          master: StationMasterStatus.active,
+          sessionStatus: SessionStatus.active,
+          consoleType: null,
+        ),
+        size: const Size(minW, minH),
       );
       expect(tester.takeException(), isNull);
     });
@@ -164,7 +220,7 @@ void main() {
           master: StationMasterStatus.active,
           sessionStatus: SessionStatus.active,
         ),
-        size: const Size(300, 280),
+        size: const Size(360, 300),
         textScale: 1.3,
       );
       expect(tester.takeException(), isNull);
@@ -172,8 +228,7 @@ void main() {
   });
 
   group('Status diturunkan dari end_at, bukan snapshot server', () {
-    testWidgets('sisa 5 menit -> WARNING walau server bilang ACTIVE',
-        (tester) async {
+    test('sisa 5 menit -> WARNING walau server bilang ACTIVE', () {
       final station = _station(
         master: StationMasterStatus.active,
         sessionStatus: SessionStatus.active,
@@ -182,8 +237,7 @@ void main() {
       expect(deriveStationViewStatus(station), StationViewStatus.warning);
     });
 
-    testWidgets('sudah lewat -> EXPIRED walau server bilang ACTIVE',
-        (tester) async {
+    test('sudah lewat -> EXPIRED walau server bilang ACTIVE', () {
       final station = _station(
         master: StationMasterStatus.active,
         sessionStatus: SessionStatus.active,
@@ -192,7 +246,7 @@ void main() {
       expect(deriveStationViewStatus(station), StationViewStatus.expired);
     });
 
-    testWidgets('sisa 30 menit tetap ACTIVE', (tester) async {
+    test('sisa 30 menit tetap ACTIVE', () {
       final station = _station(
         master: StationMasterStatus.active,
         sessionStatus: SessionStatus.active,
@@ -201,7 +255,7 @@ void main() {
       expect(deriveStationViewStatus(station), StationViewStatus.active);
     });
 
-    testWidgets('maintenance menang atas status sesi', (tester) async {
+    test('maintenance menang atas status sesi', () {
       final station = _station(
         master: StationMasterStatus.maintenance,
         sessionStatus: SessionStatus.active,

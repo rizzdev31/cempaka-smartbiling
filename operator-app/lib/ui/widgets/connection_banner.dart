@@ -46,7 +46,7 @@ class ConnectionBanner extends StatelessWidget {
               'Tersambung',
             ),
           ConnectionState.connecting => (
-              AppColors.textMuted,
+              AppColors.onSurfaceVariant,
               Icons.cloud_sync_outlined,
               'Menyambung…',
             ),
@@ -72,7 +72,7 @@ class ConnectionBanner extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm - 2),
               Text(
                 label,
-                style: AppTypography.caption.copyWith(color: color),
+                style: AppTypography.bodySm.copyWith(color: color),
               ),
             ],
           ),
@@ -104,7 +104,7 @@ class DevDiagnosticBar extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      color: AppColors.surfaceRaised,
+      color: AppColors.surfaceLow,
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
         vertical: AppSpacing.xs + 2,
@@ -112,13 +112,13 @@ class DevDiagnosticBar extends StatelessWidget {
       child: Row(
         children: [
           const Icon(Icons.developer_mode,
-              size: 14, color: AppColors.textMuted),
+              size: 14, color: AppColors.onSurfaceVariant),
           const SizedBox(width: AppSpacing.sm - 2),
           Expanded(
             child: Text(
               '${cfg.baseUrl}  ·  ws ${cfg.wsHost}:${cfg.wsPort}  ·  $offsetText',
-              style: AppTypography.caption.copyWith(
-                color: synced ? AppColors.textMuted : AppColors.statusWarning,
+              style: AppTypography.bodySm.copyWith(
+                color: synced ? AppColors.onSurfaceVariant : AppColors.statusWarning,
                 fontSize: 12,
               ),
               overflow: TextOverflow.ellipsis,

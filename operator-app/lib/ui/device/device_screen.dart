@@ -22,7 +22,10 @@ import '../widgets/confirm_dialog.dart';
 /// memang diturunkan client dari `end_at` — karena ambang offline adalah
 /// kebijakan operasional, bukan hitungan waktu yang pasti.
 class DeviceScreen extends StatefulWidget {
-  const DeviceScreen({super.key});
+  const DeviceScreen({super.key, this.embedded = false});
+
+  /// `true` saat dipasang di dalam [AppShell] — shell sudah punya header.
+  final bool embedded;
 
   @override
   State<DeviceScreen> createState() => _DeviceScreenState();
@@ -64,6 +67,8 @@ class _DeviceScreenState extends State<DeviceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) return _buildBody();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Status TV'),
@@ -98,12 +103,12 @@ class _DeviceScreenState extends State<DeviceScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.error_outline,
-                  size: 44, color: AppColors.danger),
+                  size: 44, color: AppColors.error),
               const SizedBox(height: AppSpacing.md),
               Text(
                 _errorMessage ?? 'Gagal memuat status TV.',
                 textAlign: TextAlign.center,
-                style: AppTypography.body,
+                style: AppTypography.bodyMd,
               ),
               const SizedBox(height: AppSpacing.lg),
               AsyncButton(
@@ -119,7 +124,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
 
     return RefreshIndicator(
       onRefresh: () => _load(silent: true),
-      backgroundColor: AppColors.surfaceRaised,
+      backgroundColor: AppColors.surfaceLow,
       color: AppColors.primary,
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -164,7 +169,7 @@ class _SummaryPanel extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         boxShadow: AppShadow.card,
       ),
       child: Row(
@@ -180,14 +185,14 @@ class _SummaryPanel extends StatelessWidget {
             label: 'Offline',
             color: data.offlineCount > 0
                 ? AppColors.statusExpired
-                : AppColors.textMuted,
+                : AppColors.onSurfaceVariant,
           ),
           if (data.unmappedCount > 0) ...[
             const SizedBox(width: AppSpacing.lg),
             _Count(
               value: data.unmappedCount,
               label: 'Tanpa station',
-              color: AppColors.textMuted,
+              color: AppColors.onSurfaceVariant,
             ),
           ],
           const Spacer(),
@@ -197,7 +202,7 @@ class _SummaryPanel extends StatelessWidget {
               '${formatDurationLabel(data.offlineThreshold.inMinutes)} '
               'tanpa kabar',
               textAlign: TextAlign.right,
-              style: AppTypography.caption.copyWith(color: AppColors.textFaint),
+              style: AppTypography.bodySm.copyWith(color: AppColors.outline),
             ),
           ),
         ],
@@ -225,10 +230,10 @@ class _Count extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$value', style: AppTypography.moneyLarge.copyWith(color: color)),
+          Text('$value', style: AppTypography.moneyLg.copyWith(color: color)),
           Text(
             label,
-            style: AppTypography.caption.copyWith(color: AppColors.textMuted),
+            style: AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
           ),
         ],
       ),
@@ -249,7 +254,7 @@ class _Tahap2Notice extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md - 2),
       decoration: BoxDecoration(
         color: AppColors.statusWarning.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(
           color: AppColors.statusWarning.withValues(alpha: 0.28),
         ),
@@ -263,7 +268,7 @@ class _Tahap2Notice extends StatelessWidget {
             child: Text(
               'Aplikasi TV belum dibuat, jadi belum ada TV yang benar-benar '
               'mengirim kabar. Angka di layar ini masih data contoh.',
-              style: AppTypography.caption
+              style: AppTypography.bodySm
                   .copyWith(color: AppColors.statusWarning),
             ),
           ),
@@ -286,12 +291,12 @@ class _DeviceCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         boxShadow: AppShadow.card,
       ),
       child: Material(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         clipBehavior: Clip.antiAlias,
         child: Row(
           children: [
@@ -306,10 +311,10 @@ class _DeviceCard extends StatelessWidget {
                       children: [
                         Text(
                           device.station?.code ?? 'Tanpa station',
-                          style: AppTypography.sectionTitle.copyWith(
+                          style: AppTypography.headlineSm.copyWith(
                             color: device.isMapped
-                                ? AppColors.text
-                                : AppColors.textMuted,
+                                ? AppColors.onSurface
+                                : AppColors.onSurfaceVariant,
                           ),
                         ),
                         const SizedBox(width: AppSpacing.sm),
@@ -321,7 +326,7 @@ class _DeviceCard extends StatelessWidget {
                         const SizedBox(width: AppSpacing.xs),
                         Text(
                           device.isOnline ? 'Online' : 'Offline',
-                          style: AppTypography.caption.copyWith(color: color),
+                          style: AppTypography.bodySm.copyWith(color: color),
                         ),
                         const Spacer(),
                         _LastSeen(device: device),
@@ -330,8 +335,8 @@ class _DeviceCard extends StatelessWidget {
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       device.hardwareLabel,
-                      style: AppTypography.caption
-                          .copyWith(color: AppColors.textMuted),
+                      style: AppTypography.bodySm
+                          .copyWith(color: AppColors.onSurfaceVariant),
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: AppSpacing.xs),
@@ -378,7 +383,7 @@ class _LastSeen extends StatelessWidget {
     if (device.lastSeenAt == null) {
       return Text(
         'Belum pernah',
-        style: AppTypography.caption.copyWith(color: AppColors.textFaint),
+        style: AppTypography.bodySm.copyWith(color: AppColors.outline),
       );
     }
 
@@ -387,9 +392,9 @@ class _LastSeen extends StatelessWidget {
         final now = ServerTime.instance.now;
         return Text(
           formatRelative(device.lastSeenAt!, now),
-          style: AppTypography.caption.copyWith(
+          style: AppTypography.bodySm.copyWith(
             color:
-                device.isOnline ? AppColors.textMuted : AppColors.statusExpired,
+                device.isOnline ? AppColors.onSurfaceVariant : AppColors.statusExpired,
           ),
         );
       },
@@ -411,18 +416,18 @@ class _MetaChip extends StatelessWidget {
         vertical: 3,
       ),
       decoration: BoxDecoration(
-        color: AppColors.surfaceSunken,
-        borderRadius: BorderRadius.circular(AppRadius.chip),
+        color: AppColors.surfaceContainer,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: AppColors.textFaint),
+          Icon(icon, size: 12, color: AppColors.outline),
           const SizedBox(width: AppSpacing.xs),
           Text(
             label,
-            style: AppTypography.caption
-                .copyWith(color: AppColors.textFaint, fontSize: 11),
+            style: AppTypography.bodySm
+                .copyWith(color: AppColors.outline, fontSize: 11),
           ),
         ],
       ),

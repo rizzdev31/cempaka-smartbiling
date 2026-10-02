@@ -111,7 +111,7 @@ class _PaymentDialogState extends State<_PaymentDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.title, style: AppTypography.screenTitle),
+      title: Text(widget.title, style: AppTypography.headlineSm),
       content: SizedBox(
         width: 420,
         child: Column(
@@ -122,11 +122,11 @@ class _PaymentDialogState extends State<_PaymentDialog> {
               label: 'Sisa tagihan',
               amount: widget.session.totals.balanceDue,
               emphasize: true,
-              amountColor: AppColors.accent,
+              amountColor: AppColors.tertiaryContainer,
             ),
             const Divider(),
             const SizedBox(height: AppSpacing.sm),
-            Text('Metode', style: AppTypography.cardLabel),
+            Text('Metode', style: AppTypography.bodyLg),
             const SizedBox(height: AppSpacing.sm),
             Row(
               children: PaymentMethod.values
@@ -213,10 +213,10 @@ class _MethodTile extends StatelessWidget {
     return Material(
       color:
           selected ? AppColors.primary.withValues(alpha: 0.16) : AppColors.surface,
-      borderRadius: BorderRadius.circular(AppRadius.button),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.button),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         child: Container(
           constraints:
               const BoxConstraints(minHeight: AppSize.minTouchTarget),
@@ -225,9 +225,9 @@ class _MethodTile extends StatelessWidget {
             vertical: AppSpacing.sm,
           ),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.button),
+            borderRadius: BorderRadius.circular(AppRadius.md),
             border: Border.all(
-              color: selected ? AppColors.primary : AppColors.border,
+              color: selected ? AppColors.primary : AppColors.surfaceHigh,
               width: selected ? 2 : 1,
             ),
           ),
@@ -236,7 +236,7 @@ class _MethodTile extends StatelessWidget {
             children: [
               Icon(icon, size: 18),
               const SizedBox(width: AppSpacing.sm),
-              Text(method.label, style: AppTypography.cardLabel),
+              Text(method.label, style: AppTypography.bodyLg),
             ],
           ),
         ),
@@ -307,7 +307,7 @@ class _ExtendDialogState extends State<_ExtendDialog> {
     final deadline = widget.session.extendDeadlineAt;
 
     return AlertDialog(
-      title: const Text('Tambah Durasi', style: AppTypography.screenTitle),
+      title: const Text('Tambah Durasi', style: AppTypography.headlineSm),
       content: SizedBox(
         width: 420,
         child: Column(
@@ -318,7 +318,7 @@ class _ExtendDialogState extends State<_ExtendDialog> {
               'Durasi kelipatan 30 menit. Waktu baru dihitung dari jam '
               'selesai lama, jadi waktu yang sudah lewat tetap terhitung.',
               style:
-                  AppTypography.caption.copyWith(color: AppColors.textMuted),
+                  AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
             ),
             const SizedBox(height: AppSpacing.md),
             Wrap(
@@ -330,12 +330,12 @@ class _ExtendDialogState extends State<_ExtendDialog> {
                   label: Text(formatDurationLabel(m)),
                   selected: selected,
                   onSelected: (_) => setState(() => _minutes = m),
-                  labelStyle: AppTypography.cardLabel.copyWith(
-                    color: selected ? AppColors.onPrimary : AppColors.text,
+                  labelStyle: AppTypography.bodyLg.copyWith(
+                    color: selected ? AppColors.onPrimary : AppColors.onSurface,
                   ),
                   selectedColor: AppColors.primary,
                   backgroundColor: AppColors.surface,
-                  side: const BorderSide(color: AppColors.border),
+                  side: const BorderSide(color: AppColors.surfaceHigh),
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm,
                     vertical: AppSpacing.sm + 2,
@@ -350,14 +350,14 @@ class _ExtendDialogState extends State<_ExtendDialog> {
               sublabel: 'Harga final dihitung server',
               amount: _estimate,
               emphasize: true,
-              amountColor: AppColors.accent,
+              amountColor: AppColors.tertiaryContainer,
             ),
             if (widget.session.endAt != null)
               Text(
                 'Selesai jadi ± '
                 '${formatClock(widget.session.endAt!.add(Duration(minutes: _minutes)))}',
-                style: AppTypography.caption
-                    .copyWith(color: AppColors.textMuted),
+                style: AppTypography.bodySm
+                    .copyWith(color: AppColors.onSurfaceVariant),
               ),
             if (deadline != null) ...[
               const SizedBox(height: AppSpacing.sm),
@@ -365,7 +365,7 @@ class _ExtendDialogState extends State<_ExtendDialog> {
                 padding: const EdgeInsets.all(AppSpacing.sm + 2),
                 decoration: BoxDecoration(
                   color: AppColors.statusWarning.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppRadius.button),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
                 child: Row(
                   children: [
@@ -375,7 +375,7 @@ class _ExtendDialogState extends State<_ExtendDialog> {
                     Expanded(
                       child: Text(
                         'Batas extend sampai ${formatClock(deadline)}',
-                        style: AppTypography.caption
+                        style: AppTypography.bodySm
                             .copyWith(color: AppColors.statusWarning),
                       ),
                     ),
@@ -467,7 +467,7 @@ class _SwapDialogState extends State<_SwapDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Pindah Station', style: AppTypography.screenTitle),
+      title: const Text('Pindah Station', style: AppTypography.headlineSm),
       content: SizedBox(
         width: 420,
         child: Column(
@@ -478,28 +478,28 @@ class _SwapDialogState extends State<_SwapDialog> {
               'Sisa waktu, Open Tab, dan riwayat pembayaran tetap mengikuti '
               'sesi ini. Nomor sesi tidak berubah.',
               style:
-                  AppTypography.caption.copyWith(color: AppColors.textMuted),
+                  AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
             ),
             const SizedBox(height: AppSpacing.md),
             Row(
               children: [
                 Text(widget.session.station.code,
-                    style: AppTypography.screenTitle),
+                    style: AppTypography.headlineSm),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                  child: Icon(Icons.arrow_forward, color: AppColors.textMuted),
+                  child: Icon(Icons.arrow_forward, color: AppColors.onSurfaceVariant),
                 ),
                 Text(
                   widget.targets
                       .firstWhere((t) => t.id == _targetId)
                       .code,
-                  style: AppTypography.screenTitle
+                  style: AppTypography.headlineSm
                       .copyWith(color: AppColors.primary),
                 ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
-            Text('Station tujuan', style: AppTypography.cardLabel),
+            Text('Station tujuan', style: AppTypography.bodyLg),
             const SizedBox(height: AppSpacing.sm),
             Wrap(
               spacing: AppSpacing.sm,
@@ -510,12 +510,12 @@ class _SwapDialogState extends State<_SwapDialog> {
                   label: Text(t.code),
                   selected: selected,
                   onSelected: (_) => setState(() => _targetId = t.id),
-                  labelStyle: AppTypography.cardLabel.copyWith(
-                    color: selected ? AppColors.onPrimary : AppColors.text,
+                  labelStyle: AppTypography.bodyLg.copyWith(
+                    color: selected ? AppColors.onPrimary : AppColors.onSurface,
                   ),
                   selectedColor: AppColors.primary,
                   backgroundColor: AppColors.surface,
-                  side: const BorderSide(color: AppColors.border),
+                  side: const BorderSide(color: AppColors.surfaceHigh),
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.sm,
                     vertical: AppSpacing.sm + 2,
@@ -557,7 +557,7 @@ Future<bool> showAddFnbSheet(
   final result = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppColors.surfaceRaised,
+    backgroundColor: AppColors.surfaceLow,
     barrierColor: AppColors.scrim,
     shape: const RoundedRectangleBorder(
       borderRadius:
@@ -634,7 +634,7 @@ class _AddFnbSheetState extends State<_AddFnbSheet> {
               children: [
                 Expanded(
                   child: Text('Tambah F&B',
-                      style: AppTypography.screenTitle),
+                      style: AppTypography.headlineSm),
                 ),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(false),
@@ -659,8 +659,8 @@ class _AddFnbSheetState extends State<_AddFnbSheet> {
                           ),
                           child: Text(
                             entry.key,
-                            style: AppTypography.caption
-                                .copyWith(color: AppColors.textMuted),
+                            style: AppTypography.bodySm
+                                .copyWith(color: AppColors.onSurfaceVariant),
                           ),
                         ),
                         ...entry.value.map((p) => _FnbRow(
@@ -721,17 +721,17 @@ class _FnbRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(product.name, style: AppTypography.body),
+                  Text(product.name, style: AppTypography.bodyMd),
                   Text(
                     soldOut
                         ? 'Habis'
                         : product.stock == null
                             ? formatRupiah(product.price)
                             : '${formatRupiah(product.price)} · stok ${product.stock}',
-                    style: AppTypography.caption.copyWith(
+                    style: AppTypography.bodySm.copyWith(
                       color: soldOut
                           ? AppColors.statusExpired
-                          : AppColors.textMuted,
+                          : AppColors.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -833,7 +833,7 @@ class _CheckoutDialogState extends State<_CheckoutDialog> {
     final unpaid = widget.session.items.where((i) => !i.isPaid).toList();
 
     return AlertDialog(
-      title: const Text('Checkout', style: AppTypography.screenTitle),
+      title: const Text('Checkout', style: AppTypography.headlineSm),
       content: SizedBox(
         width: 460,
         child: SingleChildScrollView(
@@ -847,13 +847,13 @@ class _CheckoutDialogState extends State<_CheckoutDialog> {
                         'item yang belum dibayar.'
                     : 'Rental dihitung dari durasi aktual, lalu dibulatkan '
                         'per 30 menit dengan toleransi 5 menit.',
-                style: AppTypography.caption
-                    .copyWith(color: AppColors.textMuted),
+                style: AppTypography.bodySm
+                    .copyWith(color: AppColors.onSurfaceVariant),
               ),
               const SizedBox(height: AppSpacing.md),
               if (unpaid.isEmpty)
                 Text('Tidak ada item yang belum dibayar.',
-                    style: AppTypography.body)
+                    style: AppTypography.bodyMd)
               else
                 ...unpaid.map((i) => MoneyRow(
                       label: i.name,
@@ -867,10 +867,10 @@ class _CheckoutDialogState extends State<_CheckoutDialog> {
                 label: 'Ditagih sekarang',
                 amount: t.balanceDue,
                 emphasize: true,
-                amountColor: AppColors.accent,
+                amountColor: AppColors.tertiaryContainer,
               ),
               const SizedBox(height: AppSpacing.md),
-              Text('Metode', style: AppTypography.cardLabel),
+              Text('Metode', style: AppTypography.bodyLg),
               const SizedBox(height: AppSpacing.sm),
               Row(
                 children: PaymentMethod.values
@@ -945,7 +945,7 @@ Future<void> showReceiptDialog(
               color: AppColors.statusAvailable, size: 28),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text('Sesi Selesai', style: AppTypography.screenTitle),
+            child: Text('Sesi Selesai', style: AppTypography.headlineSm),
           ),
         ],
       ),
@@ -959,8 +959,8 @@ Future<void> showReceiptDialog(
               Text(receipt.number, style: AppTypography.money),
               Text(
                 formatClock(receipt.issuedAt),
-                style: AppTypography.caption
-                    .copyWith(color: AppColors.textMuted),
+                style: AppTypography.bodySm
+                    .copyWith(color: AppColors.onSurfaceVariant),
               ),
               const Divider(height: AppSpacing.lg),
               if (receipt.actualDurationMinutes > 0) ...[
@@ -969,13 +969,13 @@ Future<void> showReceiptDialog(
                     Expanded(
                       child: Text(
                         'Durasi bermain',
-                        style: AppTypography.body
-                            .copyWith(color: AppColors.textMuted),
+                        style: AppTypography.bodyMd
+                            .copyWith(color: AppColors.onSurfaceVariant),
                       ),
                     ),
                     Text(
                       formatDurationLabel(receipt.actualDurationMinutes),
-                      style: AppTypography.moneySmall,
+                      style: AppTypography.moneySm,
                     ),
                   ],
                 ),
@@ -984,16 +984,16 @@ Future<void> showReceiptDialog(
                     Expanded(
                       child: Text(
                         'Durasi ditagih',
-                        style: AppTypography.body
-                            .copyWith(color: AppColors.textMuted),
+                        style: AppTypography.bodyMd
+                            .copyWith(color: AppColors.onSurfaceVariant),
                       ),
                     ),
                     Text(
                       formatDurationLabel(receipt.billableDurationMinutes),
-                      style: AppTypography.moneySmall.copyWith(
+                      style: AppTypography.moneySm.copyWith(
                         color: rounded
                             ? AppColors.statusAvailable
-                            : AppColors.text,
+                            : AppColors.onSurface,
                       ),
                     ),
                   ],
@@ -1003,7 +1003,7 @@ Future<void> showReceiptDialog(
                     padding: const EdgeInsets.only(top: AppSpacing.xs),
                     child: Text(
                       'Dibulatkan per 30 menit, toleransi 5 menit.',
-                      style: AppTypography.caption
+                      style: AppTypography.bodySm
                           .copyWith(color: AppColors.statusAvailable),
                     ),
                   ),

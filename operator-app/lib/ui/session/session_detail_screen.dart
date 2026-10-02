@@ -133,12 +133,12 @@ class _SummaryPane extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: AppColors.overlaySubtle,
-                      borderRadius: BorderRadius.circular(AppRadius.chip),
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
                     ),
                     child: Text(
                       session.mode.label,
-                      style: AppTypography.caption
-                          .copyWith(color: AppColors.textMuted),
+                      style: AppTypography.bodySm
+                          .copyWith(color: AppColors.onSurfaceVariant),
                     ),
                   ),
                 ],
@@ -146,7 +146,7 @@ class _SummaryPane extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               CountdownText(
                 endAt: session.endAt,
-                style: AppTypography.timerHero,
+                style: AppTypography.displayLg,
               ),
               const SizedBox(height: AppSpacing.sm - 2),
               RemainingLabel(endAt: session.endAt),
@@ -224,7 +224,7 @@ class _ActionPanel extends StatelessWidget {
                 session.status == SessionStatus.completed
                     ? 'Sesi sudah selesai. Station kembali tersedia.'
                     : 'Sesi dibatalkan.',
-                style: AppTypography.body,
+                style: AppTypography.bodyMd,
               ),
             ),
           ],
@@ -240,7 +240,7 @@ class _ActionPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Aksi', style: AppTypography.sectionTitle),
+          Text('Aksi', style: AppTypography.headlineSm),
           const SizedBox(height: AppSpacing.md),
 
           // Primary CTA — satu per keadaan (UI-UX-SPEC §3).
@@ -396,11 +396,11 @@ class _OpenTabPane extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Text('Open Tab', style: AppTypography.sectionTitle)),
+              Expanded(child: Text('Open Tab', style: AppTypography.headlineSm)),
               Text(
                 '${session.items.length} item',
-                style: AppTypography.caption
-                    .copyWith(color: AppColors.textMuted),
+                style: AppTypography.bodySm
+                    .copyWith(color: AppColors.onSurfaceVariant),
               ),
             ],
           ),
@@ -414,7 +414,7 @@ class _OpenTabPane extends StatelessWidget {
                   '${i.isPaid ? 'sudah dibayar' : 'belum dibayar'}',
               amount: i.subtotal,
               amountColor:
-                  i.isPaid ? AppColors.textMuted : AppColors.text,
+                  i.isPaid ? AppColors.onSurfaceVariant : AppColors.onSurface,
             ),
           ),
 
@@ -441,7 +441,7 @@ class _OpenTabPane extends StatelessWidget {
             amount: t.balanceDue,
             emphasize: true,
             amountColor: t.balanceDue > 0
-                ? AppColors.accent
+                ? AppColors.tertiaryContainer
                 : AppColors.statusAvailable,
           ),
         ],
@@ -464,7 +464,7 @@ class _Panel extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpacing.md + 2),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         boxShadow: AppShadow.card,
       ),
       child: child,
@@ -491,16 +491,16 @@ class _InfoRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs + 2),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: AppColors.textMuted),
+          Icon(icon, size: 16, color: AppColors.onSurfaceVariant),
           const SizedBox(width: AppSpacing.sm),
           Text(
             label,
-            style: AppTypography.caption.copyWith(color: AppColors.textMuted),
+            style: AppTypography.bodySm.copyWith(color: AppColors.onSurfaceVariant),
           ),
           const Spacer(),
           Text(
             value,
-            style: AppTypography.body.copyWith(color: valueColor),
+            style: AppTypography.bodyMd.copyWith(color: valueColor),
           ),
         ],
       ),
@@ -523,10 +523,10 @@ class _ErrorBody extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.error_outline,
-                size: 48, color: AppColors.danger),
+                size: 48, color: AppColors.error),
             const SizedBox(height: AppSpacing.md),
             Text(message, textAlign: TextAlign.center,
-                style: AppTypography.body),
+                style: AppTypography.bodyMd),
             const SizedBox(height: AppSpacing.lg),
             AsyncButton(
               label: 'Coba lagi',

@@ -30,6 +30,10 @@ class Brand {
 
   static const String tagline = 'Billing & Operasional Rental';
 
+  /// Versi aplikasi yang ditampilkan di footer. Sinkron dengan
+  /// `version` di `pubspec.yaml`.
+  static const String version = '0.1.0';
+
   /// Belum ada aset logo. Kalau sudah ada, isi path-nya dan
   /// `BrandMark` otomatis memakai gambar daripada monogram.
   static const String? logoAsset = null;
