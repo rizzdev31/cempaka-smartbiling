@@ -235,10 +235,52 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | ~~OD-008~~ | ~~Rounding durasi~~ | **DIPUTUSKAN → DEC-009** | — |
 | **OD-009** | Formula profit/margin & target achievement | PRD §35 TBD. Belum blokir karena reporting di Tahap 3B. | Tahap 3B |
 | **OD-010** | Receipt: dicetak (printer model/interface) atau cukup di layar? | Mempengaruhi UI checkout dan hardware yang perlu dibeli. | Tahap 1 (UI), Tahap 3 (hardware) |
+| **OD-011** | Apakah Flutter perlu **penemuan IP server otomatis** (scan subnet), atau cukup DHCP reservation? | **Ditunda oleh user 2 Okt 2026 — tunggu hasil DHCP reservation di SESI 1.** Analisis ada di bawah tabel. | Tahap 1 (opsional) |
 
 **Tidak ada lagi Open Decision yang memblokir Tahap 0.** Billing engine sudah boleh ditulis.
 
 Yang masih menghalangi **Tahap 2**: OD-004 (perilaku warning) dan OD-005 (fakta TV — dicek Sabtu). OD-001 menghalangi penagihan overstay, tapi tidak menghalangi golden path.
+
+---
+
+---
+
+## OD-011 — detail: penemuan IP otomatis & deteksi TV
+
+**Ditunda oleh user pada 2 Okt 2026.** Analisis sudah selesai, tinggal keputusan.
+**Pemicu peninjauan:** setelah DHCP reservation diuji di SESI 1 (Sabtu 3 Okt).
+
+### Bagian A — penemuan IP server otomatis
+
+Keadaan sekarang: manual lewat `--dart-define` + layar Pengaturan.
+
+| Cara | Keandalan di C64 | Kerja server |
+|---|---|---|
+| **Scan subnet** — baca IP sendiri, probe `GET /api/v1/health` ke `.1`–`.254` | **Tinggi** — HTTP biasa, tidak bergantung fitur router | **Tidak ada** (endpoint sudah ada) |
+| mDNS / Bonjour | Sedang — multicast sering di-drop AP murah, perlu WiFi multicast lock | Perlu mDNS responder di Windows (tidak ada bawaan) |
+| UDP broadcast | Sedang-tinggi | Perlu listener UDP custom di Laravel |
+
+Kalau dikerjakan, urutannya: alamat terakhir yang berhasil → scan subnet → lebih dari satu hasil tampilkan pilihan → tidak ketemu buka Pengaturan. Biaya ± 100 baris, tanpa dependensi baru. 254 host dengan 32 request paralel dan timeout 300 ms ≈ 2–3 detik.
+
+**Dua pertimbangan yang membuat ini ditunda:**
+1. **Jadi tidak terpakai di Tahap 3A.** Setelah pindah VPS, alamatnya domain tetap dengan HTTPS — tidak ada yang perlu ditemukan.
+2. **DHCP reservation menyelesaikan masalah yang sama tanpa kode.** Sudah masuk checklist SESI 1 §1.3.
+
+### Bagian B — deteksi TV yang terhubung
+
+**Sudah dirancang, sengaja TIDAK memakai scan jaringan.**
+
+```
+Kotlin TV Agent ──POST /api/v1/devices/heartbeat──► Laravel
+Flutter ──GET /api/v1/stations──► { device: { status, last_seen_at, app_version } }
+```
+
+Alasan tidak memakai scan: TV yang terjangkau di WiFi **tidak berarti** agent-nya jalan atau menampilkan sesi yang benar. TV bisa hidup dan WiFi nyambung sementara aplikasinya crash — ping akan berkata "online" padahal customer melihat layar kosong. Heartbeat tidak bisa bohong soal itu. PRD §10 juga menegaskan IP bukan kontrol keamanan; identitas device adalah token unik yang dapat dicabut.
+
+Sudah siap: kontrak `API.md` §9, model `DeviceSummary`, indikator offline di kartu station. Di build sekarang datanya masih dari seed fake.
+Belum ada: heartbeat-nya sendiri → **Tahap 2**, masih diblokir OD-005.
+
+**Yang tidak bisa otomatis:** memasangkan TV mana = station mana. Tidak ada protokol jaringan yang bisa tahu suatu TV secara fisik berada di ST01. Dibinding sekali oleh manusia lewat `enrollment_code` (Admin buat kode untuk ST01 → dimasukkan di TV ST01), setelah itu permanen. Ini memang yang diminta PRD §10.
 
 ---
 

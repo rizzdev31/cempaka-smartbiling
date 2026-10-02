@@ -18,6 +18,16 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **operator-app** | fondasi + Dashboard + Session Detail jalan di fake repository; 32 test lulus; APK debug ter-build |
 | **backend / tv-agent** | masih kosong (baru README) |
 
+### ⏳ Pertanyaan tertunda — ingatkan user
+
+| ID | Pertanyaan | Ditunda sejak | Pemicu peninjauan |
+|---|---|---|---|
+| **OD-011** | Perlukah penemuan IP server otomatis (scan subnet) di Flutter? | 2 Okt 2026 | **Setelah DHCP reservation diuji di SESI 1.** Kalau IP laptop tetap stabil → tidak perlu. Kalau masih sering berubah → pasang scan subnet (± 100 baris) |
+
+Analisis lengkap (termasuk deteksi TV lewat heartbeat) ada di `DECISION-LOG.md` → OD-011.
+
+---
+
 ### Checklist Tahap 0
 
 - [x] Monorepo + struktur folder + `.gitignore` (DEC-010)
