@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'core/brand.dart';
 import 'core/config/api_config.dart';
 import 'core/theme/app_theme.dart';
 import 'core/time/server_time.dart';
@@ -80,7 +81,7 @@ class OperatorApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'Cempaka Billing',
+        title: Brand.appName,
         debugShowCheckedModeBanner: false,
 
         // Tema terang. Alasan versi sebelumnya memilih gelap tercatat di

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/brand.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/tokens.dart';
 import '../../data/tv/tv_agent_client.dart';
@@ -186,8 +187,8 @@ class _TvPairSheetState extends State<_TvPairSheet> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'Buka aplikasi Cempaka TV di televisi. Layarnya menampilkan '
-                  'kode 6 digit dan alamat jaringan.',
+                  'Buka aplikasi ${Brand.tvAppName} di televisi. Layarnya '
+                  'menampilkan kode 6 digit dan alamat jaringan.',
                   style: AppTypography.bodySm
                       .copyWith(color: AppColors.onSurfaceVariant),
                 ),

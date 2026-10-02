@@ -150,7 +150,9 @@ class _Sidebar extends StatelessWidget {
                 bottom: BorderSide(color: AppColors.surfaceHigh),
               ),
             ),
-            child: BrandMark(showName: expanded),
+            // Pada rail, alasnya dikecilkan: lebar penuh 69 px hanya
+            // menyisakan 1,5 px di tiap sisi rail 72 px.
+            child: BrandMark(showName: expanded, size: expanded ? 46 : 38),
           ),
 
           if (expanded)
@@ -227,7 +229,7 @@ class _NavItem extends StatelessWidget {
       children: [
         Icon(
           section.icon,
-          size: 20,
+          size: 22,
           color: active ? AppColors.primary : AppColors.onSurfaceVariant,
         ),
         if (expanded) ...[
@@ -686,7 +688,8 @@ class _ShellFooter extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              Brand.poweredBy,
+              Brand.poweredByLabel,
+              maxLines: 1,
               style: AppTypography.labelSm.copyWith(color: AppColors.outline),
               overflow: TextOverflow.ellipsis,
             ),

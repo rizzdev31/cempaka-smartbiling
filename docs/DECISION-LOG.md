@@ -457,6 +457,84 @@ berbeda, tapi artinya identik.
 
 ---
 
+## DEC-017 — Merek pelanggan pertama: Amor Gaming Space
+
+**Tanggal:** 3 Okt 2026 · **Status:** APPROVED · **Terkait:** OD-012
+
+Operator app dipasangi merek pelanggan pertama. Logo dikirim user
+(`logo-amor.png`), nama **Amor Gaming Space**, atribusi naungan di footer
+diubah jadi **"Powered by Cempaka Smart Billing"**.
+
+### Logo kiriman tidak dipakai apa adanya — dua alasan terukur
+
+**1. Di chrome putih, logo ini praktis hilang.** 60% pikselnya nyaris putih,
+dan wordmark "AMOR"-nya 80%. Logo ini memang dirancang untuk latar gelap.
+
+Jawabannya **alas gelap** (`AppColors.brandPlate`, navy `#0E1526`), bukan
+mengubah logonya. Navy sangat tua, bukan hitam murni: hitam membuat biru
+logonya terlihat seperti ditempel, navy menyatu.
+
+Alas ini **bukan aksen kedua** dan tidak pernah dipakai sebagai warna status
+— ini wadah untuk logo pelanggan. Dibuat bersyarat lewat
+`Brand.logoNeedsDarkPlate`, karena logo pelanggan berikutnya bisa saja sudah
+gelap dan justru rusak kalau diberi alas.
+
+**2. 62% berkasnya ruang kosong.** Konten aslinya 2532x1781 di dalam kanvas
+3373x4770, 1,9 MB untuk slot ~46 px. Dipasang apa adanya, logo di dalam
+kotaknya akan tampil jauh lebih kecil dari kotak itu sendiri.
+
+Dua turunan dibuat dan hanya keduanya yang dibundel:
+
+| Berkas | Isi | Ukuran |
+|---|---|---|
+| `logo-amor-mark.png` | emblem saja, dipangkas | 256x137, 37 KB |
+| `logo-amor-full.png` | lockup penuh, untuk splash/Tentang nanti | 640x450, 155 KB |
+| `logo-amor.png` | kiriman asli — **sumber, tidak dibundel** | 1,9 MB |
+
+`pubspec.yaml` menyebut berkas satu per satu, bukan seluruh folder, supaya
+sumber 1,9 MB tidak ikut ke dalam APK.
+
+### Wordmark dipotong dari penanda
+
+Emblem saja yang dipakai di sidebar. Logo aslinya sudah memuat tulisan
+"AMOR GAMING SPACE"; dipasang utuh di sebelah nama merek sebagai teks,
+keduanya jadi berulang.
+
+Nama ditulis **dua baris** — "Amor" besar, "GAMING SPACE" kecil dengan jarak
+huruf — meniru kunci logo aslinya. Satu baris, nama sepanjang ini terpotong di
+sidebar 268 px; dua baris justru memberi ruang untuk membuatnya lebih besar.
+
+Baris kedua memakai **Space Grotesk, bukan `labelSm`**. `labelSm` memakai
+JetBrains Mono, dan itu font untuk angka serta label teknis (UI-UX-SPEC §3) —
+nama merek bukan keduanya, dan mono membuatnya terbaca seperti kode.
+
+### Ukuran
+
+Penanda naik dari kotak 34x34 jadi alas **69x46** dengan logo ~54x29 di
+dalamnya. Alasnya melebar mengikuti bentuk emblem: dipaksa persegi, logo di
+dalamnya menyusut sampai setengahnya. Pada rail (72 px) alasnya 38 — lebar
+penuh hanya menyisakan 1,5 px di tiap sisi.
+
+Ikon navigasi 20 -> 22.
+
+### Yang ini bukti untuk OD-012, bukan keputusannya
+
+Pemasangan ini membuktikan jalur **white-label per-instance** bisa: satu
+pelanggan, satu build, semua string merek di satu berkas. Tapi OD-012 tetap
+**belum diputuskan** — yang menentukan bukan ini, melainkan apakah beberapa
+pelanggan berbagi satu database.
+
+Yang masih memakai nama naungan dan belum ikut rebrand: **APK TV**
+(`Brand.tvAppName`), `applicationId` Android, dan nama repo.
+
+### Aksen aplikasi tetap teal
+
+Biru dominan logonya `#0080F0`. Aksen aplikasi tetap teal `#0E7490` (DEC-016)
+— menggantinya berarti mengulang seluruh verifikasi kontras, dan belum ada
+yang meminta. Dicatat di sini supaya pilihannya ada kalau nanti diminta.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -535,6 +613,15 @@ Belum ada: heartbeat-nya sendiri → **Tahap 2**, masih diblokir OD-005.
 **Tapi satu bagiannya tidak bisa ditunda** — lihat "Yang harus diputuskan sebelum Tahap 0 selesai".
 
 Kebutuhan: nama dan logo menyesuaikan tiap pengguna, tetap di bawah naungan Cempaka Smart Billing.
+
+> **Diperbarui 3 Okt 2026 (DEC-017).** Pelanggan pertama sudah dipasang:
+> **Amor Gaming Space**. Sisi klien terbukti siap — satu berkas `Brand`
+> memegang semua string dan aset, dan mengganti merek tidak menyentuh satu
+> widget pun.
+>
+> **Itu tidak menjawab OD-012.** Yang menentukan bukan tampilan merek,
+> melainkan apakah beberapa pelanggan berbagi satu database. Keputusannya
+> tetap ditunggu sebelum migration pertama.
 
 ### Dua model yang sangat berbeda konsekuensinya
 

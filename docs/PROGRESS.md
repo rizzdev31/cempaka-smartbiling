@@ -15,7 +15,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Milestone terdekat** | **SESI TV** — uji operator mengendalikan TV (bisa kapan saja, tidak perlu di lokasi) · SESI 1 recon lokasi **hari ini** |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
-| **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); **194 test lulus** |
+| **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **201 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK 4,0 MB |
 | **backend** | masih kosong — **ditahan** (DEC-015) |
 
@@ -1132,6 +1132,76 @@ lakukan sendiri.
 - Dialog, bottom sheet, dan Session Detail belum masuk cakupan test overflow;
   yang diuji baru shell + kelima section.
 - Reduced motion masih belum ada test-nya.
+
+**Next step**
+Tetap: **jalankan SESI TV**.
+
+---
+
+### 2026-10-03 — Merek Amor Gaming Space dipasang (DEC-017)
+
+**Files changed**
+
+`lib/core/brand.dart`, `lib/ui/widgets/brand_mark.dart` (ditulis ulang),
+`lib/ui/shell/app_shell.dart`, `lib/core/theme/tokens.dart`, `lib/app.dart`,
+`lib/ui/device/tv_pair_sheet.dart`, `pubspec.yaml`,
+`android/.../AndroidManifest.xml`, `web/index.html`, `web/manifest.json`.
+Aset baru: `logo-amor-mark.png`, `logo-amor-full.png`.
+Test baru: `test/brand_test.dart`. Pratinjau: `docs/brand/preview-navbar.png`.
+
+**DB changes** — tidak ada. **API/Events** — tidak ada.
+
+**Yang diminta** — logo di navbar, nama Amor Gaming Space, logonya jangan
+kecil, navbar lebih iconic, footer jadi "Powered by Cempaka Smart Billing".
+
+**Logo kiriman tidak dipakai apa adanya**
+
+Dua hal terukur, bukan selera:
+
+1. **60% pikselnya nyaris putih**, wordmark-nya 80%. Di chrome putih
+   aplikasi, logo ini praktis hilang — memang dirancang untuk latar gelap.
+   Jawabannya alas navy `#0E1526`, bukan mengubah logonya.
+2. **62% berkasnya ruang kosong** (konten 2532x1781 di kanvas 3373x4770,
+   1,9 MB). Dipasang apa adanya, logo di dalam kotaknya tampil jauh lebih
+   kecil dari kotaknya.
+
+Dipangkas jadi `logo-amor-mark.png` (emblem saja, 256x137, **37 KB**) dan
+`logo-amor-full.png` (lockup penuh untuk splash nanti). Kiriman asli tetap
+disimpan sebagai sumber tapi **tidak dibundel** — `pubspec.yaml` menyebut
+berkas satu per satu, bukan seluruh folder.
+
+**Hasilnya** — penanda naik dari kotak 34x34 jadi alas **69x46** dengan logo
+~54x29 di dalamnya; alasnya melebar mengikuti bentuk emblem, karena dipaksa
+persegi logonya menyusut sampai setengahnya. Nama dua baris ("Amor" besar +
+"GAMING SPACE" berjarak huruf) meniru kunci logo aslinya. Ikon nav 20 -> 22.
+
+Baris kedua memakai Space Grotesk, **bukan** `labelSm` — `labelSm` memakai
+JetBrains Mono, font untuk angka dan label teknis; nama merek bukan keduanya.
+
+Pratinjau 3x hasilnya: `docs/brand/preview-navbar.png`.
+
+**String merek yang sebelumnya ditulis langsung di widget**
+
+Ditemukan dan dipusatkan ke `Brand` saat mengerjakan ini: judul `MaterialApp`
+(`'Cempaka Billing'` hardcoded), nama aplikasi TV di layar pairing,
+`android:label` yang masih `"operator_app"`, serta judul web.
+
+**Tests** — +7 (`brand_test.dart`), total **201 lulus**. `analyze` bersih.
+Kontras jadi 32 pasangan (alas merek ikut diuji, untuk jalur monogram).
+
+Test mengunci: aset dipakai (bukan monogram), nama dua baris, alas lebih lebar
+daripada tinggi, gambar mengisi >60% lebar alas, dan atribusi naungan tetap
+berbentuk "Powered by ...".
+
+**Manual test** — `flutter run`, lihat sidebar: logo di alas gelap, "Amor" +
+"GAMING SPACE", footer "Powered by Cempaka Smart Billing".
+
+**Known issues**
+- **Belum dilihat di perangkat.** Pratinjau dirender lewat test.
+- Yang masih bernama Cempaka: **APK TV**, `applicationId` Android, nama repo.
+- Biru logo `#0080F0` vs aksen aplikasi teal `#0E7490` — sedikit berbeda.
+  Sengaja tidak diubah: mengganti aksen berarti mengulang seluruh verifikasi
+  kontras DEC-016, dan belum diminta.
 
 **Next step**
 Tetap: **jalankan SESI TV**.

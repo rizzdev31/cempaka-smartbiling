@@ -66,6 +66,8 @@ PAIRS: list[tuple[str, str, str, float]] = [
     ('Teks di tombol merah', 'onError', 'error', 4.5),
     ('Teks di tombol amber', 'onTertiary', 'tertiaryContainer', 4.5),
     ('Teks di chip terpilih', 'surfaceLow', 'onSurface', 4.5),
+    # Monogram dipakai kalau pelanggan belum punya aset logo.
+    ('Monogram di alas merek', 'surfaceLow', 'brandPlate', 4.5),
 
     # Garis hanya perlu terlihat, bukan terbaca. 1.1 adalah ambang praktis:
     # di bawah itu tepi kartu hilang dan seluruh layar terasa rata.

@@ -4,52 +4,23 @@ import '../../core/brand.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/tokens.dart';
 
-/// Logo mark + nama aplikasi untuk header.
+/// Penanda merek di sidebar: logo pelanggan + namanya.
 ///
-/// Semua teks diambil dari [Brand] — tidak ada string merek yang ditulis
-/// di sini. Lihat OD-012: nama dan logo akan menyesuaikan per pengguna,
+/// Semua teks dan aset diambil dari [Brand] — tidak ada string merek yang
+/// ditulis di sini. Lihat OD-012: nama dan logo menyesuaikan per pelanggan,
 /// jadi widget ini harus tetap benar tanpa diubah saat mereknya berganti.
-///
-/// Selama [Brand.logoAsset] masih `null`, dipakai monogram. Begitu ada
-/// aset logo, widget ini otomatis memakai gambarnya.
 class BrandMark extends StatelessWidget {
-  const BrandMark({super.key, this.showName = true, this.size = 34});
+  const BrandMark({super.key, this.showName = true, this.size = 46});
 
   final bool showName;
+
+  /// Tinggi alas logo. Lebarnya mengikuti, karena emblem merek umumnya
+  /// melebar — dipaksa ke kotak persegi, logo di dalamnya justru mengecil.
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    final mark = Container(
-      width: size,
-      height: size,
-      // Isian rata, bukan gradasi.
-      //
-      // Gradasi diagonal pada logo mark adalah salah satu penanda paling cepat
-      // terbaca dari UI yang tidak dirancang. Merek ini juga akan berganti per
-      // pelanggan (OD-012), dan bentuk yang rata lebih mudah diganti aset
-      // sungguhan nanti.
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
-      alignment: Alignment.center,
-      child: Brand.logoAsset != null
-          ? Padding(
-              padding: EdgeInsets.all(size * 0.18),
-              child: Image.asset(Brand.logoAsset!, fit: BoxFit.contain),
-            )
-          : Text(
-              Brand.monogram,
-              style: TextStyle(
-                fontFamily: AppTypography.heading,
-                fontSize: size * 0.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.onPrimary,
-                height: 1,
-              ),
-            ),
-    );
+    final mark = _LogoPlate(size: size);
 
     if (!showName) return mark;
 
@@ -61,40 +32,105 @@ class BrandMark extends StatelessWidget {
         // Teks merek HARUS boleh menyusut.
         //
         // Tanpa Flexible, Column ini meminta lebar alaminya dan overflow
-        // begitu nama atau tagline-nya sedikit lebih panjang dari ruang
-        // sidebar — yang persis terjadi pada tagline bawaan.
-        //
-        // Ini bukan sekadar perbaikan satu kasus: OD-012 memastikan nama
-        // merek akan berganti per pelanggan, dan panjangnya tidak bisa
-        // ditebak dari sini. Dipotong ellipsis jauh lebih baik daripada
-        // header yang rusak.
+        // begitu nama pelanggan sedikit lebih panjang dari ruang sidebar.
+        // OD-012 memastikan panjang itu tidak bisa ditebak dari sini.
         Flexible(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                Brand.appName,
+                Brand.markTitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTypography.headlineSm.copyWith(
+                style: AppTypography.headlineMd.copyWith(
                   color: AppColors.onSurface,
-                  height: 1.1,
+                  height: 1.05,
                 ),
               ),
               Text(
-                Brand.tagline,
+                Brand.markSubtitle.toUpperCase(),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTypography.labelSm.copyWith(
-                  color: AppColors.outline,
-                  height: 1.3,
+                // Font heading, bukan `labelSm`.
+                //
+                // `labelSm` memakai JetBrains Mono — itu font untuk angka dan
+                // label teknis (UI-UX-SPEC §3). Nama merek bukan keduanya,
+                // dan mono membuatnya terbaca seperti kode. Space Grotesk
+                // geometris, jauh lebih dekat ke bentuk logonya.
+                style: const TextStyle(
+                  fontFamily: AppTypography.heading,
+                  fontSize: 11,
+                  height: 1.25,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                  // Jarak huruf meniru kunci pada logo aslinya, dan membuat
+                  // baris kedua terbaca sebagai bagian dari merek — bukan
+                  // sebagai keterangan yang menggantung.
+                  letterSpacing: 1.6,
                 ),
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Logo di atas alasnya.
+///
+/// Alas gelap dipakai kalau [Brand.logoNeedsDarkPlate] — lihat alasannya di
+/// sana. Kalau belum ada aset logo sama sekali, jatuh ke monogram supaya
+/// pemasangan merek baru tidak pernah menampilkan kotak kosong.
+class _LogoPlate extends StatelessWidget {
+  const _LogoPlate({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final asset = Brand.logoAsset;
+    final plated = Brand.logoNeedsDarkPlate;
+
+    // Emblem merek melebar, jadi alasnya ikut melebar. Monogram tidak —
+    // satu huruf di alas selebar ini akan terlihat hilang di tengah.
+    final width = asset == null ? size : size * 1.5;
+
+    return Container(
+      width: width,
+      height: size,
+      decoration: BoxDecoration(
+        color: plated ? AppColors.brandPlate : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      alignment: Alignment.center,
+      child: asset == null
+          ? Text(
+              Brand.monogram,
+              style: TextStyle(
+                fontFamily: AppTypography.heading,
+                fontSize: size * 0.5,
+                fontWeight: FontWeight.w700,
+                color: plated ? Colors.white : AppColors.primary,
+                height: 1,
+              ),
+            )
+          : Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: size * 0.16,
+                vertical: size * 0.18,
+              ),
+              child: Image.asset(
+                asset,
+                fit: BoxFit.contain,
+                // Logo merek dipakai di ukuran kecil dan dasarnya besar;
+                // tanpa filter yang baik, garis tipisnya pecah.
+                filterQuality: FilterQuality.medium,
+                semanticLabel: Brand.fullName,
+              ),
+            ),
     );
   }
 }

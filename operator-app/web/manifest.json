@@ -1,11 +1,11 @@
 {
-    "name": "Cempaka Billing Operator",
-    "short_name": "Cempaka Billing",
+    "name": "Amor Gaming Space Operator",
+    "short_name": "Amor Gaming Space",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0A0E18",
     "theme_color": "#00E5FF",
-    "description": "Aplikasi operator Cempaka Smart Billing.",
+    "description": "Aplikasi operator Amor Gaming Space.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

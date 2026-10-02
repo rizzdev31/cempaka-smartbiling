@@ -22,6 +22,13 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  # Berkas disebut satu per satu, BUKAN seluruh folder: `assets/images/`
+  # juga memuat kiriman asli logo-amor.png (1,9 MB, 62%-nya ruang kosong).
+  # Itu berkas sumber, bukan aset yang perlu ikut ke dalam APK.
+  assets:
+    - assets/images/logo-amor-mark.png
+    - assets/images/logo-amor-full.png
+
   # Font dibundel, bukan diunduh runtime — lihat assets/fonts/README.md
   # dan DEC-002 (app dipakai di jaringan lokal yang bisa tanpa internet).
   fonts:
