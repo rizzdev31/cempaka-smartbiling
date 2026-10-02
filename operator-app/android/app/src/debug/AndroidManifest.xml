@@ -1,0 +1,22 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Manifest ini HANYA digabung pada build debug.
+      Build release tidak pernah memakainya, jadi cleartext HTTP otomatis
+      dilarang di produksi — tanpa perlu flavor gradle terpisah.
+
+      Kenapa perlu: Android 9+ memblokir http:// secara default. Saat
+      testing di jaringan lokal, Laravel diakses lewat
+      http://192.168.x.x:8000, sehingga request akan gagal dengan
+      ERR_CLEARTEXT_NOT_PERMITTED tanpa izin ini.
+
+      Aturan DEC-002 nomor 3: cleartext hanya di dev, prod HTTPS-only.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:replace="android:networkSecurityConfig" />
+</manifest>

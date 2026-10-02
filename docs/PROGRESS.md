@@ -13,9 +13,10 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Blocker** | **tidak ada** — kontrak sudah fix, billing rule sudah fix |
 | **Blocker Tahap 2** | OD-004 (perilaku warning), OD-005 (fakta TV — **dicek besok**) |
 | **Milestone terdekat** | **Sabtu 3 Okt: SESI 1 recon lokasi (0 kode)** — `TEST-PLAN-SABTU.md` |
-| **Repo** | monorepo, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) — belum di-push |
+| **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
-| **Kode app** | `backend/`, `operator-app/`, `tv-agent/` masih kosong (baru README) |
+| **operator-app** | fondasi + Dashboard + Session Detail jalan di fake repository; 32 test lulus; APK debug ter-build |
+| **backend / tv-agent** | masih kosong (baru README) |
 
 ### Checklist Tahap 0
 
@@ -44,20 +45,27 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 
 ### Checklist Tahap 1 (Flutter)
 
-- [ ] Project Flutter + flavor `dev` / `prod`
-- [ ] `ApiConfig` + settings screen ganti IP
-- [ ] Tema dark + tokens dari `UI-UX-SPEC.md`
-- [ ] Komponen: `StationCard`, `CountdownText`, `MoneyText`, `StatusChip`, `ConnectionBanner`, `ConfirmDialog`
-- [ ] Ticker global timer
-- [ ] Login
-- [ ] Dashboard 6 station
-- [ ] Start Session
-- [ ] Session Detail + Open Tab
-- [ ] F&B Queue
-- [ ] Payment
-- [ ] Checkout
-- [ ] Device status
+- [x] Project Flutter + pemisahan dev/prod lewat Android source set
+- [x] `ApiConfig` + settings screen ganti IP tanpa rebuild
+- [x] Tema dark + tokens dari `UI-UX-SPEC.md`
+- [x] Komponen: `StationCard`, `CountdownText`, `MoneyText`, `StatusChip`, `ConnectionBanner`, `ConfirmDialog`, `AsyncButton`
+- [x] Ticker global timer + server-time offset
+- [x] Model + error code ditranskrip dari kontrak
+- [x] Fake repository yang mencerminkan aturan server
+- [x] Dashboard 6 station (grid 3×2 landscape)
+- [x] Start Session (Prepaid/Postpaid)
+- [x] Session Detail + Open Tab
+- [x] Payment (cash + QRIS manual)
+- [x] Extend + Station Swap + Tambah F&B
+- [x] Checkout + struk (durasi aktual vs tertagih)
+- [x] 32 test aturan billing lulus
+- [ ] Login / auth
 - [ ] Reverb client + auto-reconnect + reconcile
+- [ ] F&B Queue (layar antrian terpisah)
+- [ ] Shift start/close/handover
+- [ ] Device status (layar terpisah)
+- [ ] **Ganti fake repository → `ApiBillingRepository`** (DEC-012 syarat 2)
+- [ ] Bundel font Fira Sans/Code
 
 ---
 
@@ -165,14 +173,57 @@ Yang paling mungkin salah di PRD bukan backend-nya, tapi **alur kasir**. Dashboa
 - Belum di-push ke GitHub (user minta tunda; perlu konfirmasi repo private atau public dulu)
 - Fake repository punya batas: **tidak bisa** membuktikan kontraknya lengkap. Wajib diganti di vertical slice pertama (DEC-012 syarat 2)
 
+**Next step** *(selesai — lihat entry di bawah)*
+
+---
+
+### 2026-10-02 — Flutter operator: fondasi + Dashboard + Session Detail
+
+**Files changed** (semua baru, 23 file di `operator-app/`)
+- `lib/main.dart`, `lib/app.dart`
+- `lib/core/`: `config/api_config.dart`, `theme/{tokens,app_theme,status_style}.dart`, `time/{server_time,ticker}.dart`, `util/format.dart`
+- `lib/domain/`: `models/{enums,models}.dart`, `errors/api_error.dart`, `repositories/billing_repository.dart`
+- `lib/data/fake/fake_billing_repository.dart`
+- `lib/ui/widgets/`: `station_card`, `countdown_text`, `money_text`, `status_chip`, `connection_banner`, `confirm_dialog`
+- `lib/ui/dashboard/`: `dashboard_controller`, `dashboard_screen`, `start_session_sheet`
+- `lib/ui/session/`: `session_detail_controller`, `session_detail_screen`, `session_actions`
+- `lib/ui/settings/settings_screen.dart`
+- `android/app/src/debug/AndroidManifest.xml` + `res/xml/network_security_config.xml`
+- `test/billing_rules_test.dart`
+
+**DB changes** — tidak ada (client)
+
+**API/Events** — tidak ada perubahan kontrak. Semua model ditranskrip dari `contracts/API.md` §6–§8, error code dari §11.
+
+**Tests** — `flutter test`: **32 lulus**. `flutter analyze`: **bersih**.
+Memetakan ke acceptance test: T05, T08, T13, T14, T15, T16, T17.
+
+**Manual test**
+```
+flutter run --dart-define=API_BASE_URL=http://192.168.0.50:8000
+```
+Seed fake: ST01 ACTIVE prepaid + F&B · ST03 postpaid hampir habis · ST05 PENDING_PAYMENT · ST04 TV offline · ST06 maintenance · ST02 kosong.
+Alur yang bisa dicoba: ketuk ST02 → Prepaid 1 jam → konfirmasi tunai → timer jalan → Tambah F&B → Tambah Durasi → Pindah Station → Checkout → struk.
+
+**Keputusan teknis yang diambil (dicatat agar tidak dibahas ulang)**
+1. **Tanpa flavor gradle.** Perbedaan dev/prod ditegakkan Android source set: `src/debug/AndroidManifest.xml` berisi `usesCleartextTraffic="true"` dan hanya digabung pada build debug; `src/main` tidak punya atribut itu. Sudah diverifikasi pada manifest hasil build debug. Lebih sederhana daripada flavor, dan tidak mungkin bocor ke release.
+2. **Paket `google_fonts` tidak dipakai** walau UI-UX-SPEC menyebut Fira Sans/Code. Paket itu mengunduh font saat runtime, sementara app ini dirancang untuk jaringan lokal tanpa internet. Yang wajib — tabular figures untuk timer dan uang — tetap benar karena Roboto mendukung `tnum`. Hook untuk membundel Fira ada di `app_theme.dart`.
+3. **Paket `intl` tidak dipakai.** Kebutuhannya hanya rupiah dan durasi; ditulis sendiri di `core/util/format.dart`, menghindari friksi versi.
+4. **Status station diturunkan dari `end_at` di client**, bukan dari snapshot server (`deriveStationViewStatus`). Server menandai WARNING/EXPIRED lewat scheduler sehingga bisa terlambat beberapa detik — tanpa ini kartu bisa menunjukkan timer `-00:00:14` sementara label masih "Bermain". Pola yang sama dipakai Kotlin TV nanti.
+5. **`Idempotency-Key` dibuat saat dialog dibuka**, bukan saat tombol ditekan. Jadi double-tap dan retry setelah timeout memakai key yang sama. Diuji di test idempotency.
+6. **Fake repository memajukan jamnya sendiri** (`advanceClock`) alih-alih memakai jam device. Tanpa itu, aturan yang bergantung waktu (grace extend, rounding) tidak bisa diuji sama sekali.
+
+**Known issues**
+- `ConnectionStatus` masih statis `connected` — belum ada WebSocket. Indikator di header sudah terpasang, tinggal disambungkan.
+- Belum ada login; app langsung masuk Dashboard.
+- Build **release** belum pernah dibuat (butuh signing config). Mekanisme HTTPS-only sudah benar secara struktur tapi belum diverifikasi lewat build nyata — dicek di Tahap 3A.
+- Fake repository tidak bisa membuktikan kontraknya lengkap (DEC-012 syarat 2).
+
 **Next step**
-1. **Besok:** SESI 1 di lokasi — checklist cetak ada di `TEST-PLAN-SABTU.md` §1.6
-2. Scaffold Flutter: project + flavor `dev`/`prod` + tema dark + tokens
-3. Komponen: `StationCard`, `CountdownText`, `MoneyText`, `StatusChip`, `ConnectionBanner`, `ConfirmDialog`
-4. Ticker global + server-time offset
-5. `ApiConfig` + settings screen IP
-6. Fake repository ditranskrip dari `contracts/API.md`
-7. Dashboard + Session Detail di atas fake repository
+1. **Besok (Sabtu 3 Okt):** SESI 1 di lokasi — checklist cetak `TEST-PLAN-SABTU.md` §1.6. Bawa `app-debug.apk` untuk melihat UI di tablet, walau datanya masih palsu.
+2. Tunjukkan Dashboard + alur checkout ke operator asli — ini tujuan utama Flutter-first (DEC-012). Catat koreksi alur kasir yang muncul.
+3. F&B Queue + Shift + Device status (masih di fake)
+4. Lalu Laravel thin slice, baru ganti fake → API
 
 ---
 

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Hanya untuk build DEBUG. Mengizinkan HTTP ke server lokal selama
+  pengembangan dan testing lapangan.
+
+  Build release tidak memuat file ini (lihat src/debug/AndroidManifest.xml),
+  jadi produksi tetap HTTPS-only — DEC-002 nomor 3.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
