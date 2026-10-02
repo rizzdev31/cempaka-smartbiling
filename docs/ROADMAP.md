@@ -49,7 +49,7 @@ Scope:
 
 ---
 
-## TAHAP 1 — Flutter Operator (tablet) ← SEDANG DIKERJAKAN
+## TAHAP 1 — Flutter Operator (tablet) ← DIMULAI LEBIH DULU (DEC-012)
 
 **Tujuan:** operator bisa menjalankan satu hari operasional penuh dari tablet.
 
@@ -125,6 +125,21 @@ Booking + conflict check · Midtrans/gateway + webhook idempotent · T14, T17
 6 TV load test (T23) · guest network isolation (T24) · SOP + handover
 
 ---
+
+## Urutan kerja nyata (solo, sekuensial) — DEC-012
+
+Tahap 0 dan Tahap 1 **tidak dikerjakan berurutan penuh**. Tahap 1 dimulai lebih dulu dengan fake repository, Tahap 0 menyusul sebagai thin slice.
+
+| Kapan | Kerjakan | Catatan |
+|---|---|---|
+| **Sabtu 3 Okt** | Recon lokasi — SESI 1 | 0 kode. Jawab OD-005 |
+| Hari kerja 1–3 | Flutter: scaffold, flavor, tema, komponen, ticker, settings IP, dashboard + session detail | fake repository dari `contracts/API.md` |
+| Hari kerja 4–6 | Laravel thin slice: auth, stations, packages, sessions, payments + middleware | bukan Tahap 0 penuh |
+| Hari kerja 7 | Ganti fake → API asli | **vertical slice pertama hidup** |
+| Lanjut | Sisa screen Flutter & sisa endpoint, bergantian per fitur | F&B, extend, swap, checkout, shift |
+| Lalu | SESI 2 di lokasi — golden path T01–T17 | |
+
+Aturan yang mengikat ada di DEC-012. Yang paling penting: **fake repository diganti pada vertical slice pertama**, jangan menumpuk sampai semua screen jadi.
 
 ## Ringkasan dependensi
 

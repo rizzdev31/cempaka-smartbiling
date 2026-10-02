@@ -189,6 +189,36 @@ Satu repository git: `https://github.com/rizzdev31/cempaka-smartbiling.git`
 
 ---
 
+## DEC-012 — Flutter dibangun lebih dulu dengan fake repository dari kontrak
+**Tanggal:** 2 Okt 2026 · **Status:** APPROVED · **Melengkapi:** DEC-001, DEC-011
+
+Urutan kerja (dikerjakan **sendiri**, jadi sekuensial — bukan paralel):
+
+```
+Sabtu 3 Okt    recon lokasi (SESI 1) — 0 kode
+Hari kerja 1–3 Flutter: scaffold, flavor, tema, komponen, ticker,
+               settings IP, dashboard + session detail → fake repository
+Hari kerja 4–6 Laravel thin slice: auth, stations, packages, sessions, payments
+               + middleware X-Server-Time & Idempotency-Key
+Hari kerja 7   Ganti fake → API asli. Vertical slice hidup.
+Lanjut         sisa screen Flutter & sisa endpoint, bergantian per fitur
+Lalu           SESI 2 di lokasi (golden path T01–T17)
+```
+
+**Alasan Flutter dulu:** hal yang paling mungkin salah di PRD bukan backend-nya, tapi **alur kasir** — prepaid vs postpaid, kapan F&B ditagih, bentuk checkout. Dashboard yang bisa diklik dan ditunjukkan ke operator asli mengungkap itu dalam satu jam. Kalau backend dibangun dulu, alur yang salah sudah terkunci di schema.
+
+**Kenapa ini sekarang aman** (sebelumnya tidak): kontrak `API.md` sudah ada (DEC-011). Model Flutter **ditranskrip** dari `API.md` §7, bukan ditebak. Risiko model drift — satu-satunya alasan menolak Flutter-first — sudah hilang.
+
+**Dua syarat yang mengikat:**
+1. Model, enum, dan error code di Flutter **ditranskrip dari kontrak, tidak pernah dikarang.** Field yang tidak ada di `API.md` tidak boleh diasumsikan.
+2. Fake repository **wajib diganti API asli pada vertical slice pertama** (login + dashboard + start session). Jangan menumpuk sampai semua screen jadi.
+
+**Alasan syarat 2:** fake repository tidak bisa membuktikan kontraknya lengkap. Hanya Laravel asli yang mengungkap field yang kurang. Makin lama Flutter jalan di atas data palsu, makin banyak asumsi menumpuk dan makin mahal koreksinya.
+
+**Bentuk fake repository:** satu implementasi in-memory di belakang interface yang sama dengan versi API-nya, berisi JSON yang ditranskrip langsung dari contoh di `API.md`. Harus **meniru kontrak apa adanya**, termasuk delay dan error code — bukan jalur yang selalu sukses. Nanti dipakai ulang sebagai fixture widget test, jadi tidak terbuang.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
