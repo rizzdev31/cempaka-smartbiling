@@ -94,6 +94,13 @@ abstract class BillingRepository {
     required FnbOrderStatus status,
   });
 
+  // ── Device — kontrak §9 ───────────────────────────────────────────
+
+  /// Daftar TV Agent terdaftar. **Read-only** untuk operator —
+  /// pendaftaran, pemetaan ulang, dan pencabutan token adalah wewenang
+  /// Admin (PRD §19, Tahap 3B).
+  Future<DeviceList> fetchDevices();
+
   // ── Shift — kontrak §10 ───────────────────────────────────────────
 
   /// Shift yang sedang berjalan, atau `null` kalau belum ada yang dibuka.

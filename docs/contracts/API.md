@@ -549,7 +549,36 @@ Endpoint **reconcile** untuk Kotlin setelah reboot atau reconnect (PRD §16, T11
 - Tidak ada `remaining_seconds`. TV hitung dari `end_at` + offset.
 
 ### `GET /devices` *(operator/admin, pakai Bearer)*
-Daftar device + `status`, `last_seen_at`, `app_version` untuk screen Device di Flutter.
+Untuk screen Device di Flutter dan dashboard Admin.
+
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "device_uid": "a1b2c3d4e5f6",
+      "station": { "id": "uuid", "code": "ST01", "name": "Station 1" },
+      "status": "ONLINE",
+      "last_seen_at": "2026-10-02T07:14:50Z",
+      "app_version": "0.1.0",
+      "model": "Xiaomi TV A2",
+      "os_version": "Android 11",
+      "registered_at": "2026-09-28T03:00:00Z"
+    }
+  ],
+  "meta": {
+    "server_time": "2026-10-02T07:15:00Z",
+    "offline_threshold_seconds": 120
+  }
+}
+```
+
+- `station` = `null` kalau device belum dipetakan ke station, atau pemetaannya dicabut (PRD §10 memperbolehkan perubahan mapping).
+- `status` ∈ `ONLINE` | `OFFLINE`. **Server** yang memutuskan, berdasarkan `last_seen_at` dan `offline_threshold_seconds`.
+- `meta.offline_threshold_seconds` dikirim supaya client bisa menjelaskan *kenapa* sebuah device dianggap offline, tanpa menduplikasi aturannya.
+- `device_uid`, `model`, `os_version` berasal dari `POST /devices/register`.
+
+Endpoint ini **read-only** untuk operator. Pendaftaran, pemetaan ulang, dan pencabutan token device adalah wewenang Admin (PRD §19) dan masuk Tahap 3B.
 
 ---
 

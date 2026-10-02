@@ -15,7 +15,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Milestone terdekat** | **Sabtu 3 Okt: SESI 1 recon lokasi (0 kode)** — `TEST-PLAN-SABTU.md` |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
-| **operator-app** | Dashboard + Session Detail + F&B Queue + **Shift** jalan di fake repository; **78 test lulus**; design pass 1 selesai |
+| **operator-app** | Dashboard + Session Detail + F&B Queue + Shift + **Status TV** jalan di fake repository; **89 test lulus**; design pass 1 selesai |
 | **backend / tv-agent** | masih kosong (baru README) |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
@@ -69,13 +69,13 @@ Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat 
 - [x] Payment (cash + QRIS manual)
 - [x] Extend + Station Swap + Tambah F&B
 - [x] Checkout + struk (durasi aktual vs tertagih)
-- [x] 78 test lulus (billing + layout + antrian F&B + shift)
+- [x] 89 test lulus (billing + layout + antrian F&B + shift + device)
 - [x] Design pass 1: rail status, bar proporsi waktu, brand mark, permukaan bertingkat
 - [ ] Login / auth
 - [ ] Reverb client + auto-reconnect + reconcile
 - [x] F&B Queue (layar antrian + badge di dashboard)
 - [x] Shift start/close/handover + pertanggungjawaban kas
-- [ ] Device status (layar terpisah)
+- [x] Device status (layar Status TV, read-only)
 - [ ] **Ganti fake repository → `ApiBillingRepository`** (DEC-012 syarat 2)
 - [ ] Bundel font Fira Sans/Code
 
@@ -465,3 +465,45 @@ Ringkasan shift memisahkan **uang masuk** (`cash`/`qris`/`total`, dari log pemba
 1. Device status
 2. Pilih member di Start Session
 3. Login (butuh backend) lalu Laravel thin slice
+
+---
+
+### 2026-10-02 — Status TV (Device)
+
+**Files changed**
+- Baru: `lib/ui/device/device_screen.dart`, `test/device_test.dart`
+- Diubah: `lib/domain/models/models.dart` (model `Device`, `DeviceList`), `lib/domain/repositories/billing_repository.dart` (`fetchDevices`), `lib/data/fake/fake_billing_repository.dart`, `lib/ui/dashboard/dashboard_screen.dart`
+- Dokumen: `contracts/API.md` §9, `contracts/CHANGELOG.md` (DRAFT 3)
+
+**API/Events** — satu penambahan kontrak:
+Bentuk response `GET /devices` didefinisikan. Sebelumnya hanya disebut "daftar device + status, last_seen_at, app_version" tanpa skema. Ditambah `meta.offline_threshold_seconds` dan `station` yang nullable. Tercatat di `contracts/CHANGELOG.md` DRAFT 3 berikut aksi untuk backend.
+
+**Tests** — `flutter test`: **89 lulus** (naik dari 78). `flutter analyze`: bersih.
+11 test baru: urutan offline di atas, penentuan status dari `last_seen`, perubahan status saat waktu berjalan, dan rekonsiliasi angka badge vs layar.
+
+**Yang dibangun**
+Layar **read-only**. Operator di sini hanya menjawab satu pertanyaan: TV mana yang tidak mengirim kabar, dan sejak kapan. Pendaftaran, pemetaan ulang, dan pencabutan token device adalah wewenang Admin (PRD §19) → Tahap 3B.
+
+- Ringkasan Online / Offline / Tanpa station, berikut keterangan ambang offline-nya
+- Kartu per device: station, status, terakhir terlihat, model + versi OS, versi aplikasi
+- Device offline **diurutkan di atas** — itu yang menuntut perhatian
+- Badge jumlah offline di bar aksi dashboard
+- Peringatan jujur di layar bahwa **belum ada TV yang benar-benar mengirim kabar** karena aplikasi TV belum dibuat. Tanpa catatan ini operator bisa menyimpulkan TV benar-benar mati
+
+**Keputusan desain**
+- `status` diambil **apa adanya dari server**, tidak dihitung client dari `last_seen_at`. Ini berbeda dari status sesi — yang memang diturunkan client dari `end_at` — karena ambang offline adalah **kebijakan operasional**, bukan hitungan waktu yang pasti. Ambangnya tetap dikirim (`meta.offline_threshold_seconds`) supaya client bisa *menjelaskan* alasannya tanpa menduplikasi aturannya.
+- `station` dibuat **nullable**: PRD §10 memperbolehkan perubahan pemetaan, dan device yang pemetaannya dicabut harus tetap terlihat — bukan hilang dari daftar.
+
+**Satu ketidakkonsistenan yang ditemukan dan diperbaiki**
+Awalnya `offlineCount` menghitung **semua** device offline termasuk cadangan yang tidak dipetakan ke station. Hasilnya badge di dashboard menunjukkan "1" sementara layar Device menunjukkan "Offline 2". Operator yang melihat dua angka berbeda untuk hal yang sama akan berhenti mempercayai keduanya.
+
+Diperbaiki: `onlineCount`/`offlineCount` hanya menghitung device yang dipetakan ke station, dan cadangan dihitung terpisah sebagai "Tanpa station". Ada test yang mengunci kesamaan angka badge dan layar.
+
+**Known issues**
+- Semua data device masih dari seed. Angka nyata baru ada setelah Tahap 2.
+- Belum diverifikasi secara visual.
+
+**Next step**
+1. Pilih member di Start Session (satu-satunya item PRD §18 yang masih kurang)
+2. Login (butuh backend)
+3. Laravel thin slice, lalu ganti fake → API

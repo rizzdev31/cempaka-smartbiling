@@ -62,6 +62,26 @@ Kontrak awal. Belum ada implementasi, jadi belum ada breaking change.
 
 ---
 
+## v1 · DRAFT 3 — 2026-10-02
+
+**ADDED — API** · terdampak: Flutter (sudah menyesuaikan), Backend (belum ada)
+
+- `GET /devices` → bentuk response didefinisikan. Sebelumnya hanya disebut "daftar device + status, last_seen_at, app_version" tanpa skema.
+- Field per device: `id`, `device_uid`, `station` (nullable), `status`, `last_seen_at`, `app_version`, `model`, `os_version`, `registered_at`
+- `meta.offline_threshold_seconds`
+
+**Alasan:** layar Device di operator app perlu menampilkan *sejak kapan* sebuah TV offline dan *kenapa* dianggap offline. Tanpa ambang batasnya dikirim, client harus menebak atau menduplikasi aturan server.
+
+**`station` nullable** karena PRD §10 memperbolehkan perubahan pemetaan station↔device. Device yang pemetaannya dicabut harus tetap terlihat, bukan hilang dari daftar.
+
+**Keputusan:** `status` ditentukan **server**, bukan dihitung client dari `last_seen_at`. Berbeda dari status sesi (yang memang diturunkan client dari `end_at`) karena ambang offline adalah kebijakan operasional, bukan hitungan waktu yang pasti.
+
+**Non-breaking:** endpoint baru dari sisi implementasi; belum ada client yang memakainya sebelum ini.
+
+**Aksi untuk backend:** implementasikan `GET /devices` sesuai §9. `status` dihitung dari `last_seen_at` terhadap ambang yang sama yang dikirim di `meta`.
+
+---
+
 ## Template entry berikutnya
 
 ```

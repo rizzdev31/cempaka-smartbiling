@@ -8,6 +8,7 @@ import '../../core/theme/tokens.dart';
 import '../../core/util/format.dart';
 import '../../domain/models/enums.dart';
 import '../../domain/models/models.dart';
+import '../device/device_screen.dart';
 import '../fnb/fnb_queue_screen.dart';
 import '../session/session_detail_screen.dart';
 import '../shift/shift_screen.dart';
@@ -255,6 +256,15 @@ class _ActionBar extends StatelessWidget {
             label: 'Shift',
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ShiftScreen()),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          _ActionTile(
+            icon: Icons.tv_outlined,
+            label: 'Status TV',
+            badge: ctrl.offlineDeviceCount,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const DeviceScreen()),
             ),
           ),
         ],

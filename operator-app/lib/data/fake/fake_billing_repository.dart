@@ -1196,6 +1196,75 @@ class FakeBillingRepository implements BillingRepository {
         return all.where((o) => statuses.contains(o.status)).toList();
       });
 
+  // ── Device ────────────────────────────────────────────────────────
+
+  static const offlineThreshold = Duration(minutes: 2);
+
+  @override
+  Future<DeviceList> fetchDevices() => _call(() {
+        final now = ServerTime.instance.now;
+
+        final devices = <Device>[];
+        for (final st in _stations) {
+          final d = st.device;
+          if (d == null) continue;
+
+          // Status ditentukan "server": dihitung dari last_seen terhadap
+          // ambang, bukan diambil dari nilai yang disimpan. Ini mencerminkan
+          // perilaku Laravel nanti.
+          final stale = d.lastSeenAt == null ||
+              now.difference(d.lastSeenAt!) > offlineThreshold;
+
+          devices.add(Device(
+            id: d.id,
+            deviceUid: 'uid-${st.code.toLowerCase()}',
+            station: StationRef(id: st.id, code: st.code, name: st.name),
+            status: stale ? DeviceStatus.offline : DeviceStatus.online,
+            lastSeenAt: d.lastSeenAt,
+            appVersion: d.appVersion,
+            model: _seedModelFor(st.code),
+            osVersion: 'Android 11',
+            registeredAt: now.subtract(const Duration(days: 4)),
+          ));
+        }
+
+        // Satu device sengaja tidak dipetakan ke station mana pun, untuk
+        // menguji bahwa device seperti ini tetap terlihat (PRD §10).
+        devices.add(Device(
+          id: 'dev-spare',
+          deviceUid: 'uid-spare',
+          station: null,
+          status: DeviceStatus.offline,
+          lastSeenAt: now.subtract(const Duration(days: 2)),
+          appVersion: '0.0.9',
+          model: 'Realme TV Stick',
+          osVersion: 'Android 9',
+          registeredAt: now.subtract(const Duration(days: 20)),
+        ));
+
+        // Offline lebih dulu — itu yang menuntut perhatian.
+        devices.sort((a, b) {
+          if (a.isOnline != b.isOnline) return a.isOnline ? 1 : -1;
+          final ac = a.station?.code ?? 'zzz';
+          final bc = b.station?.code ?? 'zzz';
+          return ac.compareTo(bc);
+        });
+
+        return DeviceList(
+          devices: devices,
+          offlineThreshold: offlineThreshold,
+        );
+      });
+
+  static String _seedModelFor(String stationCode) => switch (stationCode) {
+        'ST01' => 'Xiaomi TV A2 43',
+        'ST02' => 'Xiaomi TV A2 43',
+        'ST03' => 'Samsung AU7000',
+        'ST04' => 'Xiaomi TV A2 43',
+        'ST05' => 'Coocaa 43S3U',
+        _ => 'Xiaomi TV A2 43',
+      };
+
   // ── Shift ─────────────────────────────────────────────────────────
 
   @override

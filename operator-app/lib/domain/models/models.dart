@@ -504,6 +504,101 @@ class CheckoutResult {
   final Receipt receipt;
 }
 
+// ─── Device — kontrak §9 ────────────────────────────────────────────
+
+/// TV Agent terdaftar.
+///
+/// Lebih lengkap daripada [DeviceSummary] yang menempel pada [Station]:
+/// device bisa ada tanpa station (pemetaannya dicabut), dan membawa
+/// identitas perangkat untuk troubleshooting.
+class Device {
+  const Device({
+    required this.id,
+    required this.status,
+    required this.lastSeenAt,
+    this.deviceUid,
+    this.station,
+    this.appVersion,
+    this.model,
+    this.osVersion,
+    this.registeredAt,
+  });
+
+  final String id;
+  final String? deviceUid;
+
+  /// `null` kalau device belum dipetakan ke station atau pemetaannya
+  /// dicabut (PRD §10). Device seperti ini tetap harus terlihat.
+  final StationRef? station;
+
+  /// Ditentukan **server**, bukan dihitung client dari [lastSeenAt].
+  /// Ambang offline adalah kebijakan operasional, bukan hitungan pasti.
+  final DeviceStatus status;
+
+  final DateTime? lastSeenAt;
+  final String? appVersion;
+  final String? model;
+  final String? osVersion;
+  final DateTime? registeredAt;
+
+  bool get isOnline => status == DeviceStatus.online;
+  bool get isMapped => station != null;
+
+  /// Keterangan perangkat untuk ditampilkan. Kosong kalau belum pernah
+  /// mendaftar dengan info lengkap.
+  String get hardwareLabel {
+    final parts = [model, osVersion].whereType<String>().where((s) => s.isNotEmpty);
+    return parts.isEmpty ? 'Perangkat belum teridentifikasi' : parts.join(' · ');
+  }
+
+  factory Device.fromJson(Map<String, dynamic> j) => Device(
+        id: j['id'] as String,
+        deviceUid: j['device_uid'] as String?,
+        station: j['station'] == null
+            ? null
+            : StationRef.fromJson(j['station'] as Map<String, dynamic>),
+        status: DeviceStatus.parse(j['status'] as String?),
+        lastSeenAt: _dt(j['last_seen_at']),
+        appVersion: j['app_version'] as String?,
+        model: j['model'] as String?,
+        osVersion: j['os_version'] as String?,
+        registeredAt: _dt(j['registered_at']),
+      );
+}
+
+/// Hasil `GET /devices` — daftar plus ambang offline dari `meta`.
+class DeviceList {
+  const DeviceList({
+    required this.devices,
+    required this.offlineThreshold,
+  });
+
+  final List<Device> devices;
+
+  /// Dari `meta.offline_threshold_seconds`. Dipakai hanya untuk
+  /// **menjelaskan** ke operator kenapa sebuah device dianggap offline —
+  /// bukan untuk menghitung statusnya sendiri.
+  final Duration offlineThreshold;
+
+  /// Hitungan sengaja dibatasi ke device yang **dipetakan ke station**,
+  /// supaya angkanya cocok dengan badge di dashboard — yang menghitung
+  /// TV per station. Device cadangan tanpa station dihitung terpisah di
+  /// [unmappedCount], bukan dicampur ke [offlineCount].
+  ///
+  /// Kalau dicampur, operator melihat badge "1" lalu membuka layar ini dan
+  /// menemukan "Offline 2" — dan berhenti mempercayai keduanya.
+  int get onlineCount =>
+      devices.where((d) => d.isMapped && d.isOnline).length;
+
+  int get offlineCount =>
+      devices.where((d) => d.isMapped && !d.isOnline).length;
+
+  int get unmappedCount => devices.where((d) => !d.isMapped).length;
+
+  static const empty =
+      DeviceList(devices: [], offlineThreshold: Duration(minutes: 2));
+}
+
 // ─── Shift — kontrak §10 ────────────────────────────────────────────
 
 class ShiftSummary {
