@@ -124,8 +124,6 @@ void main() {
       ('teks di tombol amber',
           AppColors.onTertiary, AppColors.tertiaryContainer),
       ('teks di chip terpilih', AppColors.surfaceLow, AppColors.onSurface),
-      // Monogram tampil di alas merek kalau pelanggan belum punya aset logo.
-      ('monogram di alas merek', AppColors.surfaceLow, AppColors.brandPlate),
     ];
 
     for (final (name, fg, bg) in textPairs) {

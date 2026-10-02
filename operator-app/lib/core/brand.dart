@@ -53,9 +53,12 @@ class Brand {
   /// Penanda sidebar — **emblem saja**, tanpa wordmark.
   ///
   /// Wordmark-nya sengaja dipotong: di sebelahnya sudah ada nama merek
-  /// sebagai teks, dan dua-duanya bersamaan jadi berulang. Aset ini dipangkas
-  /// dari kiriman asli yang 62%-nya ruang kosong — tanpa itu, logo di dalam
-  /// kotak akan tampil jauh lebih kecil dari ukuran kotaknya.
+  /// sebagai teks, dan dua-duanya bersamaan jadi berulang.
+  ///
+  /// Aset ini juga dipangkas dari kiriman asli yang 62%-nya ruang kosong.
+  /// Tanpa pemangkasan itu, logo tampil jauh lebih kecil dari ruang yang
+  /// diberikan padanya.
+  ///
   /// Getter, bukan konstanta: tipenya harus tetap nullable supaya jalur
   /// monogram di `BrandMark` tidak jadi kode mati. Pelanggan berikutnya bisa
   /// saja dipasang sebelum logonya tersedia.
@@ -63,14 +66,4 @@ class Brand {
 
   /// Lockup penuh (emblem + wordmark) untuk splash dan Tentang nanti.
   static const String logoFullAsset = 'assets/images/logo-amor-full.png';
-
-  /// Logo ini perlu alas gelap.
-  ///
-  /// 60% pikselnya nyaris putih dan wordmark-nya 80% — di atas chrome putih
-  /// aplikasi, logo ini praktis hilang. Alas gelaplah yang membuatnya terbaca,
-  /// sekaligus mengembalikannya ke latar yang memang dirancang untuknya.
-  ///
-  /// Dibuat flag, bukan dipaksakan: logo pelanggan lain bisa saja sudah gelap
-  /// dan justru rusak kalau diberi alas (OD-012).
-  static const bool logoNeedsDarkPlate = true;
 }

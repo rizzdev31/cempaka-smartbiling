@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:operator_app/core/brand.dart';
 import 'package:operator_app/core/theme/app_theme.dart';
-import 'package:operator_app/core/theme/tokens.dart';
 import 'package:operator_app/ui/widgets/brand_mark.dart';
 
 Widget _wrap(Widget child) => MaterialApp(
@@ -35,23 +34,36 @@ void main() {
       expect(find.text(Brand.markSubtitle.toUpperCase()), findsOneWidget);
     });
 
-    testWidgets('logo tidak tampil kecil', (tester) async {
-      await tester.pumpWidget(_wrap(const BrandMark(size: 46)));
+    testWidgets('logo setinggi yang diminta dan melebar apa adanya',
+        (tester) async {
+      await tester.pumpWidget(_wrap(const BrandMark(size: 44)));
 
-      // Alasnya melebar mengikuti bentuk emblem; dipaksa persegi, logo di
-      // dalamnya menyusut sampai setengahnya.
-      final plate = tester.getSize(
-        find.ancestor(
-          of: find.byType(Image),
-          matching: find.byType(Container),
-        ).first,
-      );
-      expect(plate.height, 46);
-      expect(plate.width, greaterThan(plate.height));
-
-      // Gambar itu sendiri harus mengisi sebagian besar alasnya.
       final img = tester.getSize(find.byType(Image));
-      expect(img.width, greaterThan(plate.width * 0.6));
+      expect(img.height, 44);
+
+      // Lebarnya mengikuti rasio asli logo, tidak dipaksa ke kotak persegi —
+      // dipaksa persegi, logo di dalamnya menyusut sampai setengahnya.
+      expect(img.width, greaterThan(img.height));
+    });
+
+    testWidgets('logo ditempel apa adanya, tanpa alas atau bingkai',
+        (tester) async {
+      await tester.pumpWidget(_wrap(const BrandMark()));
+
+      // Tidak ada bidang berwarna atau bergaris yang membungkus logo.
+      // Bentuk logonya sendiri yang jadi bentuknya.
+      final wrappers = find.ancestor(
+        of: find.byType(Image),
+        matching: find.byType(DecoratedBox),
+      );
+      for (final box in tester.widgetList<DecoratedBox>(wrappers)) {
+        final d = box.decoration;
+        if (d is BoxDecoration) {
+          expect(d.color, anyOf(isNull, const Color(0x00000000)));
+          expect(d.border, isNull);
+          expect(d.gradient, isNull);
+        }
+      }
     });
 
     testWidgets('tanpa nama, hanya alas logo yang tampil', (tester) async {
@@ -76,10 +88,11 @@ void main() {
       expect('${Brand.markTitle} ${Brand.markSubtitle}', Brand.fullName);
     });
 
-    test('logo yang terang menuntut alas gelap', () {
-      // Logo kiriman 60% nyaris putih; tanpa alas, hilang di chrome putih.
-      expect(Brand.logoNeedsDarkPlate, isTrue);
-      expect(AppColors.brandPlate.computeLuminance(), lessThan(0.05));
+    test('penanda memakai emblem, bukan lockup penuh', () {
+      // Lockup penuh memuat wordmark-nya sendiri; dipakai di sidebar, nama
+      // merek akan tampil dua kali.
+      expect(Brand.logoAsset, isNot(Brand.logoFullAsset));
+      expect(Brand.logoAsset, contains('mark'));
     });
   });
 }

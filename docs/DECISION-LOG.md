@@ -465,25 +465,36 @@ Operator app dipasangi merek pelanggan pertama. Logo dikirim user
 (`logo-amor.png`), nama **Amor Gaming Space**, atribusi naungan di footer
 diubah jadi **"Powered by Cempaka Smart Billing"**.
 
-### Logo kiriman tidak dipakai apa adanya — dua alasan terukur
+### Logo ditempel apa adanya — tanpa alas, tanpa bingkai
 
-**1. Di chrome putih, logo ini praktis hilang.** 60% pikselnya nyaris putih,
-dan wordmark "AMOR"-nya 80%. Logo ini memang dirancang untuk latar gelap.
+**Diputuskan user 3 Okt 2026**, setelah percobaan pertama memakai alas navy.
+Bentuk logonya sendiri yang jadi bentuknya.
 
-Jawabannya **alas gelap** (`AppColors.brandPlate`, navy `#0E1526`), bukan
-mengubah logonya. Navy sangat tua, bukan hitam murni: hitam membuat biru
-logonya terlihat seperti ditempel, navy menyatu.
+Kekhawatiran awal — logo ini 60% nyaris putih sehingga hilang di chrome putih
+— **ternyata tidak berlaku untuk emblemnya.** Angka 60% itu dari lockup
+penuh, yang sebagian besarnya wordmark. Diukur ulang pada emblem saja:
 
-Alas ini **bukan aksen kedua** dan tidak pernah dipakai sebagai warna status
-— ini wadah untuk logo pelanggan. Dibuat bersyarat lewat
-`Brand.logoNeedsDarkPlate`, karena logo pelanggan berikutnya bisa saja sudah
-gelap dan justru rusak kalau diberi alas.
+| | Emblem saja | Lockup penuh |
+|---|---|---|
+| Nyaris putih (>220) | 33% | — |
+| Terang (>200) | 44% | 60% |
+| Menengah & gelap | **56%** | 40% |
+| Wordmark saja | — | 80% terang |
 
-**2. 62% berkasnya ruang kosong.** Konten aslinya 2532x1781 di dalam kanvas
-3373x4770, 1,9 MB untuk slot ~46 px. Dipasang apa adanya, logo di dalam
-kotaknya akan tampil jauh lebih kecil dari kotak itu sendiri.
+Stik kontrolernya gelap dan sapuan birunya pekat, dan keduanya **mengelilingi**
+huruf "A" yang putih. Huruf itu terbentuk oleh tetangganya, bukan oleh
+kontrasnya sendiri terhadap latar. Jadi di atas putih logonya tetap terbaca.
 
-Dua turunan dibuat dan hanya keduanya yang dibundel:
+Pelajarannya: angka yang diukur pada keseluruhan berkas tidak otomatis
+berlaku untuk bagian yang benar-benar dipakai.
+
+Alas dilepas berikut token `brandPlate` dan flag `logoNeedsDarkPlate` —
+keduanya tidak disisakan sebagai abstraksi yang tidak dipakai.
+
+### Berkas dipangkas — 62% isinya ruang kosong
+
+Konten aslinya 2532x1781 di dalam kanvas 3373x4770, 1,9 MB untuk slot ~44 px.
+Dipasang apa adanya, logo tampil jauh lebih kecil dari ruang yang diberikan.
 
 | Berkas | Isi | Ukuran |
 |---|---|---|
@@ -493,6 +504,11 @@ Dua turunan dibuat dan hanya keduanya yang dibundel:
 
 `pubspec.yaml` menyebut berkas satu per satu, bukan seluruh folder, supaya
 sumber 1,9 MB tidak ikut ke dalam APK.
+
+> **Menambah aset baru butuh `flutter run` ulang, bukan hot reload.** Bundel
+> aset dibangun saat build; hot reload dan hot restart tidak membangunnya
+> ulang. Logo yang "tidak muncul" pada percobaan pertama penyebabnya ini —
+> bundel di `build/` masih berisi 11 aset font tanpa satu pun gambar.
 
 ### Wordmark dipotong dari penanda
 
@@ -510,10 +526,11 @@ nama merek bukan keduanya, dan mono membuatnya terbaca seperti kode.
 
 ### Ukuran
 
-Penanda naik dari kotak 34x34 jadi alas **69x46** dengan logo ~54x29 di
-dalamnya. Alasnya melebar mengikuti bentuk emblem: dipaksa persegi, logo di
-dalamnya menyusut sampai setengahnya. Pada rail (72 px) alasnya 38 — lebar
-penuh hanya menyisakan 1,5 px di tiap sisi.
+Logo setinggi **44 px**, lebarnya mengikuti rasio aslinya (~82 px) — tidak
+dipaksa ke kotak persegi, karena dipaksa persegi logo menyusut sampai
+setengahnya. Sebelumnya kotak monogram 34x34.
+
+Pada rail (72 px) tingginya 38 supaya lebarnya tetap muat.
 
 Ikon navigasi 20 -> 22.
 

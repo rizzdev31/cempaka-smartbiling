@@ -6,21 +6,24 @@ import '../../core/theme/tokens.dart';
 
 /// Penanda merek di sidebar: logo pelanggan + namanya.
 ///
+/// Logo ditempel apa adanya — tanpa alas, tanpa bingkai, tanpa kotak warna.
+/// Bentuk logonya sendiri yang jadi bentuknya.
+///
 /// Semua teks dan aset diambil dari [Brand] — tidak ada string merek yang
 /// ditulis di sini. Lihat OD-012: nama dan logo menyesuaikan per pelanggan,
 /// jadi widget ini harus tetap benar tanpa diubah saat mereknya berganti.
 class BrandMark extends StatelessWidget {
-  const BrandMark({super.key, this.showName = true, this.size = 46});
+  const BrandMark({super.key, this.showName = true, this.size = 44});
 
   final bool showName;
 
-  /// Tinggi alas logo. Lebarnya mengikuti, karena emblem merek umumnya
-  /// melebar — dipaksa ke kotak persegi, logo di dalamnya justru mengecil.
+  /// Tinggi logo. Lebarnya mengikuti bentuk aslinya — logo merek jarang
+  /// persegi, dan memaksanya ke kotak membuatnya tampil lebih kecil.
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    final mark = _LogoPlate(size: size);
+    final mark = _Logo(size: size);
 
     if (!showName) return mark;
 
@@ -79,58 +82,47 @@ class BrandMark extends StatelessWidget {
   }
 }
 
-/// Logo di atas alasnya.
+/// Logo apa adanya.
 ///
-/// Alas gelap dipakai kalau [Brand.logoNeedsDarkPlate] — lihat alasannya di
-/// sana. Kalau belum ada aset logo sama sekali, jatuh ke monogram supaya
-/// pemasangan merek baru tidak pernah menampilkan kotak kosong.
-class _LogoPlate extends StatelessWidget {
-  const _LogoPlate({required this.size});
+/// Kalau belum ada aset logo sama sekali, jatuh ke monogram supaya pemasangan
+/// merek baru tidak pernah menampilkan ruang kosong.
+class _Logo extends StatelessWidget {
+  const _Logo({required this.size});
 
   final double size;
 
   @override
   Widget build(BuildContext context) {
     final asset = Brand.logoAsset;
-    final plated = Brand.logoNeedsDarkPlate;
 
-    // Emblem merek melebar, jadi alasnya ikut melebar. Monogram tidak —
-    // satu huruf di alas selebar ini akan terlihat hilang di tengah.
-    final width = asset == null ? size : size * 1.5;
-
-    return Container(
-      width: width,
-      height: size,
-      decoration: BoxDecoration(
-        color: plated ? AppColors.brandPlate : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-      ),
-      alignment: Alignment.center,
-      child: asset == null
-          ? Text(
-              Brand.monogram,
-              style: TextStyle(
-                fontFamily: AppTypography.heading,
-                fontSize: size * 0.5,
-                fontWeight: FontWeight.w700,
-                color: plated ? Colors.white : AppColors.primary,
-                height: 1,
-              ),
-            )
-          : Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: size * 0.16,
-                vertical: size * 0.18,
-              ),
-              child: Image.asset(
-                asset,
-                fit: BoxFit.contain,
-                // Logo merek dipakai di ukuran kecil dan dasarnya besar;
-                // tanpa filter yang baik, garis tipisnya pecah.
-                filterQuality: FilterQuality.medium,
-                semanticLabel: Brand.fullName,
-              ),
+    if (asset == null) {
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Center(
+          child: Text(
+            Brand.monogram,
+            style: TextStyle(
+              fontFamily: AppTypography.heading,
+              fontSize: size * 0.72,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+              height: 1,
             ),
+          ),
+        ),
+      );
+    }
+
+    return Image.asset(
+      asset,
+      height: size,
+      // Lebar dibiarkan mengikuti rasio asli logo.
+      fit: BoxFit.contain,
+      // Logo dipakai jauh lebih kecil dari ukuran dasarnya; tanpa filter
+      // yang baik, garis-garis tipisnya pecah.
+      filterQuality: FilterQuality.medium,
+      semanticLabel: Brand.fullName,
     );
   }
 }

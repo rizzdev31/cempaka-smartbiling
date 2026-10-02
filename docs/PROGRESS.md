@@ -15,7 +15,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Milestone terdekat** | **SESI TV** — uji operator mengendalikan TV (bisa kapan saja, tidak perlu di lokasi) · SESI 1 recon lokasi **hari ini** |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
-| **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **201 test lulus** |
+| **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK 4,0 MB |
 | **backend** | masih kosong — **ditahan** (DEC-015) |
 
@@ -1154,26 +1154,40 @@ Test baru: `test/brand_test.dart`. Pratinjau: `docs/brand/preview-navbar.png`.
 **Yang diminta** — logo di navbar, nama Amor Gaming Space, logonya jangan
 kecil, navbar lebih iconic, footer jadi "Powered by Cempaka Smart Billing".
 
-**Logo kiriman tidak dipakai apa adanya**
+**Logo tidak muncul — penyebabnya bukan kode**
 
-Dua hal terukur, bukan selera:
+Percobaan pertama: logo tidak tampil di perangkat. Bundel aset di `build/`
+masih tertanggal 2 Okt 20:44, berisi **11 aset font tanpa satu pun gambar**.
 
-1. **60% pikselnya nyaris putih**, wordmark-nya 80%. Di chrome putih
-   aplikasi, logo ini praktis hilang — memang dirancang untuk latar gelap.
-   Jawabannya alas navy `#0E1526`, bukan mengubah logonya.
-2. **62% berkasnya ruang kosong** (konten 2532x1781 di kanvas 3373x4770,
-   1,9 MB). Dipasang apa adanya, logo di dalam kotaknya tampil jauh lebih
-   kecil dari kotaknya.
+**Menambah aset baru butuh `flutter run` ulang.** Bundel aset dibangun saat
+build; hot reload dan hot restart tidak membangunnya ulang. Layak diingat,
+karena gejalanya terlihat persis seperti path aset yang salah.
 
-Dipangkas jadi `logo-amor-mark.png` (emblem saja, 256x137, **37 KB**) dan
-`logo-amor-full.png` (lockup penuh untuk splash nanti). Kiriman asli tetap
-disimpan sebagai sumber tapi **tidak dibundel** — `pubspec.yaml` menyebut
-berkas satu per satu, bukan seluruh folder.
+**Alas gelap dilepas — dan ukuran ulang menunjukkan memang tidak perlu**
 
-**Hasilnya** — penanda naik dari kotak 34x34 jadi alas **69x46** dengan logo
-~54x29 di dalamnya; alasnya melebar mengikuti bentuk emblem, karena dipaksa
-persegi logonya menyusut sampai setengahnya. Nama dua baris ("Amor" besar +
-"GAMING SPACE" berjarak huruf) meniru kunci logo aslinya. Ikon nav 20 -> 22.
+Percobaan pertama memberi logo alas navy, dengan alasan 60% pikselnya nyaris
+putih sehingga hilang di chrome putih. User minta alasnya dilepas.
+
+Diukur ulang, **angka 60% itu dari lockup penuh**, yang sebagian besarnya
+wordmark (80% terang). Emblem yang benar-benar dipakai: 33% nyaris putih,
+**56% menengah dan gelap**. Stik kontrolernya gelap dan sapuan birunya pekat,
+dan keduanya mengelilingi huruf "A" yang putih — huruf itu terbentuk oleh
+tetangganya, bukan oleh kontrasnya sendiri. Di atas putih tetap terbaca.
+
+Pelajarannya: angka yang diukur pada keseluruhan berkas tidak otomatis
+berlaku untuk bagian yang benar-benar dipakai. Token `brandPlate` dan flag
+`logoNeedsDarkPlate` ikut dihapus, tidak disisakan sebagai abstraksi mati.
+
+**Berkas tetap dipangkas** — 62% kiriman aslinya ruang kosong (konten
+2532x1781 di kanvas 3373x4770, 1,9 MB untuk slot 44 px). Jadi
+`logo-amor-mark.png` (emblem, 256x137, **37 KB**) dan `logo-amor-full.png`
+(lockup penuh untuk splash nanti). Kiriman asli disimpan sebagai sumber tapi
+**tidak dibundel** — `pubspec.yaml` menyebut berkas satu per satu.
+
+**Hasilnya** — logo setinggi **44 px**, lebar mengikuti rasio aslinya (~82 px),
+ditempel tanpa alas maupun bingkai. Sebelumnya kotak monogram 34x34. Nama dua
+baris ("Amor" besar + "GAMING SPACE" berjarak huruf) meniru kunci logo
+aslinya. Ikon nav 20 -> 22.
 
 Baris kedua memakai Space Grotesk, **bukan** `labelSm` — `labelSm` memakai
 JetBrains Mono, font untuk angka dan label teknis; nama merek bukan keduanya.
@@ -1186,18 +1200,20 @@ Ditemukan dan dipusatkan ke `Brand` saat mengerjakan ini: judul `MaterialApp`
 (`'Cempaka Billing'` hardcoded), nama aplikasi TV di layar pairing,
 `android:label` yang masih `"operator_app"`, serta judul web.
 
-**Tests** — +7 (`brand_test.dart`), total **201 lulus**. `analyze` bersih.
-Kontras jadi 32 pasangan (alas merek ikut diuji, untuk jalur monogram).
+**Tests** — +8 (`brand_test.dart`), total **202 lulus**. `analyze` bersih.
 
-Test mengunci: aset dipakai (bukan monogram), nama dua baris, alas lebih lebar
-daripada tinggi, gambar mengisi >60% lebar alas, dan atribusi naungan tetap
-berbentuk "Powered by ...".
+Test mengunci: aset dipakai (bukan monogram), nama dua baris, logo setinggi
+yang diminta dan melebar apa adanya, **tidak ada alas/bingkai/gradasi yang
+membungkus logo**, penanda memakai emblem (bukan lockup penuh), dan atribusi
+naungan tetap berbentuk "Powered by ...".
 
-**Manual test** — `flutter run`, lihat sidebar: logo di alas gelap, "Amor" +
-"GAMING SPACE", footer "Powered by Cempaka Smart Billing".
+**Manual test** — **stop dulu**, lalu `flutter run` (bukan hot reload — lihat
+di atas). Sidebar: logo tanpa alas, "Amor" + "GAMING SPACE", footer
+"Powered by Cempaka Smart Billing".
 
 **Known issues**
-- **Belum dilihat di perangkat.** Pratinjau dirender lewat test.
+- **Versi tanpa alas belum dilihat di perangkat.** Pratinjau dirender lewat
+  test (`docs/brand/preview-navbar.png`).
 - Yang masih bernama Cempaka: **APK TV**, `applicationId` Android, nama repo.
 - Biru logo `#0080F0` vs aksen aplikasi teal `#0E7490` — sedikit berbeda.
   Sengaja tidak diubah: mengganti aksen berarti mengulang seluruh verifikasi

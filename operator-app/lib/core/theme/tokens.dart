@@ -135,14 +135,6 @@ class AppColors {
   /// Checkout. Satu-satunya pemakaian ungu di seluruh aplikasi.
   static const statusCheckout = Color(0xFF7E22CE);
 
-  /// Alas penanda merek — satu-satunya bidang gelap di aplikasi terang ini.
-  ///
-  /// Bukan aksen kedua dan tidak pernah dipakai sebagai warna status: ini
-  /// wadah untuk logo pelanggan, yang biasanya dirancang untuk latar gelap.
-  /// Navy sangat tua, bukan hitam murni — hitam murni membuat logo biru
-  /// terlihat seperti ditempel, navy menyatu dengannya.
-  static const brandPlate = Color(0xFF0E1526);
-
   /// Offline, maintenance, order dibatalkan.
   ///
   /// Slate-600, bukan slate-500. Order yang dibatalkan dirender di atas
