@@ -33,7 +33,14 @@ class ConnectionStatus extends ChangeNotifier {
 /// Operator HARUS tahu kalau data yang dilihatnya mungkin sudah basi.
 /// Tanpa indikator, operator akan menagih berdasarkan angka lama.
 class ConnectionBanner extends StatelessWidget {
-  const ConnectionBanner({super.key});
+  const ConnectionBanner({super.key, this.compact = false});
+
+  /// Pada header sempit, hanya ikon yang tampil.
+  ///
+  /// Indikatornya **tidak boleh** hilang — REALTIME.md §8 mewajibkannya,
+  /// karena operator harus tahu kalau angka di layar mungkin sudah basi.
+  /// Yang dilepas hanya labelnya; warna, ikon, tooltip, dan Semantics tetap.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -65,16 +72,28 @@ class ConnectionBanner extends StatelessWidget {
         return Semantics(
           label: 'Koneksi server: $label',
           excludeSemantics: true,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: AppSpacing.sm - 2),
-              Text(
-                label,
-                style: AppTypography.bodySm.copyWith(color: color),
-              ),
-            ],
+          child: Tooltip(
+            // Saat labelnya dilepas, tooltip yang menggantikannya.
+            message: compact ? label : '',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 16, color: color),
+                if (!compact) ...[
+                  const SizedBox(width: AppSpacing.sm - 2),
+                  // Flexible menjaga kasus sisa: penskalaan teks sistem
+                  // sampai 1,3x bisa melebihi ruang walau header tidak sempit.
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.bodySm.copyWith(color: color),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         );
       },

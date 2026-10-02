@@ -58,25 +58,41 @@ class BrandMark extends StatelessWidget {
       children: [
         mark,
         const SizedBox(width: AppSpacing.sm + 2),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              Brand.appName,
-              style: AppTypography.headlineSm.copyWith(
-                color: AppColors.onSurface,
-                height: 1.1,
+        // Teks merek HARUS boleh menyusut.
+        //
+        // Tanpa Flexible, Column ini meminta lebar alaminya dan overflow
+        // begitu nama atau tagline-nya sedikit lebih panjang dari ruang
+        // sidebar — yang persis terjadi pada tagline bawaan.
+        //
+        // Ini bukan sekadar perbaikan satu kasus: OD-012 memastikan nama
+        // merek akan berganti per pelanggan, dan panjangnya tidak bisa
+        // ditebak dari sini. Dipotong ellipsis jauh lebih baik daripada
+        // header yang rusak.
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                Brand.appName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.headlineSm.copyWith(
+                  color: AppColors.onSurface,
+                  height: 1.1,
+                ),
               ),
-            ),
-            Text(
-              Brand.tagline,
-              style: AppTypography.labelSm.copyWith(
-                color: AppColors.outline,
-                height: 1.3,
+              Text(
+                Brand.tagline,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.labelSm.copyWith(
+                  color: AppColors.outline,
+                  height: 1.3,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );

@@ -205,6 +205,14 @@ class AppSize {
   static const sidebarRailWidth = 72.0;
   static const sidebarExpandBreakpoint = 1040.0;
 
+  /// Di bawah lebar ini, penanda di header (status koneksi, DATA CONTOH)
+  /// tampil sebagai ikon saja.
+  ///
+  /// Keduanya tetap ada — hanya labelnya yang dilepas. Yang dihindari di sini
+  /// bukan hanya overflow, tapi juga memaksa judul section menyusut demi
+  /// teks penanda; judul yang terpotong lebih merugikan.
+  static const headerCompactBreakpoint = 620.0;
+
   /// Penanda nav aktif di tepi kiri. Menggantikan glow dari tema gelap:
   /// pada latar terang, glow terbaca sebagai hiasan, bukan sebagai keadaan.
   static const navIndicator = 3.0;
@@ -212,8 +220,26 @@ class AppSize {
   static const progressBar = 5.0;
   static const statusRail = 3.0;
 
+  /// Tinggi minimum kartu station pada skala teks normal.
   static const stationCardMinHeight = 264.0;
   static const stationCardMinWidth = 300.0;
+
+  /// Tinggi minimum kartu yang mengikuti skala teks sistem.
+  ///
+  /// Kartu memuat baris padat — countdown, jam mulai/selesai, nama customer,
+  /// empat tombol aksi — dan semuanya tumbuh bersama skala teks. Menahan
+  /// tingginya tetap 264 membuat isinya overflow pada 1,3x (UI-UX-SPEC §10
+  /// mewajibkan tahan sampai situ).
+  ///
+  /// Jadi kartunya yang tumbuh dan grid-nya yang di-scroll — pilihan yang
+  /// sama dengan yang sudah dipakai saat layarnya pendek. "Enam station tanpa
+  /// scroll" berlaku pada skala teks normal; operator yang memperbesar teks
+  /// memilih keterbacaan di atas kepadatan, dan itu pilihan yang sah.
+  ///
+  /// Dibatasi 1,4x: di atas itu kartunya jadi terlalu tinggi untuk berguna,
+  /// dan teksnya tetap membesar — hanya tingginya yang berhenti mengikuti.
+  static double stationCardMinHeightFor(double textScale) =>
+      stationCardMinHeight * textScale.clamp(1.0, 1.4);
 }
 
 /// Shadow — dipakai sangat hemat.

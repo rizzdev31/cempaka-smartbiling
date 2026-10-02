@@ -15,7 +15,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Milestone terdekat** | **SESI TV** — uji operator mengendalikan TV (bisa kapan saja, tidak perlu di lokasi) · SESI 1 recon lokasi **hari ini** |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
-| **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); **186 test lulus** |
+| **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); **194 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK 4,0 MB |
 | **backend** | masih kosong — **ditahan** (DEC-015) |
 
@@ -1043,6 +1043,98 @@ Langkah lihat sendiri:
 
 **Next step**
 Tidak berubah: **jalankan SESI TV**. Tema tidak menyentuh jalur operator↔TV.
+
+---
+
+### 2026-10-03 — Lima overflow layout diperbaiki + penjaganya dipasang
+
+**Files changed**
+
+`lib/ui/widgets/brand_mark.dart`, `lib/ui/widgets/connection_banner.dart`,
+`lib/ui/shell/app_shell.dart`, `lib/ui/dashboard/dashboard_screen.dart`,
+`lib/core/theme/tokens.dart`, `lib/app.dart`.
+Baru: `test/shell_overflow_test.dart`.
+
+**DB changes** — tidak ada.
+**API/Events** — tidak ada.
+
+**Pemicu**
+
+User menjalankan aplikasinya dan konsol mencetak **empat** `RenderFlex
+overflowed` (5 px, 201 px, 22 px, 13 px). Ini terjadi sementara **186 test
+lolos** — fakta yang paling penting dari sesi ini.
+
+Penyebabnya: tidak ada satu pun test yang pernah memompa shell utuh.
+`station_card_layout_test` menguji kartu secara **terpisah** pada ukuran yang
+dijamin grid, jadi semua yang di luar kartu tidak pernah diuji — dan keempat
+overflow itu semuanya di luar kartu.
+
+**Yang diperbaiki**
+
+| Lokasi | Sebab | Perbaikan |
+|---|---|---|
+| `brand_mark.dart:56` | Column nama+tagline minta lebar alaminya di dalam `Row` min | `Flexible` + ellipsis. Juga titik rawan OD-012: nama pelanggan tidak bisa ditebak panjangnya |
+| `app_shell.dart` blok operator | teks shift di samping titik status berukuran tetap | `Expanded` + ellipsis |
+| `app_shell.dart` header | chip DATA CONTOH + indikator koneksi berukuran tetap | Di bawah `headerCompactBreakpoint` (620) keduanya jadi **ikon saja**; tooltip & Semantics tetap membawa keterangan |
+| `dashboard_screen.dart` strip shift | angka F&B + kas di kanan | Di bawah 520 px angkanya dilepas, **bukan** dipotong ellipsis |
+
+Judul section juga diberi `maxLines: 1` — tanpa itu ia membungkus ke baris
+kedua dan menabrak tinggi header yang tetap 60, bukan dipotong.
+
+**Kenapa header memakai ikon-saja, bukan `Flexible`:** `Flexible` pada
+cluster kanan akan ikut membagi ruang saat layar lebar, jadi judul section
+terpotong padahal ruangnya masih ada. Melepas label jauh lebih jujur.
+
+**Kenapa uang tidak di-ellipsis:** "Tunai Rp 1.2…" lebih berbahaya daripada
+tidak ada angka, karena masih terbaca sebagai nominal. Keduanya ada di tempat
+lain — antrian F&B punya badge di nav, kas ada di layar Shift.
+
+**Temuan kelima, yang tidak terlihat di perangkat**
+
+Test baru pada skala teks **1,3×** menemukan overflow **vertikal** 18 px di
+`station_card.dart` `_ActiveBody`. Tidak muncul di perangkat user karena
+skala teksnya normal, tapi laten.
+
+Diperbaiki pada akarnya: tinggi minimum kartu sekarang **ikut skala teks**
+(`AppSize.stationCardMinHeightFor`, dibatasi 1,4×). Kalau ruangnya kurang,
+grid yang di-scroll — pilihan yang sama dengan yang sudah dipakai saat layar
+pendek. "Enam station tanpa scroll" berlaku pada skala teks normal; operator
+yang memperbesar teks memilih keterbacaan di atas kepadatan.
+
+`UI-UX-SPEC` §10 sebelumnya mengklaim text scaling "ada test-nya" — itu
+**tidak benar**. Sekarang benar, dan reduced motion ditandai jujur sebagai
+belum ada test-nya.
+
+**Tests** — +8 (`shell_overflow_test.dart`), total **194 lulus**.
+`flutter analyze` bersih.
+
+Diuji pada 7 lebar, termasuk **tepat di kedua sisi** kedua breakpoint
+(1040 dan 620), plus satu skenario skala teks 1,3×. Tiap skenario mengunjungi
+kelima section, karena masing-masing membawa layarnya sendiri.
+
+**Dua catatan soal test ini**
+
+1. Awalnya suite butuh **4 menit** untuk keluar. Penyebabnya `OperatorApp`
+   membuat `http.Client` sungguhan; tidak ada permintaan yang keluar di test,
+   tapi klien yang hidup menahan isolate. `OperatorApp` kini menerima
+   `tvClient` opsional — hanya untuk test, `main()` tidak mengisinya.
+   Sekarang 4 detik.
+2. Widget test memakai font uji yang setiap glifnya kotak, jadi teksnya
+   **lebih lebar** daripada di perangkat. Test ini lebih ketat dari
+   kenyataan — bagus sebagai penjaga, tapi jumlah pikselnya tidak bisa
+   dibandingkan dengan konsol perangkat.
+
+**Manual test** — jalankan ulang `flutter run` dan pastikan konsol
+**bersih dari `RenderFlex overflowed`**. Itu verifikasi yang belum bisa saya
+lakukan sendiri.
+
+**Known issues**
+- Dialog, bottom sheet, dan Session Detail belum masuk cakupan test overflow;
+  yang diuji baru shell + kelima section.
+- Reduced motion masih belum ada test-nya.
+
+**Next step**
+Tetap: **jalankan SESI TV**.
 
 ---
 

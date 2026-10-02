@@ -16,11 +16,19 @@ import 'ui/shell/app_shell.dart';
 import 'ui/widgets/connection_banner.dart';
 
 class OperatorApp extends StatelessWidget {
-  const OperatorApp({super.key, required this.tvLinkStore});
+  const OperatorApp({super.key, required this.tvLinkStore, this.tvClient});
 
   /// Dibuka di `main()` sebelum UI dibangun: pasangan station-TV harus sudah
   /// terbaca sebelum dashboard mencoba menyinkronkan apa pun.
   final TvLinkStore tvLinkStore;
+
+  /// Klien TV pengganti — **hanya** untuk test.
+  ///
+  /// Tanpa seam ini, widget test membuat `http.Client` sungguhan. Tidak ada
+  /// permintaan yang benar-benar keluar di test, tapi klien yang hidup menahan
+  /// isolate sehingga suite butuh menit untuk keluar. `main()` tidak
+  /// mengisinya, jadi perilaku produksi tidak berubah.
+  final TvAgentClient? tvClient;
 
   @override
   Widget build(BuildContext context) {
@@ -49,8 +57,9 @@ class OperatorApp extends StatelessWidget {
         // Saat Reverb masuk di Tahap 2, tiga provider ini hilang dan
         // perintah ke TV datang dari Laravel.
         Provider<TvAgentClient>(
-          create: (_) => TvAgentClient(),
-          dispose: (_, c) => c.close(),
+          create: (_) => tvClient ?? TvAgentClient(),
+          // Yang disuntikkan dari luar ditutup oleh pemiliknya, bukan di sini.
+          dispose: (_, c) => tvClient == null ? c.close() : null,
         ),
         Provider<TvLinkStore>.value(value: tvLinkStore),
         Provider<TvDiscovery>(

@@ -267,8 +267,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           // Tinggi kartu dijamin minimum; kalau ruangnya kurang, grid
           // di-scroll alih-alih kartunya dipaksa mengecil sampai rusak.
-          final tileHeight =
-              math.max(available / rows, AppSize.stationCardMinHeight);
+          //
+          // Minimumnya ikut skala teks sistem: isi kartu tumbuh bersama teks,
+          // dan menahan tingginya tetap membuat isinya overflow pada 1,3x.
+          final tileHeight = math.max(
+            available / rows,
+            AppSize.stationCardMinHeightFor(
+              MediaQuery.textScalerOf(context).scale(1),
+            ),
+          );
 
           return GridView.builder(
             padding: const EdgeInsets.all(pad),
@@ -538,44 +545,60 @@ class _ShiftStrip extends StatelessWidget {
         vertical: AppSpacing.sm + 2,
       ),
       decoration: AppDecoration.card(),
-      child: Row(
-        children: [
-          Icon(
-            shift == null ? Icons.badge_outlined : Icons.badge,
-            size: 16,
-            color: shift == null ? AppColors.outline : AppColors.secondary,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Flexible(
-            child: Text(
-              shift == null
-                  ? 'Shift belum dibuka'
-                  : 'Shift ${shift.operator.name} · '
-                      'buka ${formatClock(shift.openedAt)}',
-              style: AppTypography.bodySm
-                  .copyWith(color: AppColors.onSurfaceVariant),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const Spacer(),
-          if (ctrl.fnbActionableCount > 0) ...[
-            const Icon(Icons.receipt_outlined,
-                size: 15, color: AppColors.tertiaryContainer),
-            const SizedBox(width: AppSpacing.xs + 2),
-            Text(
-              '${ctrl.fnbActionableCount} antrian F&B',
-              style: AppTypography.labelSm
-                  .copyWith(color: AppColors.tertiaryContainer),
-            ),
-            const SizedBox(width: AppSpacing.md),
-          ],
-          if (shift != null)
-            Text(
-              'Tunai ${formatRupiah(shift.summary.cash)}',
-              style:
-                  AppTypography.labelSm.copyWith(color: AppColors.outline),
-            ),
-        ],
+      // Angka di kanan dilepas kalau ruangnya tidak cukup, bukan dipaksa muat.
+      //
+      // Uang tidak boleh dipotong ellipsis — "Tunai Rp 1.2…" lebih berbahaya
+      // daripada tidak ada angka sama sekali, karena masih terbaca sebagai
+      // nominal. Keduanya juga ada di tempat lain: antrian F&B punya badge di
+      // nav, dan kas ada di layar Shift.
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final showTrailing = box.maxWidth >= 520;
+
+          return Row(
+            children: [
+              Icon(
+                shift == null ? Icons.badge_outlined : Icons.badge,
+                size: 16,
+                color: shift == null ? AppColors.outline : AppColors.secondary,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  shift == null
+                      ? 'Shift belum dibuka'
+                      : 'Shift ${shift.operator.name} · '
+                          'buka ${formatClock(shift.openedAt)}',
+                  maxLines: 1,
+                  style: AppTypography.bodySm
+                      .copyWith(color: AppColors.onSurfaceVariant),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (showTrailing) ...[
+                if (ctrl.fnbActionableCount > 0) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  const Icon(Icons.receipt_outlined,
+                      size: 15, color: AppColors.tertiaryContainer),
+                  const SizedBox(width: AppSpacing.xs + 2),
+                  Text(
+                    '${ctrl.fnbActionableCount} antrian F&B',
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.tertiaryContainer),
+                  ),
+                ],
+                if (shift != null) ...[
+                  const SizedBox(width: AppSpacing.md),
+                  Text(
+                    'Tunai ${formatRupiah(shift.summary.cash)}',
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.outline),
+                  ),
+                ],
+              ],
+            ],
+          );
+        },
       ),
     );
   }

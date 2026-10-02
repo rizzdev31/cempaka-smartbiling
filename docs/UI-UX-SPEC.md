@@ -99,7 +99,7 @@ Teal adalah garis keturunan cyan dari `contoh.html`, digelapkan agar terbaca di 
 | Sidebar penuh / rail | 268 / 72 |
 | Breakpoint sidebar penuh | ≥ 1040 |
 | Penanda nav aktif | 3 |
-| Kartu station minimum | 300 × 264 |
+| Kartu station minimum | 300 × 264 — tingginya **ikut skala teks** (`AppSize.stationCardMinHeightFor`, dibatasi 1,4×) |
 
 ### Shadow — dipakai sangat hemat
 
@@ -184,7 +184,8 @@ Lisensi OFL ada di `assets/fonts/OFL-*.txt` dan **wajib tetap disertakan**.
 - **Adaptif:** di bawah 1040 px menyusut jadi rail ikon (aturan `adaptive-navigation`). Pada rail, badge jadi titik — angkanya tidak akan terbaca.
 - **Tombol tutup shift dipisah** dari daftar navigasi (aturan `destructive-nav-separation`).
 - **`IndexedStack`**, bukan rebuild per pindah: posisi scroll dan filter tidak hilang (aturan `state-preservation`).
-- Enam station harus terlihat **tanpa scroll**. Kolom ditentukan **lebar yang tersedia**, bukan orientasi perangkat — shell sudah memakan sebagian lebar.
+- Enam station harus terlihat **tanpa scroll** pada skala teks normal. Kolom ditentukan **lebar yang tersedia**, bukan orientasi perangkat — shell sudah memakan sebagian lebar.
+- Kalau ruangnya kurang — layar pendek **atau** teks diperbesar — yang di-scroll adalah grid-nya, bukan kartunya yang dipaksa mengecil sampai isinya overflow.
 
 ---
 
@@ -321,8 +322,9 @@ Layar TV dilihat dari 2–3 meter, dikontrol remote atau tidak sama sekali.
 - [ ] Status disampaikan warna **+ ikon + teks**
 
 ### Layout
-- [ ] Enam station terlihat tanpa scroll di layar lebar
+- [ ] Enam station terlihat tanpa scroll di layar lebar — **pada skala teks normal.** Teks diperbesar → kartu tumbuh dan grid di-scroll; keterbacaan menang atas kepadatan
 - [ ] Kartu tidak overflow pada 300 × 264 — **ada test-nya**
+- [ ] Shell tidak overflow di rentang lebar 411–1280, termasuk tepat di kedua sisi breakpoint 1040 dan 620 — **ada test-nya** (`shell_overflow_test.dart`)
 - [ ] Sidebar menyusut jadi rail di bawah 1040 px
 - [ ] Safe area dihormati (tablet notch, TV overscan 5%)
 - [ ] Ritme spacing konsisten
@@ -338,7 +340,8 @@ Layar TV dilihat dari 2–3 meter, dikontrol remote atau tidak sama sekali.
 - [ ] Ikon punya `semanticsLabel`
 - [ ] Field punya label terlihat, bukan placeholder saja
 - [ ] Error muncul **di bawah field** terkait, menyebut penyebab + cara perbaiki
-- [ ] Reduced motion & text scaling (sampai 1.3×) tidak merusak layout — **ada test-nya**
+- [ ] Text scaling sampai 1,3× tidak merusak layout — **ada test-nya** (`shell_overflow_test.dart`)
+- [ ] Reduced motion tidak merusak layout — **belum ada test-nya**
 
 ### Performa
 - [ ] Satu ticker global, bukan satu per kartu

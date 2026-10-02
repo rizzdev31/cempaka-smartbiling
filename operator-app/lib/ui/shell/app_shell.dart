@@ -433,14 +433,21 @@ class _OperatorCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: AppSpacing.xs),
-                    Text(
-                      shift == null
-                          ? 'Shift belum dibuka'
-                          : 'Shift ${formatClock(shift.openedAt)}',
-                      style: AppTypography.labelSm.copyWith(
-                        color: shift == null
-                            ? AppColors.outline
-                            : AppColors.secondary,
+                    // Expanded, bukan Text langsung: titik statusnya berukuran
+                    // tetap, jadi hanya teks ini yang bisa menyerap sisa
+                    // ruang sidebar.
+                    Expanded(
+                      child: Text(
+                        shift == null
+                            ? 'Shift belum dibuka'
+                            : 'Shift ${formatClock(shift.openedAt)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.labelSm.copyWith(
+                          color: shift == null
+                              ? AppColors.outline
+                              : AppColors.secondary,
+                        ),
                       ),
                     ),
                   ],
@@ -464,7 +471,9 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ctrl = context.watch<DashboardController>();
-    final wide = MediaQuery.sizeOf(context).width >= 860;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final wide = screenWidth >= 860;
+    final compact = screenWidth < AppSize.headerCompactBreakpoint;
 
     return Container(
       height: AppSize.headerHeight,
@@ -478,6 +487,9 @@ class _Header extends StatelessWidget {
           Expanded(
             child: Text(
               section.label,
+              // maxLines eksplisit: tanpa ini teks membungkus ke baris kedua
+              // dan menabrak tinggi header yang tetap 60, bukan dipotong.
+              maxLines: 1,
               style: AppTypography.headlineSm
                   .copyWith(color: AppColors.onSurface),
               overflow: TextOverflow.ellipsis,
@@ -493,10 +505,10 @@ class _Header extends StatelessWidget {
           ],
 
           if (ctrl.isSampleData) ...[
-            const _SampleDataChip(),
+            _SampleDataChip(compact: compact),
             const SizedBox(width: AppSpacing.sm),
           ],
-          const ConnectionBanner(),
+          ConnectionBanner(compact: compact),
           const SizedBox(width: AppSpacing.sm),
           IconButton(
             onPressed: ctrl.loading ? null : () => ctrl.refresh(),
@@ -524,7 +536,12 @@ class _Header extends StatelessWidget {
 ///
 /// Hilang sendiri begitu `ApiBillingRepository` masuk (DEC-012 syarat 2).
 class _SampleDataChip extends StatelessWidget {
-  const _SampleDataChip();
+  const _SampleDataChip({this.compact = false});
+
+  /// Pada header sempit, labelnya dilepas dan hanya ikon yang tampil.
+  /// Penandanya **tidak** pernah hilang sepenuhnya — tooltip dan Semantics
+  /// tetap membawa keterangan utuh.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -532,8 +549,8 @@ class _SampleDataChip extends StatelessWidget {
       message: 'Sesi, customer, dan nominal di layar ini adalah data contoh. '
           'Sambungan ke TV nyata.',
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.sm,
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? AppSpacing.xs + 1 : AppSpacing.sm,
           vertical: AppSpacing.xs,
         ),
         decoration: BoxDecoration(
@@ -543,18 +560,29 @@ class _SampleDataChip extends StatelessWidget {
             color: AppColors.tertiaryContainer.withValues(alpha: 0.4),
           ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.science_outlined,
-                size: 13, color: AppColors.tertiaryContainer),
-            const SizedBox(width: AppSpacing.xs),
-            Text(
-              'DATA CONTOH',
-              style: AppTypography.labelSm
-                  .copyWith(color: AppColors.tertiaryContainer),
-            ),
-          ],
+        child: Semantics(
+          label: 'Data contoh',
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.science_outlined,
+                  size: 13, color: AppColors.tertiaryContainer),
+              if (!compact) ...[
+                const SizedBox(width: AppSpacing.xs),
+                // Flexible menjaga kasus sisa: penskalaan teks sistem sampai
+                // 1,3x bisa melebihi ruang walau header tidak sempit.
+                Flexible(
+                  child: Text(
+                    'DATA CONTOH',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.labelSm
+                        .copyWith(color: AppColors.tertiaryContainer),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
