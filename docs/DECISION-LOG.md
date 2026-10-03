@@ -544,6 +544,18 @@ pelanggan berbagi satu database.
 Yang masih memakai nama naungan dan belum ikut rebrand: **APK TV**
 (`Brand.tvAppName`), `applicationId` Android, dan nama repo.
 
+> **DITUNDA — user, 3 Okt 2026:** "rebrand apk tv jadi Amor Gaming Space juga
+> ini nanti saja." Dikerjakan **setelah SESI TV**, bukan sebelumnya.
+>
+> Alasannya bukan sekadar urutan: mengganti `applicationId` membuat Android
+> memperlakukannya sebagai aplikasi berbeda, sehingga APK yang sudah terpasang
+> di TV harus dicopot dulu dan pairing-nya hilang. Melakukan itu di tengah
+> sesi pengujian hanya menambah variabel.
+>
+> Cakupannya nanti: `app_name` di `strings.xml`, `applicationId`, banner TV
+> (@drawable/tv_banner, kini masih bentuk sederhana), dan `Brand.tvAppName`
+> di operator app supaya layar pairing menyebut nama yang sama.
+
 ### Aksen aplikasi tetap teal
 
 Biru dominan logonya `#0080F0`. Aksen aplikasi tetap teal `#0E7490` (DEC-016)

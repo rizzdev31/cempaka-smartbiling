@@ -178,6 +178,91 @@ Operator app: pasang `app-arm64-v8a-debug.apk` dari
 
 TV dan tablet **wajib di SSID yang sama**, dan AP/client isolation **mati**.
 
+---
+
+## Cara memasang APK ke Android TV
+
+### Kenapa lewat flashdisk sering gagal
+
+APK-nya ada di flashdisk, tapi tidak muncul. Penyebabnya hampir selalu salah
+satu dari ini — dan tidak satu pun ditandai dengan pesan error:
+
+| Sebab | Tandanya |
+|---|---|
+| Android TV **tidak punya file manager bawaan** yang bisa memasang APK | Berkasnya tidak muncul di mana pun |
+| File manager bawaan menyaring tipe berkas | Folder terbuka, isinya "kosong" padahal ada APK |
+| "Install unknown apps" belum diberikan **ke aplikasi yang membuka berkas itu** | APK terlihat, ditekan, tidak terjadi apa-apa |
+| Flashdisk ber-format exFAT/NTFS | Flashdisk tidak terbaca sama sekali → pakai **FAT32** |
+
+Izin "unknown sources" di Android TV diberikan **per aplikasi**, bukan sekali
+untuk seluruh sistem. Memberikannya ke peramban tidak membuat file manager
+ikut boleh memasang.
+
+### Cara A — ADB lewat jaringan (dianjurkan)
+
+Tidak perlu flashdisk, dan ini jalur yang sama dipakai untuk memasang ulang
+tiap kali APK diperbarui. Ini juga yang menjawab **V5**.
+
+**Di TV:**
+1. `Settings → Device Preferences → About`
+2. Tekan **Build** 7 kali sampai muncul "You are now a developer"
+3. `Settings → Device Preferences → Developer options`
+4. Nyalakan **USB debugging** dan **Network debugging** (namanya bisa
+   "Wireless debugging" atau "ADB debugging" tergantung merek)
+5. Catat IP TV: `Settings → Network & Internet → (jaringan aktif)`
+
+**Di laptop:**
+
+```bash
+"/c/Users/Rifqi/AppData/Local/Android/Sdk/platform-tools/adb.exe" connect <IP-TV>:5555
+```
+
+> Di TV akan muncul **"Allow USB debugging?"** — centang "Always allow" lalu
+> OK. Kalau dialog ini tidak disetujui, `adb install` akan gagal dengan
+> `device unauthorized`.
+
+```bash
+"/c/Users/Rifqi/AppData/Local/Android/Sdk/platform-tools/adb.exe" install -r "/c/Users/Rifqi/Documents/Smart Biling/tv-agent/app/build/outputs/apk/debug/app-debug.apk"
+```
+
+Keluarannya harus `Success`. Aplikasinya muncul di laci aplikasi TV dengan
+nama **Cempaka TV**.
+
+**Kalau gagal:**
+
+| Pesan | Artinya |
+|---|---|
+| `failed to connect` | Network debugging mati, IP salah, atau beda subnet |
+| `device unauthorized` | Dialog izin di TV belum disetujui |
+| `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | Versi lama tertanda kunci berbeda → `adb uninstall id.cempaka.tvagent.debug` dulu |
+| `INSTALL_FAILED_INSUFFICIENT_STORAGE` | Penyimpanan TV penuh |
+
+### Cara B — unduh dari laptop lewat peramban TV
+
+Kalau ADB tidak bisa dinyalakan di TV itu. Jalankan di root repo:
+
+```bash
+python -m http.server 8000 --directory "tv-agent/app/build/outputs/apk/debug"
+```
+
+Lalu di TV pasang **Downloader** (AFTVnews) dari Play Store, dan buka:
+
+```
+http://192.168.0.106:8000/app-debug.apk
+```
+
+Downloader akan meminta izin "install unknown apps" untuk dirinya sendiri —
+berikan. IP di atas adalah IP laptop ini; cek ulang kalau jaringannya pindah.
+
+### Cara C — flashdisk, tapi dengan file manager yang benar
+
+Flashdisk **FAT32**, lalu di TV pasang **X-plore File Manager** atau **FX File
+Explorer** dari Play Store. Buka APK-nya dari sana, dan berikan izin "install
+unknown apps" **kepada file manager itu** saat diminta.
+
+> Cara A yang dipakai berulang selama pengembangan: memasang ulang APK yang
+> sudah diperbarui cukup satu perintah, tanpa menyentuh TV.
+
 ## TV-1 Pairing
 
 | ID | Langkah | Lulus jika |
