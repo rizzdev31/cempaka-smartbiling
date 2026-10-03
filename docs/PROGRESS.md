@@ -12,11 +12,11 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Tahap aktif** | **TAHAP 2 — Kotlin TV Agent** (kiosk kontrol-langsung, DEC-015). Tahap 0 ditahan |
 | **Blocker** | **tidak ada** — kontrak sudah fix, billing rule sudah fix |
 | **Blocker Tahap 2** | OD-004 (perilaku warning), OD-005 (fakta TV — dicek di **SESI 1, Sab 3 Okt 2026**) |
-| **Milestone terdekat** | **SESI TV** — uji operator mengendalikan TV (bisa kapan saja, tidak perlu di lokasi) · SESI 1 recon lokasi **hari ini** |
+| **Milestone terdekat** | **SESI TV sedang berjalan.** APK sudah terpasang di TV (`192.168.0.100`); tertahan di jaringan — laptop/tablet harus pindah ke SSID yang sama |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
-| **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK 4,0 MB |
+| **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
 | **backend** | masih kosong — **ditahan** (DEC-015) |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
@@ -1297,6 +1297,78 @@ klien sudah diuji terhadap fake HTTP di `tv_sync_test`.
 
 **Next step**
 **Jalankan SESI TV.** Langkah install sudah ada di `TEST-PLAN-SABTU.md` §V4/V5.
+
+---
+
+### 2026-10-03 — SESI TV dimulai: APK terpasang, tertahan di jaringan
+
+**Files changed** — `tv-agent/scripts/tv.sh` (baru), `docs/TEST-PLAN-SABTU.md`,
+`.gitignore`.
+**DB changes / API** — tidak ada.
+
+**Install ke TV**
+
+Percobaan lewat flashdisk gagal — APK tidak muncul. Penyebabnya dicatat di
+`TEST-PLAN-SABTU`: Android TV tidak punya file manager bawaan yang bisa
+memasang APK, izin "install unknown apps" diberikan **per aplikasi** bukan
+sekali untuk sistem, dan flashdisk exFAT/NTFS sering tidak terbaca.
+
+Jalur yang dipakai: **ADB lewat jaringan**. APK berhasil terpasang di TV.
+
+**`scripts/tv.sh`**
+
+Langkah connect–install–log diulang puluhan kali, dan `adb` tidak ada di PATH
+mesin ini. Skrip menyimpan IP TV sekali lalu memakainya untuk semua perintah:
+`connect`, `install`, `log`, `logclear`, `health`, `restart`, `ip`,
+`uninstall`, `disconnect`.
+
+`health` memakai `curl` **dari laptop**, bukan `adb shell` — yang perlu
+dibuktikan adalah jalur yang sama dengan yang dipakai tablet operator.
+Dipanggil dari dalam TV, jalur itu tidak pernah benar-benar diuji.
+
+**Tertahan: laptop dan TV beda jaringan**
+
+TV tidak ditemukan, baik lewat `ip` maupun `health`. Diperiksa dari laptop:
+
+| | Jaringan |
+|---|---|
+| TV | `192.168.0.100` (router TP-Link) |
+| Laptop | `192.168.110.112`, SSID **PPM ANNUR PUTRA LT 3** |
+
+Ping ke TV **100% hilang**. Beda subnet — paketnya tidak pernah sampai.
+
+**Laptop berpindah sendiri.** Beberapa jam sebelumnya ia berada di
+`192.168.0.106`, jaringan yang benar. WiFi lokal untuk pengujian ini tanpa
+internet, dan Windows menilai jaringan tanpa internet sebagai lebih buruk lalu
+pindah ke yang punya internet — tanpa pemberitahuan, dan bisa di tengah sesi.
+
+**Pencegahannya dipasang, bukan sekadar dicatat.** `tv.sh connect` dan
+`tv.sh health` kini memeriksa sendiri: minta OS memilih alamat lokal untuk
+menuju IP TV, lalu bandingkan subnetnya. Kalau berbeda, peringatan merah
+muncul sebelum perintahnya jalan.
+
+Ini layak dipasang karena **gejala beda subnet sama persis dengan gejala
+aplikasi tidak jalan** — dua-duanya "tidak ada jawaban". Tanpa peringatan itu,
+waktu habis mencari bug di kode yang tidak bermasalah.
+
+**Langkah berikutnya untuk user**
+1. Sambungkan laptop ke SSID yang memberi `192.168.0.x` (kemungkinan
+   **TP-Link_DCC6** — TP-Link memakai `192.168.0.x` sebagai bawaan)
+2. Matikan **"Connect automatically"** pada WiFi yang ada internet
+3. **Tablet operator juga** di SSID yang sama — tiga perangkat, satu jaringan
+4. **Buka aplikasi Cempaka TV di TV** — server baru hidup setelah layar kiosk
+   muncul; terpasang saja tidak menyalakan apa pun
+5. `./scripts/tv.sh health` → kalau menjawab, lanjut ke 28 langkah SESI TV
+
+**Known issues**
+- Sambungan operator↔TV **belum terbukti** — tertahan di jaringan, bukan kode.
+- Lapisan HTTP `LocalHttpCommandSource` masih belum ada test (lihat entri
+  audit sebelumnya).
+- APK masih bernama **Cempaka TV**; rebrand ditunda user sampai SESI TV
+  selesai (DEC-017).
+
+**Next step**
+Pindahkan laptop & tablet ke WiFi TV, lalu `./scripts/tv.sh health`.
 
 ---
 
