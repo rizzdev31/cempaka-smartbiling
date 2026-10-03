@@ -198,6 +198,35 @@ Izin "unknown sources" di Android TV diberikan **per aplikasi**, bukan sekali
 untuk seluruh sistem. Memberikannya ke peramban tidak membuat file manager
 ikut boleh memasang.
 
+### Jalan pintas: `scripts/tv.sh`
+
+Langkah connect–install–log diulang puluhan kali selama pengujian, dan `adb`
+tidak ada di PATH mesin ini. Skrip ini menyimpan IP TV sekali lalu memakainya
+untuk semua perintah berikutnya.
+
+```bash
+cd tv-agent && ./scripts/tv.sh connect 192.168.0.50
+```
+
+| Perintah | Guna |
+|---|---|
+| `./scripts/tv.sh connect <IP>` | sambungkan; IP diingat di `.tv-ip` |
+| `./scripts/tv.sh install` | build APK debug lalu pasang |
+| `./scripts/tv.sh log` | log agen, mengalir |
+| `./scripts/tv.sh logclear` | kosongkan buffer sebelum mengulang percobaan |
+| `./scripts/tv.sh health` | panggil `/health` **dari laptop** |
+| `./scripts/tv.sh restart` | jalankan ulang aplikasi di TV |
+| `./scripts/tv.sh ip` | alamat jaringan TV menurut TV sendiri |
+| `./scripts/tv.sh uninstall` | copot APK (pairing ikut hilang) |
+
+`health` sengaja memakai `curl` dari laptop, **bukan** lewat `adb shell`:
+yang ingin dibuktikan adalah jalur yang sama dengan yang dipakai tablet
+operator, termasuk kalau router memblokirnya. Dipanggil dari dalam TV, jalur
+itu tidak pernah diuji.
+
+Bagian di bawah ini menjelaskan langkah manualnya — berguna kalau skripnya
+gagal dan perlu tahu bagian mana yang bermasalah.
+
 ### Cara A — ADB lewat jaringan (dianjurkan)
 
 Tidak perlu flashdisk, dan ini jalur yang sama dipakai untuk memasang ulang
@@ -236,6 +265,58 @@ nama **Cempaka TV**.
 | `device unauthorized` | Dialog izin di TV belum disetujui |
 | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | Versi lama tertanda kunci berbeda → `adb uninstall id.cempaka.tvagent.debug` dulu |
 | `INSTALL_FAILED_INSUFFICIENT_STORAGE` | Penyimpanan TV penuh |
+
+### TV yang memakai "Wireless debugging" (Android 11+)
+
+Sebagian TV baru tidak lagi membuka port 5555 begitu saja. Tandanya: di
+`Developer options` ada **Wireless debugging** dengan menu **"Pair device with
+pairing code"**, dan `adb connect <IP>:5555` selalu `failed to connect`.
+
+Di situ ada **dua port berbeda**, dan ini sumber kebingungan yang sering:
+port pada layar pairing hanya berlaku sekali untuk memasangkan, sedangkan
+port untuk menyambung ada di layar Wireless debugging utama.
+
+```bash
+"/c/Users/Rifqi/AppData/Local/Android/Sdk/platform-tools/adb.exe" pair <IP>:<PORT-PAIRING>
+```
+
+Masukkan 6 digit yang tampil di TV. Setelah berhasil, baru:
+
+```bash
+"/c/Users/Rifqi/AppData/Local/Android/Sdk/platform-tools/adb.exe" connect <IP>:<PORT-SAMBUNG>
+```
+
+Pairing cukup sekali per laptop; port sambung bisa berubah tiap TV dinyalakan
+ulang.
+
+### Melihat log agen saat testing
+
+Ini bagian yang membedakan "tidak jalan" dari "jalan tapi ditolak".
+
+```bash
+"/c/Users/Rifqi/AppData/Local/Android/Sdk/platform-tools/adb.exe" logcat -v time -s AgentService:V AgentHttp:V AgentBoot:V AgentDeviceAdmin:V AndroidRuntime:E
+```
+
+Penyaringan `-s` wajib: logcat Android TV sangat ramai, dan tanpa itu baris
+yang dicari tenggelam dalam hitungan detik.
+
+| Tag | Isi |
+|---|---|
+| `AgentService` | foreground service hidup/mati, sumber perintah aktif |
+| `AgentHttp` | server kontrol jalan di port berapa, request yang gagal |
+| `AgentBoot` | auto-start setelah TV dinyalakan |
+| `AgentDeviceAdmin` | Device Owner / Lock Task |
+| `AndroidRuntime:E` | crash — kalau ini muncul, itu yang dibaca duluan |
+
+Yang harus terlihat saat aplikasi dibuka pertama kali:
+
+```
+I/AgentHttp: Server kontrol jalan di port 8787
+I/AgentService: Sumber perintah aktif: HTTP lokal :8787
+```
+
+Kalau dua baris itu **tidak** muncul, server tidak hidup dan operator tidak
+akan pernah menemukan TV — tidak perlu lanjut men-debug sisi tablet.
 
 ### Cara B — unduh dari laptop lewat peramban TV
 

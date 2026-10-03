@@ -59,6 +59,10 @@ tv-agent/captures/
 tv-agent/app/release/
 tv-agent/app/debug/
 
+# IP TV yang diingat scripts/tv.sh. Alamat jaringan lokal milik satu mesin,
+# bukan konfigurasi proyek.
+tv-agent/.tv-ip
+
 # ─── IDE & editor ────────────────────────────────────────────
 .idea/
 *.iml
