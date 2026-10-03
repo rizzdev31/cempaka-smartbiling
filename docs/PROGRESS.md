@@ -1224,6 +1224,82 @@ Tetap: **jalankan SESI TV**.
 
 ---
 
+### 2026-10-03 — Audit kesiapan tv-agent untuk dipasang di Android TV
+
+**Files changed** — `tv-agent/app/src/main/AndroidManifest.xml` (satu koreksi).
+**DB changes / API** — tidak ada.
+
+Diminta user sebelum testing: apakah APK aman dipasang di Android TV.
+Diperiksa pada **APK hasil build**, bukan pada source.
+
+**Yang terbukti aman**
+
+| Periksa | Hasil |
+|---|---|
+| Build debug | sukses, **4,2 MB** |
+| Tanda tangan | v1 **dan** v2 — v1 yang dipakai Android 6/7, v2 untuk yang lebih baru |
+| Flag `testOnly` | **tidak ada** — ini yang paling sering menggagalkan sideload |
+| `LEANBACK_LAUNCHER` | ada → muncul di laci aplikasi Android TV |
+| `leanback` & `touchscreen` | `required=false` → tetap bisa dipasang di tablet/HP |
+| minSdk / targetSdk | 23 / 34 |
+| Cleartext HTTP | diizinkan lewat `network_security_config` — wajib untuk LAN |
+| Bind server | `NanoHTTPD(port)` tanpa hostname → `0.0.0.0`, bukan localhost |
+| Lock Task | dijaga `isLockTaskPermitted` + `runCatching` → tidak crash kalau bukan Device Owner |
+| Pairing pertama | `KioskActivity.onCreate` memanggil `AgentService.start`, jadi server hidup walau belum ada token |
+| Unit test | **31 lulus** |
+
+**Kontrak HTTP Kotlin ↔ Flutter dicocokkan satu per satu**
+
+Titik paling berisiko: Flutter mengirim header `X-Agent-Token`, Kotlin membaca
+`"x-agent-token"` huruf kecil. Kalau tidak dinormalkan, **semua** request
+terautentikasi gagal.
+
+Diverifikasi di bytecode NanoHTTPD 2.3.1, bukan dari ingatan:
+`HTTPSession.decodeHeader` memanggil `toLowerCase(Locale.US)` pada nama
+header. Cocok.
+
+Path cocok semua. Seluruh field yang dibaca Flutter (`device_token`,
+`device_uid`, `paired`, `pairing_locked`, `requires_pairing`, `station_code`,
+`synced`, `seconds_since_sync`, dan delapan field di dalam `device`) memang
+dikirim Kotlin.
+
+**Satu koreksi**
+
+`ACCESS_WIFI_STATE` menyiratkan perangkat **wajib** punya WiFi. Itu salah
+untuk perangkat ini: banyak TV box dipasang dengan kabel Ethernet, dan agen
+ini justru membaca IP dari `NetworkInterface` supaya Ethernet ikut terbaca.
+Ditambahkan `uses-feature wifi required=false`.
+
+Bukan penghalang sideload — `uses-feature` hanya menyaring di Play Store,
+bukan saat `adb install`. Diperbaiki karena manifest-nya bertentangan dengan
+rancangan kodenya sendiri.
+
+**Celah yang tersisa — ketahui sebelum testing**
+
+**Lapisan HTTP-nya sendiri belum pernah diuji.** 31 test mencakup state
+machine, pairing, dan sinkronisasi jam — semuanya lewat `CommandApplier`.
+Routing, pembacaan token, dan parsing JSON di `LocalHttpCommandSource` tidak
+tercakup, karena kelas itu menerima `StateStore` (butuh `Context` Android).
+
+Membuatnya bisa diuji berarti mengubah plumbing `StateStore` jadi antarmuka.
+**Sengaja tidak dikerjakan sekarang** — merombak penyimpanan state beberapa
+jam sebelum uji perangkat adalah risiko di tempat yang salah. Dikerjakan
+setelah SESI TV.
+
+Mitigasinya: kontrak dicocokkan dengan membaca kedua sisi (di atas), dan sisi
+klien sudah diuji terhadap fake HTTP di `tv_sync_test`.
+
+**Known issues**
+- Lapisan HTTP belum ada test (di atas).
+- APK masih bernama **Cempaka TV**, belum ikut rebrand Amor (DEC-017).
+- Build debug: `applicationId` berakhiran `.debug`, dan `debuggable=true` —
+  wajar untuk uji coba, bukan untuk dipasang permanen di lokasi.
+
+**Next step**
+**Jalankan SESI TV.** Langkah install sudah ada di `TEST-PLAN-SABTU.md` §V4/V5.
+
+---
+
 ## SESI TV — diisi saat menguji
 
 ### Pairing

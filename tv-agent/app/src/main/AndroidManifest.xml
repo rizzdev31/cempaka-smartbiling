@@ -35,6 +35,16 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
+    <!--
+      ACCESS_WIFI_STATE menyiratkan perangkat wajib punya WiFi. Itu salah
+      untuk perangkat ini: banyak TV box dipasang dengan kabel Ethernet, dan
+      agen ini memang membaca IP dari NetworkInterface justru supaya Ethernet
+      ikut terbaca. Dinyatakan tidak wajib supaya manifest-nya sejalan.
+    -->
+    <uses-feature
+        android:name="android.hardware.wifi"
+        android:required="false" />
+
     <application
         android:name=".AgentApp"
         android:allowBackup="false"
