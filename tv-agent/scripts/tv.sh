@@ -38,6 +38,43 @@ red()  { printf '\033[31m%s\033[0m\n' "$*"; }
 green(){ printf '\033[32m%s\033[0m\n' "$*"; }
 dim()  { printf '\033[2m%s\033[0m\n' "$*"; }
 
+# Apakah laptop berada di jaringan yang sama dengan TV?
+#
+# Ini kesalahan nomor satu, dan gejalanya menipu: semua perintah gagal dengan
+# "tidak ada jawaban", persis seperti aplikasi yang tidak jalan. Padahal
+# paketnya tidak pernah sampai.
+#
+# Caranya: minta OS memilih alamat lokal untuk menuju IP TV. Kalau yang
+# dipilih bukan tetangga satu subnet, rute ke TV lewat gateway — dan di
+# jaringan rumah/kantor itu berarti tidak akan sampai.
+#
+# Windows gemar berpindah sendiri ke WiFi yang punya internet, jadi ini bisa
+# berubah di tengah sesi tanpa disentuh.
+check_subnet() {
+  local ip="$1"
+  python - "$ip" <<'PY'
+import socket, sys
+tv = sys.argv[1]
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+try:
+    s.connect((tv, 9))
+    local = s.getsockname()[0]
+except Exception:
+    sys.exit(0)        # tidak bisa dipastikan; jangan menghalangi
+finally:
+    s.close()
+
+if local.rsplit('.', 1)[0] != tv.rsplit('.', 1)[0]:
+    print('\033[31mPERINGATAN: laptop dan TV beda jaringan.\033[0m')
+    print(f'  TV    : {tv}')
+    print(f'  Laptop: {local}')
+    print()
+    print('  Selama ini berbeda, TIDAK ADA perintah di sini yang akan jalan.')
+    print('  Sambungkan laptop ke WiFi yang sama dengan TV, lalu ulangi.')
+    print()
+PY
+}
+
 need_adb() {
   if [ ! -f "$ADB" ]; then
     red "adb tidak ditemukan di: $ADB"
@@ -81,6 +118,8 @@ cmd_connect() {
 
   need_adb
   echo "$ip" > "$IP_FILE"
+
+  check_subnet "$ip"
 
   dim "Menyambung ke $ip:5555 ..."
   "$ADB" connect "$ip:5555"
@@ -150,6 +189,7 @@ cmd_logclear() {
 
 cmd_health() {
   local ip; ip="$(tv_ip)" || exit 1
+  check_subnet "$ip"
   dim "GET http://$ip:$PORT/health"
   echo
   # Dipanggil dari laptop, bukan lewat adb: ini menguji jalur yang sama
@@ -163,8 +203,9 @@ cmd_health() {
     cat <<'EOF'
 
 Yang perlu dicek, berurutan:
-  1. Aplikasi sudah dibuka di TV? Server baru hidup setelah layar kiosk muncul.
-  2. Laptop dan TV di SSID yang sama?
+  1. Laptop dan TV di WiFi yang sama? (lihat peringatan di atas kalau ada)
+  2. Aplikasi sudah DIBUKA di TV? Server baru hidup setelah layar kiosk
+     muncul -- terpasang saja tidak cukup.
   3. AP/client isolation di router mati?
 EOF
     exit 1

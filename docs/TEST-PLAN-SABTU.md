@@ -266,6 +266,46 @@ nama **Cempaka TV**.
 | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | Versi lama tertanda kunci berbeda → `adb uninstall id.cempaka.tvagent.debug` dulu |
 | `INSTALL_FAILED_INSUFFICIENT_STORAGE` | Penyimpanan TV penuh |
 
+### Kesalahan nomor satu: laptop pindah WiFi sendiri
+
+**Terjadi 3 Okt 2026.** TV di `192.168.0.100`, semua perintah gagal "tidak
+menemukan TV". Penyebabnya bukan aplikasi:
+
+| | Jaringan |
+|---|---|
+| TV | `192.168.0.100` → `192.168.0.x` (router TP-Link) |
+| Laptop | `192.168.110.112` → `192.168.110.x`, SSID lain |
+
+Beda subnet. Paketnya tidak pernah sampai ke TV.
+
+**Kenapa bisa pindah sendiri:** WiFi lokal untuk pengujian ini **tanpa
+internet**. Windows menilai jaringan tanpa internet sebagai lebih buruk dan
+berpindah sendiri ke yang punya internet — tanpa pemberitahuan, dan bisa di
+tengah sesi yang sedang berjalan.
+
+**Pencegahan:**
+
+1. Pada WiFi yang ada internet, matikan **"Connect automatically"**.
+2. Periksa sebelum mulai — `tv.sh connect` dan `tv.sh health` kini
+   memperingatkan sendiri kalau subnetnya berbeda.
+3. **Tablet operator juga harus di WiFi yang sama.** Tiga perangkat: TV,
+   laptop, tablet — ketiganya di SSID yang sama.
+
+Gejala subnet berbeda **sama persis** dengan gejala aplikasi tidak jalan:
+semuanya "tidak ada jawaban". Periksa jaringan dulu sebelum menyalahkan kode.
+
+```bash
+cd tv-agent && ./scripts/tv.sh health   # memperingatkan kalau beda jaringan
+```
+
+### Terpasang ≠ jalan
+
+Server di TV **baru hidup setelah aplikasinya dibuka**. `KioskActivity.onCreate`
+yang menjalankan `AgentService`; memasang APK saja tidak menyalakan apa pun.
+
+Setelah install, buka **Cempaka TV** dari laci aplikasi TV lebih dulu, baru
+jalankan `health`.
+
 ### TV yang memakai "Wireless debugging" (Android 11+)
 
 Sebagian TV baru tidak lagi membuka port 5555 begitu saja. Tandanya: di
