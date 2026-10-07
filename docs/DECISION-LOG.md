@@ -564,6 +564,140 @@ yang meminta. Dicatat di sini supaya pilihannya ada kalau nanti diminta.
 
 ---
 
+## DEC-018 — White-label per-instance: satu server untuk satu rental
+**Tanggal:** 7 Okt 2026 · **Status:** APPROVED · **Menjawab:** OD-012
+
+Diputuskan user (pemilik backend): **satu server = satu rental.** Tiap pelanggan
+punya instance Laravel + MySQL sendiri. Bukan multi-tenant.
+
+**Konsekuensi untuk schema:** tidak ada `tenant_id`. Migration ditulis untuk
+satu rental. Sesuai rekomendasi di detail OD-012.
+
+**Yang masih terbuka** (tidak memblokir Tahap 0): poin-poin di
+"OD-012 → Yang masih perlu diputuskan saat fiturnya dikerjakan" — logo per
+build/per server, nama APK, lisensi per pelanggan.
+
+---
+
+## DEC-019 — Tarif berbeda per tipe konsol, diatur dari aplikasi kasir
+**Tanggal:** 7 Okt 2026 · **Status:** APPROVED · **Menjawab:** OD-015 · **Melengkapi:** PRD §22
+
+Diputuskan user: **tarif berbeda per tipe konsol** (contoh PS5 VIP vs PS4 Slim),
+dan tarifnya **bisa diatur dari aplikasi kasir (Flutter)**.
+
+**Konsekuensi untuk schema (usulan teknis backend):**
+- Tabel baru tipe konsol (mis. `station_types`: PS5 VIP, PS4 Slim, …).
+- `stations` punya FK ke tipe konsolnya.
+- `packages` punya FK ke tipe konsol → harga paket berlaku per tipe.
+- Harga tetap **dihitung server** dari tabel itu. Rumus extend DEC-007
+  (`tarif_per_jam = harga_paket ÷ durasi_paket_jam`) otomatis ikut tarif tipe
+  konsol station yang dipakai.
+
+**Konsekuensi untuk API:** perlu endpoint ubah tarif/paket (belum ada di
+`contracts/API.md` — ditambahkan saat implementasi, dicatat di
+`contracts/CHANGELOG.md`). Setiap perubahan harga **wajib masuk `audit_logs`**
+(PRD §24: price/master-data change).
+
+**Konsekuensi untuk Flutter:** butuh layar pengaturan tarif — dikerjakan tim
+Flutter.
+
+**Siapa yang boleh mengubah tarif:** → **DEC-020** (hanya owner).
+
+**Catatan swap:** swap antar tipe konsol **tidak diizinkan** → **DEC-021**.
+
+---
+
+## DEC-021 — Station Swap hanya boleh dalam tipe konsol yang sama
+**Tanggal:** 7 Okt 2026 · **Status:** APPROVED · **Menjawab:** OD-018 · **Melengkapi:** PRD §15, DEC-019
+
+Diputuskan user: **pindah ke tipe konsol berbeda tidak boleh.** Alasannya
+paketnya berbeda — "harus bikin paket baru".
+
+Jadi `POST /sessions/{id}/swap` **hanya menerima station tujuan dengan tipe
+konsol yang sama** dengan station asal. Tipe berbeda → ditolak, bukan
+dihitung ulang harganya.
+
+Ini sekaligus memperjelas kata **"kompatibel"** di PRD §15, yang sebelumnya
+tidak didefinisikan: kompatibel = **tipe konsol sama**.
+
+**Yang mengikat di backend:**
+- Validasi tipe konsol sebelum swap dijalankan, dengan error code tersendiri
+  (ditambahkan ke `contracts/API.md` §11 saat implementasi).
+- Swap tetap tidak menyentuh harga sama sekali — tidak ada perhitungan ulang
+  tarif, karena tarifnya pasti sama.
+- Sisanya tidak berubah: atomic, `session_id` tetap, `end_at` tetap, histori
+  ikut (PRD §15).
+
+**Kalau customer memang ingin pindah tipe konsol:** itu **session baru dengan
+paket baru**, bukan swap. Session lama diselesaikan lebih dulu (checkout).
+
+**Yang belum diputuskan → OD-020:** sisa waktu yang sudah dibayar di session
+lama jadi apa — dipotong dari paket baru, hangus, atau ditagih penuh? Ini soal
+uang, jadi **jangan diputuskan di kode**. Tidak memblokir golden path, karena
+golden path tidak memuat perpindahan tipe konsol.
+
+---
+
+## DEC-020 — Hanya owner yang boleh mengubah tarif
+**Tanggal:** 7 Okt 2026 · **Status:** APPROVED · **Menjawab:** OD-017 · **Melengkapi:** PRD §6, DEC-019
+
+Diputuskan user: **yang bisa mengubah harga hanya owner.** Operator tidak,
+dan admin biasa juga tidak — hanya owner.
+
+**Konsekuensi untuk RBAC — role bertambah jadi tiga.** Sampai sekarang
+`ROADMAP.md` Tahap 0 hanya menyebut dua role: `admin` dan `operator`.
+Keputusan ini memaksa `owner` menjadi role tersendiri, bukan sinonim `admin`:
+
+| Role | Ubah tarif/paket | Sisa akses |
+|---|---|---|
+| `owner` | **YA** | semua akses admin |
+| `admin` | tidak | master data lain, laporan, device |
+| `operator` | tidak | session, payment, F&B, extend, swap, checkout, shift |
+
+PRD §6 menulis "Admin / Owner" sebagai satu aktor — **keputusan ini
+memisahkannya**, khusus untuk harga. Seeder Tahap 0 jadi butuh 3 user contoh:
+owner, admin, operator.
+
+**Yang mengikat di backend:**
+- Endpoint ubah tarif/paket ditolak (403) untuk siapa pun selain `owner`,
+  **ditegakkan server** — menyembunyikan tombol di Flutter bukan kontrol
+  keamanan (PRD §24).
+- Perubahan harga tetap wajib masuk `audit_logs` dengan actor + nilai
+  sebelum/sesudah.
+
+**Konsekuensi untuk Flutter (tim rekan):** layar pengaturan tarif hanya muncul
+untuk login owner. Tetap harus siap menerima 403 dari server.
+
+**Yang belum diputuskan — tidak memblokir Tahap 0:** apakah owner mengubah
+tarif lewat **login owner sendiri** di tablet, atau lewat **PIN** di atas sesi
+operator yang sedang jalan. Backend-nya sama (token owner), bedanya hanya cara
+login di Flutter. Dicatat di `PROGRESS.md` sebagai pertanyaan tertunda.
+
+---
+
+## DEC-022 — Penahanan Tahap 0 dicabut; Laravel API Core dimulai
+**Tanggal:** 7 Okt 2026 · **Status:** APPROVED · **Mencabut:** DEC-015 (bagian "Yang ditahan")
+
+Diputuskan user: **Laravel dimulai sekarang.** Penahanan Tahap 0 dari DEC-015
+berakhir.
+
+**Yang dicabut hanya penahanannya.** Sisa DEC-015 tetap berlaku — TV Agent
+tetap memakai `CommandSource` dengan dua implementasi, kontrol langsung tetap
+berautentikasi, dan kiosk tetap tidak diklaim penuh sebelum terbukti.
+
+**Alasan boleh paralel:** pekerjaan backend tidak bersinggungan dengan masalah
+jaringan yang sedang menahan SESI TV. Empat keputusan hari ini (DEC-018 s/d
+DEC-021) sudah menutup semua Open Decision yang memblokir migration pertama.
+
+**Pembagian kerja:** `backend/` dikerjakan pemilik backend; `operator-app/` dan
+`tv-agent/` oleh rekan tim. Perubahan kontrak API/realtime wajib dicatat di
+`contracts/CHANGELOG.md` dan dikomunikasikan (PRD §34).
+
+**Konsekuensi untuk DEC-012:** syarat "fake repository diganti pada vertical
+slice pertama" jadi bisa dipenuhi setelah langkah 7 (payment manual).
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -581,11 +715,14 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | **OD-009** | Formula profit/margin & target achievement | PRD §35 TBD. Belum blokir karena reporting di Tahap 3B. | Tahap 3B |
 | **OD-010** | Receipt: dicetak (printer model/interface) atau cukup di layar? | Mempengaruhi UI checkout dan hardware yang perlu dibeli. | Tahap 1 (UI), Tahap 3 (hardware) |
 | **OD-011** | Apakah Flutter perlu **penemuan IP server otomatis** (scan subnet), atau cukup DHCP reservation? | **Ditunda oleh user 2 Okt 2026 — tunggu hasil DHCP reservation di SESI 1.** Analisis ada di bawah tabel. | Tahap 1 (opsional) |
-| **OD-015** | Apakah **tarif berbeda per tipe konsol**? PS5 VIP lebih mahal daripada PS4 Slim? | Desain menampilkan label konsol per station dan contoh aslinya menunjukkan tarif berbeda per station. PRD §22 hanya punya harga di `packages`, tidak per station. Kalau jawabannya ya, `packages` perlu relasi ke tipe station — perubahan schema, bukan tambalan UI | **Tahap 0 (schema)** |
+| ~~OD-015~~ | ~~Tarif berbeda per tipe konsol?~~ | **DIPUTUSKAN → DEC-019** (ya, diatur dari aplikasi kasir) | — |
+| ~~OD-017~~ | ~~Siapa yang boleh mengubah tarif dari aplikasi kasir?~~ | **DIPUTUSKAN → DEC-020** (hanya owner) | — |
+| ~~OD-018~~ | ~~Swap ke tipe konsol berbeda?~~ | **DIPUTUSKAN → DEC-021** (tidak boleh) | — |
+| **OD-020** | Kalau customer ingin pindah ke tipe konsol lain, **sisa waktu yang sudah dibayar** jadi apa? Dipotong dari paket baru, hangus, atau tetap ditagih penuh? | Muncul dari DEC-021. Ini soal uang, jadi tidak boleh ditebak di kode | Tahap 0 (checkout) — tidak memblokir golden path |
 | **OD-016** | Apakah **maintenance perlu data pendukung** — teknisi, nomor tiket, estimasi selesai? | Desain contoh menampilkannya, tapi tidak ada entity-nya di PRD §22. Sekarang kartu maintenance hanya menampilkan "Sedang diperbaiki" — tidak memalsukan data yang tidak ada | Tahap 3B (Admin) |
 | **OD-014** | Bolehkah **operator mendaftarkan member baru** di meja kasir, atau hanya Admin? | PRD §6 memberi akses `customer` hanya kepada Admin/Owner — operator tidak termasuk. Tapi customer yang ingin jadi member di tempat adalah kejadian harian. Sekarang operator hanya bisa mencari & memilih member yang sudah ada; yang belum terdaftar dilayani sebagai Walk-in | Tahap 1 (UI sudah siap), Tahap 3B (Admin) |
 | **OD-013** | Ringkasan shift: `rental`/`fnb` dihitung saat item **dibuat** (nilai transaksi) atau saat **dibayar** (uang masuk)? | Keduanya sudah dibedakan di UI, tapi mana yang jadi dasar laporan belum diputuskan. Mempengaruhi laporan harian dan formula profit (OD-009). `cash`/`qris`/`total` tidak terpengaruh — itu selalu uang masuk | Tahap 3B (reporting) |
-| **OD-012** | Aplikasi akan **dijual ke beberapa pengguna** dengan nama & logo menyesuaikan, tetap di bawah naungan Cempaka Smart Billing. White-label per-instance, atau multi-tenant satu server? | **Keputusan arsitektur terbesar yang belum ada di PRD.** Menentukan schema DB. Retrofit `tenant_id` setelah ada data produksi sangat mahal. Detail di bawah tabel. | **Tahap 0 (schema)** — walau fiturnya nanti |
+| ~~OD-012~~ | ~~White-label per-instance atau multi-tenant?~~ | **DIPUTUSKAN → DEC-018** (per-instance, satu server satu rental) | — |
 
 **Tidak ada lagi Open Decision yang memblokir Tahap 0.** Billing engine sudah boleh ditulis.
 
@@ -651,6 +788,8 @@ Kebutuhan: nama dan logo menyesuaikan tiap pengguna, tetap di bawah naungan Cemp
 > **Itu tidak menjawab OD-012.** Yang menentukan bukan tampilan merek,
 > melainkan apakah beberapa pelanggan berbagi satu database. Keputusannya
 > tetap ditunggu sebelum migration pertama.
+>
+> **DIPUTUSKAN 7 Okt 2026 → DEC-018: per-instance.**
 
 ### Dua model yang sangat berbeda konsekuensinya
 

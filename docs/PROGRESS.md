@@ -9,7 +9,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 
 | | |
 |---|---|
-| **Tahap aktif** | **TAHAP 2 — Kotlin TV Agent** (kiosk kontrol-langsung, DEC-015). Tahap 0 ditahan |
+| **Tahap aktif** | **TAHAP 2 — Kotlin TV Agent** (kiosk kontrol-langsung, DEC-015) **+ TAHAP 0 — Laravel API Core** berjalan paralel sejak 7 Okt (DEC-022) |
 | **Blocker** | **tidak ada** — kontrak sudah fix, billing rule sudah fix |
 | **Blocker Tahap 2** | OD-004 (perilaku warning), OD-005 (fakta TV — dicek di **SESI 1, Sab 3 Okt 2026**) |
 | **Milestone terdekat** | **SESI TV sedang berjalan.** APK sudah terpasang di TV (`192.168.0.100`); tertahan di jaringan — laptop/tablet harus pindah ke SSID yang sama |
@@ -17,15 +17,17 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
-| **backend** | masih kosong — **ditahan** (DEC-015) |
+| **backend** | **Tahap 0 jalan** (DEC-022 mencabut penahanan DEC-015). Laravel 13.35.0 + Sanctum; lapisan dasar response + idempotency; schema 16 entity + seeder; `GET /health` hidup; **37 test lulus**. Berikutnya: auth + RBAC |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
 | ID | Pertanyaan | Ditunda sejak | Pemicu peninjauan |
 |---|---|---|---|
 | **OD-011** | Perlukah penemuan IP server otomatis (scan subnet) di Flutter? | 2 Okt 2026 | **Setelah DHCP reservation diuji di SESI 1.** Kalau IP laptop tetap stabil → tidak perlu. Kalau masih sering berubah → pasang scan subnet (± 100 baris) |
-| **OD-015** | Tarif berbeda per tipe konsol (PS5 VIP vs PS4 Slim)? | 2 Okt 2026 | **Sebelum migration pertama.** Kalau ya, `packages` butuh relasi ke tipe station — perubahan schema |
-| **OD-012** | Aplikasi dijual ke beberapa pengguna: **white-label per-instance atau multi-tenant?** | 2 Okt 2026 | **Sebelum migration pertama Laravel ditulis.** Kalau multi-tenant, `tenant_id` harus ada sejak awal — retrofit setelah ada data produksi sangat mahal. Rekomendasi: per-instance |
+| **OD-019** | Owner ubah tarif lewat **login owner** di tablet, atau **PIN** di atas sesi operator? | 7 Okt 2026 | Saat layar pengaturan tarif dikerjakan. Backend sama (token owner) — ini soal cara login di Flutter |
+| **OD-020** | Pindah tipe konsol = session baru (DEC-021). **Sisa waktu yang sudah dibayar** jadi apa — dipotong, hangus, atau ditagih penuh? | 7 Okt 2026 | Saat checkout dikerjakan. Soal uang — jangan ditebak di kode |
+
+> Sudah diputuskan 7 Okt 2026: OD-012 → **DEC-018** (per-instance) · OD-015 → **DEC-019** (tarif per tipe konsol, diatur dari aplikasi kasir) · OD-017 → **DEC-020** (hanya owner yang boleh ubah tarif) · OD-018 → **DEC-021** (swap hanya dalam tipe konsol yang sama).
 
 Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat heartbeat) dan OD-012.
 
@@ -35,13 +37,13 @@ Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat 
 
 - [x] Monorepo + struktur folder + `.gitignore` (DEC-010)
 - [x] Kontrak `docs/contracts/API.md` + `REALTIME.md` + `CHANGELOG.md` DRAFT 1 (DEC-011)
-- [ ] Repo Laravel dibuat + `.env.example`
-- [ ] MySQL lokal + migration semua entity (PRD §22)
-- [ ] Seeder: ST01–ST06, packages, F&B dummy, 1 admin, 1 operator
-- [ ] Auth + RBAC admin/operator
-- [ ] `GET /api/health` (tanpa auth)
-- [ ] Header `server_time` di semua response (DEC-003)
-- [ ] Middleware `Idempotency-Key`
+- [x] Repo Laravel dibuat + `.env.example` — Laravel 13.35.0 + Sanctum (7 Okt)
+- [x] MySQL lokal + migration 16 entity Tahap 0 (PRD §22) — 7 Okt. `bookings`/`expenses`/`targets`/`notifications`/`backups` ditunda ke Tahap 3 (aturannya masih TBD)
+- [x] Seeder: ST01–ST06, tipe konsol (DEC-019), packages, F&B dummy, 1 owner, 1 admin, 1 operator — 7 Okt
+- [ ] Auth + RBAC **owner/admin/operator** (3 role — DEC-020)
+- [x] `GET /api/v1/health` (tanpa auth) — 7 Okt
+- [x] Header `server_time` di semua response (DEC-003) — 7 Okt, middleware global
+- [x] Middleware `Idempotency-Key` — 7 Okt, 8 test
 - [ ] Session state machine + test per transisi
 - [ ] Billing engine: Prepaid / Postpaid / Open Tab / `session_items`
 - [ ] Rounding durasi Postpaid per DEC-009 + unit test (35→30, 63→60, 70→90, 95→90)
@@ -1417,3 +1419,191 @@ Pindahkan laptop & tablet ke WiFi TV, lalu `./scripts/tv.sh health`.
 | Tingkat kiosk | |
 | Pemindaian berhasil atau manual | |
 | Device Owner mungkin? (ada akun Google?) | |
+
+---
+
+### 2026-10-07 — [Backend] Tiga keputusan schema & RBAC sebelum migration pertama
+
+**Dikerjakan** (dokumen saja, belum ada kode backend)
+- OD-012 diputuskan → **DEC-018**: white-label **per-instance**, satu server satu rental. Schema tanpa `tenant_id`.
+- OD-015 diputuskan → **DEC-019**: tarif **berbeda per tipe konsol**, dan **bisa diatur dari aplikasi kasir**.
+- OD-017 diputuskan → **DEC-020**: **hanya owner** yang boleh mengubah tarif.
+- OD-018 diputuskan → **DEC-021**: swap **hanya dalam tipe konsol yang sama**. Pindah tipe konsol = session baru dengan paket baru, bukan swap. Ini sekaligus mendefinisikan kata "kompatibel" di PRD §15.
+- Open Decision baru: **OD-019** (owner ubah tarif lewat login owner atau PIN), **OD-020** (sisa waktu saat pindah tipe konsol).
+- PRD-V2 §5, §6, §22 diberi catatan keputusan.
+
+**Dampak paling besar: role jadi tiga, bukan dua**
+
+`ROADMAP.md` Tahap 0 menulis "RBAC admin/operator". DEC-020 memaksa `owner`
+jadi role tersendiri — hanya owner yang boleh ubah harga, admin biasa tidak.
+Seeder Tahap 0 jadi 3 user: owner, admin, operator.
+
+**Dampak untuk tim Flutter**
+- Butuh layar **pengaturan tarif per tipe konsol** di aplikasi kasir (DEC-019), **hanya untuk login owner** (DEC-020). Tetap harus siap menerima 403 dari server — menyembunyikan tombol bukan kontrol keamanan.
+- Endpoint ubah tarif belum ada di `contracts/API.md` — akan ditambahkan backend dan dicatat di `contracts/CHANGELOG.md`.
+- Cara owner masuk (login sendiri vs PIN) masih OD-019.
+- **Layar Station Swap:** daftar station tujuan harus **menyaring tipe konsol yang sama** (DEC-021). Server tetap menolak kalau tipenya beda — penyaringan di UI hanya supaya operator tidak memilih yang pasti gagal.
+
+**Known issues**
+- Pembagian kerja: backend (Laravel) dikerjakan pemilik backend; `operator-app/` dan `tv-agent/` oleh rekan tim.
+- Status DEC-015 (Tahap 0 ditahan) perlu dikonfirmasi tim sebelum kode Laravel dimulai.
+
+**Next step**
+- Inisialisasi repo Laravel + migration pertama (dengan tipe konsol + 3 role). Tidak ada lagi Open Decision yang memblokirnya.
+
+---
+
+### 2026-10-07 — [Backend] Tahap 0 dimulai: kerangka Laravel berdiri
+
+**Keputusan**
+- **DEC-022**: penahanan Tahap 0 (DEC-015) **dicabut**. Laravel dimulai, paralel dengan SESI TV yang masih tertahan di jaringan.
+
+**Prasyarat laptop dibereskan**
+| | Sebelum | Sesudah |
+|---|---|---|
+| PHP 8.4.14 | `php.ini` **tidak ada** → semua extension mati | `php.ini` dibuat, `extension_dir` diarahkan ke `C:/php/ext`; `pdo_mysql` `mbstring` `openssl` `curl` `fileinfo` `zip` `intl` aktif |
+| Composer | belum ada | 2.10.3 di `C:\composer` (**belum masuk PATH** — dipanggil lewat path penuh) |
+| MySQL | belum ada | 8.0.46, service `MySQL80` jalan |
+
+**Dikerjakan**
+- `backend/` diisi **Laravel 13.35.0**.
+- `laravel/sanctum` 4.3 terpasang + `php artisan install:api` → `routes/api.php` + migration `personal_access_tokens`.
+- `.env` & `.env.example`: `DB_CONNECTION=mysql`, database `cempaka_billing`, `APP_NAME="Cempaka Smart Billing"`, locale `id`.
+- `README.md` tim dikembalikan (sempat ditimpa README bawaan Laravel).
+- Dihapus: `database/database.sqlite` (DEC-002 — MySQL yang jadi primary DB), serta `CLAUDE.md` + `AGENTS.md` bawaan scaffold Laravel — isinya instruksi generik "install PHP" yang bertabrakan dengan kontrak kerja di `CLAUDE.md` root.
+
+**Catatan teknis — `APP_TIMEZONE=UTC`, bukan `Asia/Jakarta`**
+
+DEC-005 menulis "timezone aplikasi `Asia/Jakarta`" tapi juga "disimpan **UTC** di DB, dikirim **UTC** di API, dikonversi di UI". Kalau `APP_TIMEZONE` diisi `Asia/Jakarta`, Eloquent justru menulis waktu Jakarta ke DB — melanggar kalimat kedua dan menggeser `end_at` 7 jam. Jadi `APP_TIMEZONE=UTC`; "Asia/Jakarta" diperlakukan sebagai timezone tampilan, bukan setelan Laravel. Alasannya ditulis sebagai komentar di `.env.example` supaya tidak diubah orang lain tanpa sengaja.
+
+**Belum jalan**
+- `php artisan migrate` **gagal**: database `cempaka_billing` belum dibuat dan `DB_PASSWORD` di `.env` masih kosong. Password root MySQL diisi user sendiri — tidak melewati agent.
+
+**Next step**
+- User membuat database + mengisi `DB_PASSWORD`, lalu **langkah 2**: lapisan dasar response (`{data, meta}`, header `X-Server-Time`, format error, middleware `Idempotency-Key`, ID UUID) — wajib sebelum endpoint fitur ditulis.
+
+---
+
+### 2026-10-07 — [Backend] Langkah 2: lapisan dasar response + idempotency
+
+Fondasi yang dipakai semua endpoint. **Ditulis sebelum endpoint fitur apa pun** — kalau dikerjakan belakangan, setiap endpoint yang sudah jadi harus dibongkar ulang.
+
+**Files changed**
+| Berkas | Isi |
+|---|---|
+| `app/Support/Api/ApiResponse.php` | pembentuk `{data, meta}` dan `{error, meta}` (API.md §2) |
+| `app/Support/Api/ErrorCode.php` | 23 error code dari API.md §11 sebagai konstanta |
+| `app/Exceptions/ApiException.php` | exception pembawa `error.code` |
+| `app/Http/Middleware/ServerTime.php` | header `X-Server-Time` + `meta.server_time` (DEC-003) |
+| `app/Http/Middleware/EnforceIdempotency.php` | penegak `Idempotency-Key` (API.md §3) |
+| `app/Models/Concerns/HasUuidKey.php` | primary key UUID v4 (API.md §1) |
+| `app/Http/Controllers/Api/V1/HealthController.php` | `GET /health` (API.md §5) |
+| `bootstrap/app.php` | prefix `api/v1`, middleware global, pemetaan exception → error code |
+| `config/app.php` | `timezone` dari env + `api_version` |
+| `phpunit.xml` | test memakai MySQL `cempaka_billing_test`, bukan SQLite |
+
+**DB changes**
+- `2026_10_07_140000_create_idempotency_keys_table` — `scope` + `key` unik, `request_hash`, response tersimpan, `expires_at` (retensi 24 jam).
+- Database test terpisah `cempaka_billing_test` dibuat.
+
+**API/Events**
+- `GET /api/v1/health` — endpoint pertama yang hidup. Tanpa auth (dipakai tes jaringan N2/N3).
+- `broadcast` dilaporkan `not_configured`, bukan `ok` — Reverb belum ada (langkah 12). Jangan melaporkan sehat untuk sesuatu yang belum dipasang.
+
+**Tests — 15 lulus, 57 assertion**
+- Bentuk `{data, meta}`, `server_time` sama di header dan body, format ISO-8601 `Z`.
+- `server_time` tetap ada pada response error.
+- Validasi gagal → `VALIDATION_FAILED` + `details` per field.
+- Error tak terduga tidak membocorkan isi exception saat `APP_DEBUG=false`.
+- Idempotency: header hilang → 400 · bukan UUID → 400 · key+body sama → replay, handler jalan **sekali** · key sama body beda → 409 · key beda → data baru · response gagal tidak dikunci · retensi 24 jam.
+
+**Satu bug nyata ketemu dari test**
+
+`X-Server-Time` awalnya dipasang di grup middleware `api`. Middleware grup **hanya jalan kalau route-nya ketemu** — jadi 404 dari URL salah ketik tidak membawa header, padahal DEC-003 meminta header ada di semua response. Client yang kehilangan offset ikut salah menampilkan timer. Dipindah jadi middleware **global** paling luar, dengan penjagaan supaya Admin Web (Tahap 3B) tidak ikut disentuh.
+
+**Manual test**
+```
+php artisan serve --host=0.0.0.0 --port=8000
+curl -i http://127.0.0.1:8000/api/v1/health      -> 200 + X-Server-Time + database:"ok"
+curl -i http://127.0.0.1:8000/api/v1/salah       -> 404 {"error":{"code":"NOT_FOUND"}} + X-Server-Time
+```
+
+**Kontrak diperbarui — perlu dibaca tim Flutter**
+- `CHANGELOG.md` **DRAFT 5**: `console_type` kini **memengaruhi harga** (DEC-019) — membalik catatan DRAFT 4.
+- `CHANGELOG.md` **DRAFT 5b**: penegasan idempotency — hanya 2xx disimpan, key wajib UUID v4, key di-scope per pemakai, replay dapat `server_time` baru.
+
+**Known issues**
+- Composer belum masuk PATH; dipanggil lewat `php C:\composer\composer.phar`.
+- Baris `idempotency_keys` kedaluwarsa belum dibersihkan — menyusul bersama scheduler (langkah 12).
+- Error code untuk swap antar tipe konsol (DEC-021) belum ada di API.md §11.
+
+**Next step**
+- **Langkah 3**: migration semua entity (PRD §22) + tipe konsol (DEC-019) + 3 role (DEC-020), lalu seeder ST01–ST06.
+
+---
+
+### 2026-10-07 — [Backend] Langkah 3: schema + seeder Tahap 0
+
+**Files changed**
+- `app/Enums/` (7): `UserRole` `SessionStatus` `SessionMode` `SessionItemType` `PaymentMethod` `FnbOrderStatus` `StationStatus`
+- `app/Models/` (14): `User` `StationType` `Station` `Package` `Customer` `Membership` `BillingSession` `SessionItem` `Payment` `FnbProduct` `FnbOrder` `FnbOrderItem` `Device` `Shift` `AuditLog`
+- `app/Models/Concerns/HasUuidKey.php` ditulis ulang
+- `database/seeders/`: `DatabaseSeeder` `UserSeeder` `MasterDataSeeder` `FnbSeeder`
+- `database/factories/UserFactory.php` (email → username + role)
+- `config/session.php`, `.env`/`.env.example` (`SEED_PASSWORD`)
+
+**DB changes — 24 tabel, 16 entity Tahap 0**
+| Migration | Isi |
+|---|---|
+| `0001_01_01_000000_create_users_table` (diubah) | `users` username/role/is_active + `web_sessions` |
+| `2026_10_07_150000_create_master_data_tables` | `station_types` `stations` `packages` `customers` `memberships` |
+| `2026_10_07_150100_create_session_tables` | `shifts` `sessions` `session_items` `payments` |
+| `2026_10_07_150200_create_fnb_tables` | `fnb_products` `fnb_orders` `fnb_order_items` |
+| `2026_10_07_150300_create_devices_table` | `devices` |
+| `2026_10_07_150400_create_audit_logs_table` | `audit_logs` |
+
+**Seed:** 3 user (owner/admin/operator1) · 2 tipe konsol · ST01–ST06 · 6 paket · 7 menu F&B · 1 member contoh. Aman dijalankan ulang (`updateOrCreate`) karena pindah VPS nanti memakai `migrate --seed` (DEC-002).
+
+**Tests — 37 lulus, 129 assertion** (sebelumnya 15)
+- `hourly_rate`: 1 jam, 2 jam, pembulatan ke atas 65000/3jam → 21667, paket 30 menit.
+- DEC-020: hanya OWNER boleh ubah tarif; ADMIN tidak.
+- `AVAILABLE` bukan status session · hanya ACTIVE/WARNING orderable (tutup ghost order T05) · EXPIRED masih extendable (grace DEC-007) · transisi status F&B.
+- Schema: 16 entity ada · `sessions` milik billing · tidak ada pivot `session_customers` (DEC-008) · PK UUID v4 · tarif beda antar tipe konsol · paket nama sama boleh beda tipe · seeder idempoten.
+
+---
+
+### Tiga hal yang perlu diketahui tim
+
+**1. Nama tabel `sessions` bentrok — Laravel vs PRD §22**
+
+Laravel membuat tabel `sessions` untuk session login web. PRD §22 memakai nama `sessions` untuk session billing. Session web dipindah ke **`web_sessions`** (`config/session.php` ikut diubah); `sessions` tetap milik billing sesuai PRD. Model-nya diberi nama kelas **`BillingSession`** supaya tidak tertukar dengan `Session` milik Laravel — nama tabelnya tetap `sessions`.
+
+**2. Harga dibekukan di `sessions`, tidak diambil ulang dari `packages`**
+
+Kolom `package_name` `package_duration_minutes` `package_price` `hourly_rate` disalin ke baris session saat dibuat.
+
+Alasannya DEC-019/020: owner boleh mengubah tarif kapan saja dari aplikasi kasir. Tanpa snapshot, mengubah harga paket akan mengubah tagihan session **yang sedang berjalan** — termasuk harga extend, karena rumus DEC-007 memakai `hourly_rate`. Customer sudah disebutkan harga di depan; harga itu tidak boleh bergerak di tengah sesi. Hal yang sama dilakukan pada `fnb_order_items` (nama + harga menu dibekukan).
+
+**3. Entity yang sengaja BELUM dibuat**
+
+PRD §22 menyebut `bookings` `expenses` `targets` `notifications` `backups`. Semuanya **tidak** dibuat sekarang, bukan karena terlupa:
+- `bookings` butuh grace period, late arrival, cancellation/refund yang semuanya masih TBD di PRD §35 — kolomnya akan jadi tebakan.
+- `expenses`/`targets` butuh formula profit/margin (OD-009).
+- `notifications` butuh provider & consent (PRD §35), `backups` butuh retention (PRD §35).
+
+Semuanya milik Tahap 3, dan menambah tabel lewat migration saat aturannya sudah jelas lebih murah daripada membongkar kolom yang salah tebak.
+
+**Known issues**
+- `enrollment_code` (pairing TV) belum ada tabelnya — alurnya wewenang Admin, Tahap 3B. `devices` sendiri sudah siap.
+- Baris `idempotency_keys` kedaluwarsa belum dibersihkan (menyusul bersama scheduler).
+- Error code swap antar tipe konsol (DEC-021) belum ada di API.md §11.
+- Harga seed = **data test**, bukan tarif Amor Gaming Space.
+
+**Manual test**
+```
+php artisan migrate:fresh --seed
+php artisan test
+```
+
+**Next step**
+- **Langkah 4**: auth + RBAC — `POST /auth/login`, `GET /auth/me`, `POST /auth/logout` dengan 3 role.

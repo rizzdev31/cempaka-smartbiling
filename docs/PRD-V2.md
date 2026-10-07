@@ -87,6 +87,7 @@ Otomatisasi start/monitor/extend/swap/checkout · Rental + F&B + Extend dalam sa
 - Sistem tidak membaca game state PS5 via HDMI.
 - **Tidak boleh mengklaim** semua Android TV mendukung HDMI switching, overlay, Device Owner, Lock Task, atau remote blocking sebelum PoC.
 - Multi-cabang penuh bukan fokus V1.
+  > **Update 7 Okt 2026 (DEC-018):** aplikasi dijual per-instance — satu server untuk satu rental, bukan multi-tenant.
 - Fitur baru tidak masuk tanpa decision log.
 
 ## 6. Aktor & hak akses
@@ -98,6 +99,8 @@ Otomatisasi start/monitor/extend/swap/checkout · Rental + F&B + Extend dalam sa
 | Customer | Portal session sendiri, timer, F&B, extend request | Tidak boleh akses session lain/admin |
 | TV Agent | Device API/WebSocket, timer, heartbeat, state recovery | Tidak ada akses admin/DB |
 | System | Scheduler, backup, notification, reconciliation | Least privilege |
+
+> **Update 7 Okt 2026 (DEC-020):** "Admin / Owner" **dipisah khusus untuk harga** — hanya role `owner` yang boleh mengubah tarif/paket; admin tidak. Role jadi tiga: `owner`, `admin`, `operator`.
 
 ## 7. Arsitektur sistem V2
 
@@ -227,6 +230,8 @@ Request (customer/operator) → backend validasi token/session/status/durasi/pol
 
 ## 15. Station Swap
 
+> **Update 7 Okt 2026 (DEC-021):** "kompatibel" = **tipe konsol sama**. Swap ke tipe konsol berbeda (mis. PS4 → PS5 VIP) **tidak diizinkan** karena paketnya berbeda — itu session baru dengan paket baru, bukan swap.
+
 Operator pilih active session → pilih station tujuan → backend pastikan target AVAILABLE & kompatibel → swap **atomic** → `session_id` tetap sama → `end_at`, F&B, payment status, customer token, histori tetap terkait session yang sama → TV lama kembali AVAILABLE/LOCKED → TV baru menerima ACTIVE → audit log (asal → tujuan, actor, waktu, hasil).
 
 ## 16. Timer & Kotlin TV Agent
@@ -334,6 +339,8 @@ Primary DB = MySQL di VPS. Field type, index, FK, unique constraint, migration, 
 | `audit_logs` | Sensitive action history |
 | `notifications` | Notification state if enabled |
 | `backups` | Backup metadata if tracked |
+
+> **Update 7 Okt 2026 (DEC-019):** tarif berbeda per **tipe konsol** (mis. PS5 VIP vs PS4 Slim) dan bisa diatur dari aplikasi kasir. Schema ditambah tipe konsol: `stations` dan `packages` merujuk ke tipe konsol. Harga tetap dihitung server; perubahan tarif wajib masuk `audit_logs`.
 
 **SQLite:** boleh dipakai sebagai local persistence di Flutter/Kotlin untuk cache, timer state, atau offline queue. **Bukan** pengganti MySQL dan bukan sumber kebenaran transaksi.
 

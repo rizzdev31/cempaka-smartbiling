@@ -117,11 +117,14 @@ Aturan:
 
 1. Client membuat `Idempotency-Key` = **UUID v4 baru per niat aksi**, bukan per retry. Retry pakai key yang sama.
 2. Server menyimpan `key → response` minimal **24 jam**.
-3. Request ulang dengan key sama → response **identik** + header `X-Idempotent-Replay: true`. Tidak ada data baru dibuat.
+3. Request ulang dengan key sama → response **identik** + header `X-Idempotent-Replay: true`. Tidak ada data baru dibuat. (`meta.server_time` tetap diperbarui — lihat CHANGELOG DRAFT 5b.)
 4. Key sama tapi **body berbeda** → `409 IDEMPOTENCY_KEY_REUSED`.
 5. Key tidak dikirim pada endpoint di atas → `400 IDEMPOTENCY_KEY_REQUIRED`.
 
 > Ini pertahanan utama terhadap R06 (duplicate payment) dan operator yang menekan tombol dua kali.
+
+6. **Hanya response sukses (2xx) yang disimpan.** Response gagal tidak dikunci, supaya client bisa memperbaiki body lalu mengirim ulang dengan key yang sama (CHANGELOG DRAFT 5b).
+7. Key di-scope per pemakai (user / device). Key operator A tidak menabrak key operator B.
 
 ---
 
@@ -209,7 +212,8 @@ Error: `401 INVALID_CREDENTIALS`, `403 USER_INACTIVE`, `429 TOO_MANY_ATTEMPTS`
 ```
 
 - `station.status` ∈ `ACTIVE` | `MAINTENANCE` | `DISABLED` — ini status **master data**, bukan status sesi.
-- `station.console_type` = label konsol dari master data, mis. `PS5 VIP`, `PS4 PRO`. Nullable. Teks bebas, **bukan** enum: tiap rental punya penamaan sendiri. Ditampilkan apa adanya, tidak memengaruhi harga (lihat OD-015).
+- `station.console_type` = label konsol dari master data, mis. `PS5 VIP`, `PS4 PRO`. Nullable. Teks bebas, **bukan** enum: tiap rental punya penamaan sendiri.
+  > **Diperbarui 7 Okt 2026 (DEC-019 — lihat CHANGELOG DRAFT 5):** tipe konsol **memengaruhi harga**. Kalimat lama "tidak memengaruhi harga (lihat OD-015)" sudah tidak berlaku. Bentuk field untuk tarif per tipe konsol ditambahkan saat endpoint-nya ditulis.
 - `session` = `null` kalau station kosong. Inilah yang membuat station tampil `AVAILABLE` di dashboard.
 - `session.started_at` = `null` saat `PENDING_PAYMENT`. Bersama `end_at`, dipakai client untuk menggambar proporsi waktu terpakai tanpa perlu memuat detail sesi.
 - `device` = `null` kalau belum ada TV Agent terdaftar (normal sampai Tahap 2).

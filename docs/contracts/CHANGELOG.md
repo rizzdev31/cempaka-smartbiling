@@ -100,6 +100,52 @@ Kontrak awal. Belum ada implementasi, jadi belum ada breaking change.
 
 ---
 
+## v1 · DRAFT 5 — 2026-10-07
+
+**CHANGED — API** · terdampak: Flutter, Backend · **membalik catatan DRAFT 4**
+
+- `station.console_type` **sekarang memengaruhi harga** (DEC-019, menjawab OD-015).
+
+DRAFT 4 menulis "Tidak memengaruhi harga. Harga tetap dari `packages`." Itu benar
+saat OD-015 masih terbuka. Sekarang OD-015 sudah diputuskan: **tarif berbeda per
+tipe konsol**, dan bisa diatur dari aplikasi kasir.
+
+**Konsekuensi yang belum masuk kontrak** (akan ditambahkan saat endpoint-nya ditulis):
+- `GET /packages` perlu menyatakan paket itu milik tipe konsol yang mana.
+- Perlu endpoint ubah tarif/paket — **hanya role `owner`** (DEC-020), selain itu `403 FORBIDDEN`.
+- `POST /sessions/{id}/swap` menolak station tujuan dengan tipe konsol berbeda (DEC-021).
+  Butuh error code baru — belum ditambahkan ke §11.
+
+**Aksi untuk Flutter:** jangan lagi menganggap `console_type` sebagai label informasi
+saja. Layar pengaturan tarif per tipe konsol akan dibutuhkan, dan daftar station
+tujuan pada Swap harus disaring ke tipe konsol yang sama.
+
+---
+
+## v1 · DRAFT 5b — 2026-10-07
+
+**CLARIFIED — API §3 (idempotency)** · terdampak: Flutter, Kotlin
+
+Implementasi backend mempersempit satu aturan yang tertulis luas:
+
+- **Hanya response sukses (2xx) yang disimpan.** §3 aturan 2 menulis "server menyimpan
+  `key → response`" tanpa membedakan sukses/gagal. Kalau 422 ikut disimpan, aksi yang
+  salah ketik akan terkunci selamanya pada key itu — client tidak bisa memperbaiki body
+  lalu mengirim ulang dengan key yang sama, padahal §12 justru meminta retry memakai key
+  yang sama.
+- **`Idempotency-Key` wajib UUID v4.** Format lain → `400 IDEMPOTENCY_KEY_REQUIRED`.
+  §3 aturan 1 sudah menyebut UUID v4; ini hanya menegaskan bahwa server menolaknya,
+  bukan menerima apa adanya.
+- **Key di-scope per pemakai** (user id / device token / anon). Key milik satu operator
+  tidak bisa menabrak milik operator lain atau milik device TV.
+- **Response replay mendapat `server_time` baru**, bukan nilai saat request pertama —
+  kalau tidak, offset timer client akan mundur sejauh jarak antar retry.
+
+**Aksi untuk client:** tidak ada perubahan kode selama `Idempotency-Key` sudah UUID v4
+dan retry memakai key yang sama.
+
+---
+
 ## Template entry berikutnya
 
 ```
