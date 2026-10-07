@@ -2,6 +2,7 @@
 
 use App\Exceptions\ApiException;
 use App\Http\Middleware\EnforceIdempotency;
+use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\ServerTime;
 use App\Support\Api\ApiResponse;
 use App\Support\Api\ErrorCode;
@@ -38,6 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'idempotency' => EnforceIdempotency::class,
+            'active.user' => EnsureUserIsActive::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -92,13 +94,39 @@ return Application::configure(basePath: dirname(__DIR__))
                     404,
                 ),
 
-                // Sisa HttpException (405, 403 dari abort(), dll) tetap
-                // memakai status aslinya supaya tidak dilaporkan 500.
-                $e instanceof HttpExceptionInterface => ApiResponse::error(
-                    ErrorCode::SERVER_ERROR,
-                    'Permintaan tidak dapat diproses.',
-                    $e->getStatusCode(),
-                ),
+                /*
+                 * Sisa HttpException dipetakan dari STATUS-nya, bukan dari
+                 * kelasnya.
+                 *
+                 * Middleware `can:` dan `abort(403)` melempar
+                 * AccessDeniedHttpException — bukan AuthorizationException —
+                 * jadi pemetaan per kelas melewatkannya dan client menerima
+                 * `SERVER_ERROR` untuk penolakan permission yang wajar.
+                 * Pemetaan per status menangkap semuanya.
+                 */
+                $e instanceof HttpExceptionInterface => match ($e->getStatusCode()) {
+                    401 => ApiResponse::error(
+                        ErrorCode::UNAUTHENTICATED,
+                        'Sesi login tidak valid atau sudah kedaluwarsa.',
+                        401,
+                    ),
+                    403 => ApiResponse::error(
+                        ErrorCode::FORBIDDEN,
+                        'Anda tidak punya akses untuk tindakan ini.',
+                        403,
+                    ),
+                    404 => ApiResponse::error(ErrorCode::NOT_FOUND, 'Data tidak ditemukan.', 404),
+                    429 => ApiResponse::error(
+                        ErrorCode::TOO_MANY_ATTEMPTS,
+                        'Terlalu banyak permintaan. Coba lagi sebentar.',
+                        429,
+                    ),
+                    default => ApiResponse::error(
+                        ErrorCode::SERVER_ERROR,
+                        'Permintaan tidak dapat diproses.',
+                        $e->getStatusCode(),
+                    ),
+                },
 
                 default => ApiResponse::error(
                     ErrorCode::SERVER_ERROR,

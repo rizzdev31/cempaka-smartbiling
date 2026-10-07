@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
-| **backend** | **Tahap 0 jalan** (DEC-022 mencabut penahanan DEC-015). Laravel 13.35.0 + Sanctum; lapisan dasar response + idempotency; schema 16 entity + seeder; `GET /health` hidup; **37 test lulus**. Berikutnya: auth + RBAC |
+| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi response + idempotency; schema 16 entity + seeder; auth + RBAC 3 role; **59 test lulus**. Berikutnya: master data read-only |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -40,7 +40,7 @@ Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat 
 - [x] Repo Laravel dibuat + `.env.example` — Laravel 13.35.0 + Sanctum (7 Okt)
 - [x] MySQL lokal + migration 16 entity Tahap 0 (PRD §22) — 7 Okt. `bookings`/`expenses`/`targets`/`notifications`/`backups` ditunda ke Tahap 3 (aturannya masih TBD)
 - [x] Seeder: ST01–ST06, tipe konsol (DEC-019), packages, F&B dummy, 1 owner, 1 admin, 1 operator — 7 Okt
-- [ ] Auth + RBAC **owner/admin/operator** (3 role — DEC-020)
+- [x] Auth + RBAC **owner/admin/operator** (3 role — DEC-020) — 7 Okt, login/me/logout + Gate per permission
 - [x] `GET /api/v1/health` (tanpa auth) — 7 Okt
 - [x] Header `server_time` di semua response (DEC-003) — 7 Okt, middleware global
 - [x] Middleware `Idempotency-Key` — 7 Okt, 8 test
@@ -1607,3 +1607,77 @@ php artisan test
 
 **Next step**
 - **Langkah 4**: auth + RBAC — `POST /auth/login`, `GET /auth/me`, `POST /auth/logout` dengan 3 role.
+
+---
+
+### 2026-10-07 — [Backend] Langkah 4: auth + RBAC tiga role
+
+**Files changed**
+- `app/Enums/Permission.php` (17 permission) + `UserRole::permissions()`
+- `app/Http/Controllers/Api/V1/AuthController.php`
+- `app/Http/Requests/Api/V1/LoginRequest.php`
+- `app/Http/Middleware/EnsureUserIsActive.php` (alias `active.user`)
+- `app/Providers/AuthServiceProvider.php` — Gate per permission + rate limiter
+- `app/Support/Audit/AuditLogger.php` + `AuditAction.php`
+- `app/Support/Presenters/UserPresenter.php`
+- `app/Models/User.php` (HasFactory dikembalikan), `routes/api.php`, `bootstrap/app.php`, `bootstrap/providers.php`
+
+**DB changes**
+- `personal_access_tokens` diubah: `morphs` → **`uuidMorphs`** (lihat temuan di bawah).
+
+**API/Events**
+| Endpoint | Keterangan |
+|---|---|
+| `POST /api/v1/auth/login` | tanpa auth, throttle 5/menit/IP |
+| `GET /api/v1/auth/me` | token + `active.user` + throttle 120/menit |
+| `POST /api/v1/auth/logout` | mencabut token yang dipakai saja |
+
+**Tests — 59 lulus, 239 assertion** (sebelumnya 37)
+- Login: bentuk response lengkap · `active_shift` null dan terisi · password salah 401 · akun nonaktif 403 · validasi 422 · throttle 429.
+- Token: `/auth/me` butuh token · bentuk `user` identik dengan login · logout mencabut token yang dipakai · logout **tidak** mematikan token perangkat lain · akun dinonaktifkan setelah login langsung kehilangan akses.
+- Audit: login sukses & gagal tercatat · nama/role aktor dibekukan · percobaan login username tak terdaftar tetap tercatat.
+- RBAC: setiap permission punya Gate · hanya OWNER lolos `pricing.manage` (ADMIN ditolak) · operator punya pekerjaan kasir · operator **belum** boleh daftar member (OD-014) · owner = admin + 1 permission · user nonaktif tidak lolos Gate apa pun.
+
+---
+
+### Empat bug nyata yang ketangkap test
+
+**1. `personal_access_tokens` tidak kompatibel UUID**
+
+`php artisan install:api` membuat kolom `tokenable_id` bertipe integer (`morphs`), sedangkan primary key `users` adalah UUID (API.md §1). Login 500 dengan *"Incorrect integer value"* tepat di baris pembuatan token. Diubah ke `uuidMorphs`.
+
+**2. Login dengan username tak terdaftar → 500, bukan 401**
+
+Untuk mencegah timing attack, `Hash::check` dijalankan juga saat user tidak ada, memakai hash pembanding. Hash pembanding yang saya tulis bukan bcrypt yang sah, dan `Hash::check` melempar *"This password does not use the Bcrypt algorithm"*. Akibatnya username yang tidak ada menjawab 500, sekaligus **tidak tercatat di audit** — percobaan login gagal justru yang paling perlu tercatat. Sekarang hash pembanding dibuat `Hash::make(Str::random(32))` dengan cost yang sama seperti hash asli.
+
+**3. `can:` middleware menghasilkan `SERVER_ERROR`, bukan `FORBIDDEN`**
+
+Middleware `can:` melempar `AccessDeniedHttpException`, bukan `AuthorizationException`, jadi pemetaan exception per-kelas melewatkannya. Client menerima `SERVER_ERROR` untuk penolakan permission yang wajar — padahal kontrak §11 mewajibkan client menangani `FORBIDDEN`. Pemetaan diubah berdasarkan **status HTTP**, bukan kelas, sehingga 401/403/404/429 dari sumber mana pun tetap memakai error code kontrak.
+
+**4. Test lolos padahal token sudah dicabut (false negative)**
+
+Guard menyimpan user yang sudah di-resolve, dan dalam test satu container dipakai beberapa request. Akibatnya token yang sudah dicabut tampak masih sah, dan dua test lolos padahal seharusnya gagal. Ditambah `forgetGuards()` antar request. Di produksi tidak ada masalah ini karena setiap request punya container sendiri.
+
+---
+
+### Keputusan implementasi
+
+- **Permission diturunkan dari role, bukan ditempel ke token.** Kalau permission dibekukan di token Sanctum, operator yang dinaikkan jadi owner harus logout dulu, dan yang diturunkan tetap punya akses lama sampai token kedaluwarsa.
+- **`active.user` dipasang bersama `auth:sanctum` di grup route**, bukan per endpoint — route yang lupa memasangnya akan jadi celah.
+- **Pesan error login sama** untuk username salah dan password salah, supaya tidak bisa dipakai memetakan username yang terdaftar.
+- **Logout hanya mencabut token yang dipakai.** Operator bisa pakai tablet dan laptop bersamaan saat pengujian.
+- **`permissions` di response hanya untuk menyembunyikan tombol.** Penolakan tetap di server (PRD §24).
+
+**Known issues**
+- Rate limit 120/menit/user dipasang di `/auth/me` dan `/auth/logout`; endpoint lain menyusul saat ditulis.
+- `Permission::AUDIT_READ` dan `PRICING_MANAGE` sudah ada Gate-nya tapi belum ada endpoint yang memakainya.
+
+**Manual test**
+```
+POST /api/v1/auth/login {"username":"owner","password":"password"}      -> token + 17 permission
+GET  /api/v1/auth/me (Bearer)                                           -> user + active_shift null
+POST /api/v1/auth/login {"username":"operator1","password":"password"}  -> 14 permission, tanpa pricing.manage
+```
+
+**Next step**
+- **Langkah 5**: master data read-only — `GET /stations`, `GET /packages`, `GET /customers`.

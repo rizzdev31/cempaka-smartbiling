@@ -6,6 +6,8 @@ use App\Enums\UserRole;
 use App\Models\Concerns\HasUuidKey;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
@@ -17,7 +19,8 @@ use Laravel\Sanctum\HasApiTokens;
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
-    use HasApiTokens, HasUuidKey;
+    /** @use HasFactory<UserFactory> */
+    use HasApiTokens, HasFactory, HasUuidKey;
 
     protected function casts(): array
     {

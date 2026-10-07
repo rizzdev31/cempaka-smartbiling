@@ -4,16 +4,21 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Token Sanctum.
+ *
+ * `uuidMorphs`, bukan `morphs` bawaan: `morphs` membuat `tokenable_id`
+ * bertipe integer, sedangkan primary key `users` adalah UUID (API.md §1).
+ * MySQL menolak insert-nya dengan "Incorrect integer value", jadi login
+ * gagal 500 di baris pembuatan token.
+ */
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('personal_access_tokens', function (Blueprint $table) {
             $table->id();
-            $table->morphs('tokenable');
+            $table->uuidMorphs('tokenable');
             $table->text('name');
             $table->string('token', 64)->unique();
             $table->text('abilities')->nullable();
@@ -23,9 +28,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('personal_access_tokens');
