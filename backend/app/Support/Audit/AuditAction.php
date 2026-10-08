@@ -12,4 +12,15 @@ final class AuditAction
     public const LOGIN_FAILED = 'auth.login.failed';
     public const LOGIN_BLOCKED_INACTIVE = 'auth.login.blocked_inactive';
     public const LOGOUT = 'auth.logout';
+
+    public const SESSION_CREATED = 'session.created';
+
+    /** Timer mulai jalan. Terpisah dari SESSION_CREATED karena Prepaid
+     *  dibuat lebih dulu dan baru aktif setelah dibayar. */
+    public const SESSION_ACTIVATED = 'session.activated';
+
+    public const SESSION_EXTENDED = 'session.extended';
+
+    /** PRD §24 mewajibkan audit untuk setiap payment. */
+    public const PAYMENT_CONFIRMED = 'payment.confirmed';
 }

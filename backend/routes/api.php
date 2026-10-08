@@ -2,6 +2,9 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\SessionController;
+use App\Http\Controllers\Api\V1\SessionExtendController;
+use App\Http\Controllers\Api\V1\SessionPaymentController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -25,4 +28,26 @@ Route::post('/auth/login', [AuthController::class, 'login'])
 Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+
+    /*
+     * Session — API.md §7.
+     *
+     * `idempotency` hanya pada POST yang MEMBUAT data (API.md §3). GET tidak
+     * memakainya: memutar ulang response lama untuk pembacaan justru
+     * menyembunyikan perubahan yang baru terjadi.
+     */
+    Route::get('/sessions', [SessionController::class, 'index'])
+        ->middleware('can:session.read');
+
+    Route::get('/sessions/{session}', [SessionController::class, 'show'])
+        ->middleware('can:session.read');
+
+    Route::post('/sessions', [SessionController::class, 'store'])
+        ->middleware(['can:session.create', 'idempotency']);
+
+    Route::post('/sessions/{session}/payments', [SessionPaymentController::class, 'store'])
+        ->middleware(['can:payment.confirm', 'idempotency']);
+
+    Route::post('/sessions/{session}/extend', [SessionExtendController::class, 'store'])
+        ->middleware(['can:session.extend', 'idempotency']);
 });

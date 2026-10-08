@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
-| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi response + idempotency; schema 16 entity + seeder; auth + RBAC 3 role; **59 test lulus**. Berikutnya: master data read-only |
+| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi response + idempotency; schema 16 entity + seeder; auth + RBAC 3 role; **mesin state + billing engine + extend + payment** (8 Okt). **54 unit test lulus; 36 feature test baru BELUM dijalankan** — kredensial MySQL tidak ada di worktree ini. Berikutnya: master data read-only |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -25,7 +25,8 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 |---|---|---|---|
 | **OD-011** | Perlukah penemuan IP server otomatis (scan subnet) di Flutter? | 2 Okt 2026 | **Setelah DHCP reservation diuji di SESI 1.** Kalau IP laptop tetap stabil → tidak perlu. Kalau masih sering berubah → pasang scan subnet (± 100 baris) |
 | **OD-019** | Owner ubah tarif lewat **login owner** di tablet, atau **PIN** di atas sesi operator? | 7 Okt 2026 | Saat layar pengaturan tarif dikerjakan. Backend sama (token owner) — ini soal cara login di Flutter |
-| **OD-020** | Pindah tipe konsol = session baru (DEC-021). **Sisa waktu yang sudah dibayar** jadi apa — dipotong, hangus, atau ditagih penuh? | 7 Okt 2026 | Saat checkout dikerjakan. Soal uang — jangan ditebak di kode |
+| **OD-021** | Toleransi pembulatan **overstay** — dipakai DEC-009 tanpa lantai 30 menit (lewat 4 menit = tidak ditagih). Benar? | 8 Okt 2026 | Saat checkout dikerjakan. Sudah jalan sebagai asumsi; mengubahnya cukup di `OverstayPolicy` |
+| **OD-022** | Daftar member di kasir: biayanya berapa, siapa yang boleh mendaftarkan (bentrok OD-014), saldo berlaku berapa lama, bisa diuangkan? | 8 Okt 2026 | Saat checkout dikerjakan. Muncul dari DEC-024 |
 
 > Sudah diputuskan 7 Okt 2026: OD-012 → **DEC-018** (per-instance) · OD-015 → **DEC-019** (tarif per tipe konsol, diatur dari aplikasi kasir) · OD-017 → **DEC-020** (hanya owner yang boleh ubah tarif) · OD-018 → **DEC-021** (swap hanya dalam tipe konsol yang sama).
 
@@ -44,11 +45,12 @@ Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat 
 - [x] `GET /api/v1/health` (tanpa auth) — 7 Okt
 - [x] Header `server_time` di semua response (DEC-003) — 7 Okt, middleware global
 - [x] Middleware `Idempotency-Key` — 7 Okt, 8 test
-- [ ] Session state machine + test per transisi
-- [ ] Billing engine: Prepaid / Postpaid / Open Tab / `session_items`
-- [ ] Rounding durasi Postpaid per DEC-009 + unit test (35→30, 63→60, 70→90, 95→90)
-- [ ] Extend blok 30 menit + grace 10 menit per DEC-007 + test penolakan di menit ke-11
-- [ ] Payment manual cash + QRIS statis + audit
+- [x] Session state machine + test per transisi — 8 Okt, `SessionStatus::allowedNext()` + 12 test
+- [x] Billing engine: Prepaid / Postpaid / Open Tab / `session_items` — 8 Okt, `SessionTotals` + `SessionService`
+- [x] Rounding durasi Postpaid per DEC-009 + unit test (35→30, 63→60, 70→90, 95→90) — 8 Okt
+- [x] Extend blok 30 menit + grace 10 menit per DEC-007 + test penolakan di menit ke-11 — 8 Okt
+- [x] Payment manual cash + QRIS statis + audit — 8 Okt (checkout belum)
+- [ ] **Overstay DEC-023**: item ADJUSTMENT "Kelebihan waktu" saat checkout (rumusnya sudah ada + diuji, tinggal dipasang)
 - [ ] F&B order endpoint
 - [ ] Extend + approval operator
 - [ ] Station Swap atomic
@@ -1681,3 +1683,76 @@ POST /api/v1/auth/login {"username":"operator1","password":"password"}  -> 14 pe
 
 **Next step**
 - **Langkah 5**: master data read-only — `GET /stations`, `GET /packages`, `GET /customers`.
+
+---
+
+### 2026-10-08 — [Backend] Langkah 5: mesin state + billing engine + extend + payment
+
+**Keputusan yang dibuka lebih dulu** (dua OD lama dijawab user, tiga DEC baru)
+
+| | |
+|---|---|
+| **DEC-023** | Overstay Prepaid: timer jalan terus, kelebihan ditagih saat checkout. **`EXPIRED` jadi penanda, bukan penghenti** |
+| **DEC-024** | Sisa waktu Prepaid hangus; hanya member yang bisa menyimpannya |
+| **DEC-025** | Sisa waktu member saat pindah tipe konsol dikonversi senilai rupiah ke menit tarif baru |
+
+OD-001 dan OD-020 ditutup. Dua OD baru dibuka: **OD-021** (toleransi pembulatan
+overstay) dan **OD-022** (biaya & alur daftar member).
+
+**Dikerjakan**
+- `SessionStatus` dapat `allowedNext()` / `canTransitionTo()` / `isFinal()` / `isRunning()` —
+  satu tempat yang tahu urutan status, pola sama dengan `FnbOrderStatus`
+- `app/Support/Billing/`: `DurationRounding` (DEC-009), `HalfHourPricing`,
+  `ExtendPolicy` (DEC-007), `OverstayPolicy` (DEC-023), `SessionTotals`, `DocumentNumber`
+- `BillingSession` dapat `transitionTo()`, `totals()`, `entitledMinutes()`,
+  `actualMinutes()`, `overstayPrice()`, `isExtendable()`, `extendDeadlineAt()`
+- `app/Services/`: `SessionService`, `PaymentService`, `ExtendService` — semuanya
+  dalam transaksi dengan `lockForUpdate` pada baris yang diperebutkan
+- `SessionPresenter` — satu bentuk objek `session` untuk semua response & event
+- Endpoint baru: `GET /sessions`, `GET /sessions/{id}`, `POST /sessions`,
+  `POST /sessions/{id}/payments`, `POST /sessions/{id}/extend` (4 → 9 endpoint)
+
+**Keputusan teknis yang perlu diingat**
+- **Harga extend dan harga overstay memakai rumus yang sama** (`HalfHourPricing`).
+  Kalau dipisah, 30 menit yang sama bisa beda tagihan lewat dua jalur, dan
+  operator tidak akan bisa menjelaskannya ke customer.
+- **Rental selalu jadi item Open Tab**, termasuk Prepaid. Kalau rental hanya hidup
+  sebagai kolom di sesi, `balance_due` tidak punya apa pun untuk ditagih saat
+  pembayaran pertama.
+- **Paket divalidasi harus setipe konsol dengan station** (DEC-019). Paket PS4 di
+  station PS5 akan membekukan tarif yang salah untuk seluruh sesi.
+- **`transitionTo()` satu-satunya pintu ubah status.** Menulis `$session->status = ...`
+  langsung melewati penjagaan PRD §11 dan sesi bisa selesai tanpa pernah dibayar.
+- **Overstay tidak memakai lantai 30 menit**, beda dengan rounding Postpaid —
+  kelebihan 2 menit tidak boleh ditagih setengah jam (OD-021).
+
+**Tests**
+- **54 unit test lulus, 125 assertion** (sebelumnya 36) — rounding DEC-009 termasuk
+  empat contoh wajib 35→30, 63→60, 70→90, 95→90; grace DEC-007 termasuk penolakan
+  di menit ke-11; overstay DEC-023; transisi status; totals Open Tab
+- **36 feature test baru BELUM dijalankan** — lihat Known issues
+
+**Known issues**
+- **Feature test belum terbukti.** Worktree ini tidak punya `.env` dengan password
+  MySQL, jadi `cempaka_billing_test` tidak bisa diakses. `AuthTest` lama (15 test)
+  ikut gagal dengan error yang sama, jadi ini soal lingkungan, bukan kode. Perbaikannya
+  satu baris: `cp ../../../backend/.env backend/.env` dari root worktree.
+- Scheduler yang memindahkan ACTIVE → WARNING → EXPIRED belum ada, jadi status
+  tidak bergerak sendiri. `extendable` tetap benar karena dihitung dari `end_at`.
+- Overstay sudah dihitung dan diuji, tapi belum dipasang ke checkout (checkout
+  belum ditulis).
+- Belum ada broadcast Reverb — `session.started` / `updated` / `extended` menyusul.
+
+**Manual test**
+```
+POST /api/v1/sessions           {station_id, package_id, mode:"PREPAID"}   -> 201 PENDING_PAYMENT, end_at null
+POST /api/v1/sessions/{id}/payments {method:"CASH", amount:20000}          -> 201 ACTIVE, end_at terisi
+POST /api/v1/sessions/{id}/extend   {duration_minutes:30}                  -> 200 price 10000, end_at +30
+POST /api/v1/sessions/{id}/extend   {duration_minutes:45}                  -> 422 EXTEND_DURATION_INVALID
+(tunggu 11 menit lewat end_at) POST .../extend                             -> 409 EXTEND_GRACE_EXPIRED
+```
+Semua POST wajib header `Idempotency-Key: <uuid v4>`.
+
+**Next step**
+- Jalankan 36 feature test setelah `.env` tersedia, perbaiki yang gagal.
+- **Langkah 6**: master data read-only — `GET /stations`, `GET /packages`, `GET /customers`.
