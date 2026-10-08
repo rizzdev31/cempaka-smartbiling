@@ -417,7 +417,8 @@ Error: `409 STATION_NOT_AVAILABLE`, `409 TARGET_STATION_SAME`, `409 SESSION_STAT
 
 Perilaku:
 1. **Postpaid:** rental dihitung dari durasi aktual dengan rounding **DEC-009** (`sisa ≤ 5` → ke bawah, `> 5` → ke atas, per 30 menit, minimum 30). Item `RENTAL` diperbarui.
-   **Prepaid:** rental sudah fix dari paket, **tidak** di-rounding.
+   **Prepaid:** rental sudah fix dari paket, **tidak** di-rounding — dan sisa waktu yang tidak terpakai **hangus** (DEC-024), kecuali customer member.
+1b. **Overstay (DEC-023).** Menit di luar hak waktu (`durasi_paket + total_extend`) ditagih sebagai item `ADJUSTMENT` bernama "Kelebihan waktu". Dibulatkan per 30 menit dengan toleransi 5 menit DEC-009, **tanpa** lantai minimum 30. Harga per blok sama dengan extend: `ceil(hourly_rate / 2)`. Rental Prepaid yang sudah dibayar tidak dihitung ulang.
 2. Semua item unpaid ditagih. Prepaid → hanya F&B/extend/adjustment yang belum dibayar.
 3. `payments` harus menutupi `balance_due`, kalau tidak → `422 CHECKOUT_INSUFFICIENT_PAYMENT`.
 4. Status → `COMPLETED`, `ended_at = now`, station kembali kosong.
@@ -451,7 +452,7 @@ Perilaku:
 ```
 Error: `409 SESSION_STATUS_INVALID`
 
-> **Overstay** (Prepaid lewat `end_at` tanpa extend) **belum diatur** — OD-001. Jangan diimplementasikan.
+> **Overstay** (Prepaid lewat `end_at` tanpa extend) sudah diatur sejak **DEC-023**: sesi TIDAK dihentikan, timer terus berjalan, dan kelebihan waktunya ditagih saat checkout. `EXPIRED` adalah penanda bahwa waktu paket sudah lewat, **bukan** penghenti — station tetap terpakai. Perilaku lock/overlay TV saat EXPIRED masih OD-004.
 
 ---
 

@@ -698,13 +698,114 @@ slice pertama" jadi bisa dipenuhi setelah langkah 7 (payment manual).
 
 ---
 
+## DEC-023 — Overstay Prepaid: timer jalan terus, kelebihan ditagih saat checkout
+**Tanggal:** 8 Okt 2026 · **Status:** APPROVED · **Menjawab:** OD-001 (bagian penagihan) · **Melengkapi:** PRD §11, DEC-007, DEC-009
+
+Diputuskan user: customer **boleh terus bermain** melewati `end_at`. Sesi tidak
+dihentikan. Kelebihan waktunya ditagih saat checkout.
+
+**Konsekuensi terbesar — `EXPIRED` berubah arti.** Sampai sekarang `EXPIRED`
+dibaca sebagai "sesi habis, berhenti". Sejak keputusan ini `EXPIRED` adalah
+**penanda bahwa waktu paket sudah lewat**, bukan penghenti. Station tetap
+terpakai, timer tetap berjalan maju, dan sesi baru pindah ke `CHECKOUT` ketika
+operator menutupnya.
+
+**Rumus penagihan overstay:**
+
+```
+overstay_menit = durasi_aktual - (durasi_paket + total_menit_extend)
+blok           = pembulatan DEC-009 atas overstay_menit, TANPA lantai 30 menit
+harga          = blok ÷ 30 × ceil(hourly_rate ÷ 2)
+```
+
+Item masuk Open Tab sebagai `ADJUSTMENT` bernama "Kelebihan waktu", `is_paid: false`,
+dibayar saat checkout bersama F&B dan extend. Rental Prepaid yang sudah dibayar
+**tidak dihitung ulang** — PRD §12 "tidak ada pembayaran rental kedua" tetap berlaku.
+
+**Hubungannya dengan grace extend DEC-007.** Keduanya hidup berdampingan dan
+tidak bertabrakan: extend dalam 10 menit pertama **lebih murah dan terencana**
+(waktu ditambahkan ke `end_at`, customer tahu di depan). Overstay adalah
+penagihan **setelah kejadian** untuk customer yang tidak minta extend. Operator
+tetap didorong menawarkan extend lebih dulu.
+
+**Yang mengikat di backend:**
+- Scheduler reconciliation tetap menandai `ACTIVE/WARNING → EXPIRED` saat `end_at`
+  lewat, tapi **tidak** menutup sesi dan **tidak** mengosongkan station.
+- `SessionStatus::EXPIRED->occupiesStation()` tetap `true` — sudah benar sejak awal.
+- Checkout menghitung overstay sebelum menjumlahkan balance.
+
+**Konsekuensi untuk Kotlin TV Agent (tim rekan):** TV **tidak boleh** mematikan
+tampilan atau mengunci saat `end_at` lewat. Yang ditampilkan: waktu berjalan maju
+(overtime), bukan layar mati. Perilaku lock/overlay saat EXPIRED tetap **OD-004**.
+
+**Asumsi yang perlu dikonfirmasi → OD-021.** Toleransi pembulatan overstay memakai
+DEC-009 (sisa ≤ 5 menit dibulatkan ke bawah) **tanpa** lantai minimum 30 menit.
+Artinya overstay 4 menit tidak ditagih, overstay 20 menit ditagih 30 menit. Lantai
+30 menit sengaja tidak dipakai karena akan menagih 30 menit untuk kelebihan 2 menit.
+
+---
+
+## DEC-024 — Sisa waktu Prepaid hangus; hanya member yang bisa menyimpannya
+**Tanggal:** 8 Okt 2026 · **Status:** APPROVED · **Menjawab:** OD-001 (bagian sisa waktu) · **Melengkapi:** PRD §12, DEC-009
+
+Diputuskan user: customer Prepaid yang berhenti lebih awal **tidak mendapat
+pengembalian**. Bayar paket 1 jam, main 40 menit → tetap bayar 1 jam penuh.
+
+Pengecualian: **member**. Sisa waktunya boleh disimpan untuk dipakai lain hari.
+Customer non-member yang ingin menyimpan sisa waktunya **harus mendaftar member
+lebih dulu** — operator menawarkan saat checkout. Kalau menolak, sisanya hangus.
+
+**Alasannya konsisten dengan DEC-009:** Prepaid memang tidak di-rounding dan
+memakai durasi paket apa adanya. Kalau sisa waktu dikembalikan tunai, Prepaid
+berubah jadi deposit dan kasir harus memegang uang kembalian — beban operasional
+yang tidak diminta.
+
+**Yang mengikat di backend:**
+- Rental Prepaid di checkout = `package_price`, tidak pernah dihitung ulang dari
+  durasi aktual. Hanya Postpaid yang memakai rounding DEC-009.
+- Penyimpanan sisa waktu member butuh tabel saldo tersendiri — **belum dibuat**,
+  menyusul bersama endpoint checkout.
+
+**Belum diputuskan → OD-022** (tidak memblokir butir 1–5): biaya mendaftar member,
+siapa yang boleh mendaftarkan di kasir (bentrok dengan OD-014 yang menahan
+`customer.create` dari operator), masa berlaku saldo, dan apakah saldo bisa
+diuangkan. Semuanya soal uang — jangan diputuskan di kode.
+
+---
+
+## DEC-025 — Sisa waktu member saat pindah tipe konsol dikonversi senilai rupiah
+**Tanggal:** 8 Okt 2026 · **Status:** APPROVED · **Menjawab:** OD-020 · **Melengkapi:** DEC-021, DEC-024
+
+Diputuskan user: sisa waktu **langsung jadi waktu di sesi baru**, dikonversi
+berdasarkan nilai rupiahnya, bukan jumlah menitnya.
+
+```
+nilai_sisa  = sisa_menit ÷ 60 × hourly_rate_konsol_lama
+menit_baru  = floor(nilai_sisa ÷ hourly_rate_konsol_baru × 60)
+```
+
+Contoh: sisa 30 menit di PS4 (10.000/jam) = 5.000 → di PS5 (15.000/jam) jadi
+**20 menit**. Tidak ada saldo mengendap; semuanya habis dipakai di sesi baru.
+
+**Alasan dikonversi senilai rupiah, bukan menit apa adanya:** DEC-019 membuat
+tarif berbeda per tipe konsol. Memindahkan 30 menit PS4 jadi 30 menit PS5 berarti
+rental memberi 2.500 gratis setiap kali customer pindah ke konsol lebih mahal.
+
+**Tetap berlaku DEC-021:** pindah tipe konsol **bukan swap**. Sesi lama di-checkout,
+sesi baru dibuat dengan paket baru. Konversi ini terjadi di pembuatan sesi baru,
+bukan di endpoint swap.
+
+**Hanya untuk member** (DEC-024). Non-member yang pindah tipe konsol → sisa hangus.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 
 | ID | Pertanyaan | Kenapa penting | Blokir tahap |
 |---|---|---|---|
-| **OD-001** | Apa yang terjadi saat `EXPIRED` tapi customer masih bermain? Auto-lock TV? Operator manual? Overstay ditagih bagaimana? | Kejadian paling sering di lapangan tapi tidak ada di PRD. Menentukan perilaku TV **dan** penagihan overstay (DEC-009 sengaja tidak mengaturnya). | Tahap 1 (UI), Tahap 2 (lock) |
+| ~~OD-001~~ | ~~Overstay: EXPIRED tapi customer masih bermain~~ | **DIPUTUSKAN → DEC-023** (timer jalan terus, kelebihan ditagih di checkout) + **DEC-024** (sisa waktu hangus kecuali member). Perilaku lock/overlay TV saat EXPIRED tetap di OD-004 | — |
 | **OD-002** | Mitigasi Postpaid/Open Tab kabur tanpa bayar — deposit? batas maksimum open tab? catat identitas? | PRD §12 memperbolehkan Postpaid tapi tidak punya mitigasi kerugian. | Tahap 1 |
 | ~~OD-003~~ | ~~Extend pricing & extend setelah EXPIRED~~ | **DIPUTUSKAN → DEC-007** | — |
 | **OD-004** | Warning 10/5/1 menit: bunyi? teks? overlay penuh atau pojok? Bisa ditutup customer? | Tahap 2 tidak bisa selesai tanpa ini. PRD §35 TBD. | Tahap 2 |
@@ -718,7 +819,9 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | ~~OD-015~~ | ~~Tarif berbeda per tipe konsol?~~ | **DIPUTUSKAN → DEC-019** (ya, diatur dari aplikasi kasir) | — |
 | ~~OD-017~~ | ~~Siapa yang boleh mengubah tarif dari aplikasi kasir?~~ | **DIPUTUSKAN → DEC-020** (hanya owner) | — |
 | ~~OD-018~~ | ~~Swap ke tipe konsol berbeda?~~ | **DIPUTUSKAN → DEC-021** (tidak boleh) | — |
-| **OD-020** | Kalau customer ingin pindah ke tipe konsol lain, **sisa waktu yang sudah dibayar** jadi apa? Dipotong dari paket baru, hangus, atau tetap ditagih penuh? | Muncul dari DEC-021. Ini soal uang, jadi tidak boleh ditebak di kode | Tahap 0 (checkout) — tidak memblokir golden path |
+| ~~OD-020~~ | ~~Sisa waktu saat pindah tipe konsol~~ | **DIPUTUSKAN → DEC-025** (dikonversi senilai rupiah ke menit di tarif konsol baru, member saja) | — |
+| **OD-021** | Toleransi pembulatan **overstay**: pakai DEC-009 (sisa ≤ 5 menit ke bawah) tanpa lantai 30 menit — sudah diterapkan sebagai asumsi di DEC-023. Benar? | Menentukan apakah overstay 4 menit ditagih 0 atau 30 menit. Soal uang, tapi tidak memblokir karena mudah diubah di satu tempat (`OverstayPolicy`) | Tahap 0 (checkout) |
+| **OD-022** | Mendaftar member di kasir: berapa biayanya, siapa yang boleh mendaftarkan (bentrok OD-014), berapa lama saldo berlaku, bisakah diuangkan? | Muncul dari DEC-024. Tanpa ini, "sisa waktu bisa disimpan" tidak bisa dijalankan di lapangan | Tahap 0 (checkout) |
 | **OD-016** | Apakah **maintenance perlu data pendukung** — teknisi, nomor tiket, estimasi selesai? | Desain contoh menampilkannya, tapi tidak ada entity-nya di PRD §22. Sekarang kartu maintenance hanya menampilkan "Sedang diperbaiki" — tidak memalsukan data yang tidak ada | Tahap 3B (Admin) |
 | **OD-014** | Bolehkah **operator mendaftarkan member baru** di meja kasir, atau hanya Admin? | PRD §6 memberi akses `customer` hanya kepada Admin/Owner — operator tidak termasuk. Tapi customer yang ingin jadi member di tempat adalah kejadian harian. Sekarang operator hanya bisa mencari & memilih member yang sudah ada; yang belum terdaftar dilayani sebagai Walk-in | Tahap 1 (UI sudah siap), Tahap 3B (Admin) |
 | **OD-013** | Ringkasan shift: `rental`/`fnb` dihitung saat item **dibuat** (nilai transaksi) atau saat **dibayar** (uang masuk)? | Keduanya sudah dibedakan di UI, tapi mana yang jadi dasar laporan belum diputuskan. Mempengaruhi laporan harian dan formula profit (OD-009). `cash`/`qris`/`total` tidak terpengaruh — itu selalu uang masuk | Tahap 3B (reporting) |
@@ -726,7 +829,7 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 
 **Tidak ada lagi Open Decision yang memblokir Tahap 0.** Billing engine sudah boleh ditulis.
 
-Yang masih menghalangi **Tahap 2**: OD-004 (perilaku warning) dan OD-005 (fakta TV — dicek Sabtu). OD-001 menghalangi penagihan overstay, tapi tidak menghalangi golden path.
+Yang masih menghalangi **Tahap 2**: OD-004 (perilaku warning) dan OD-005 (fakta TV — dicek Sabtu). Penagihan overstay sudah dibuka oleh DEC-023; yang tersisa dari OD-001 hanya perilaku TV, yang memang milik OD-004.
 
 ---
 

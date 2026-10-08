@@ -149,6 +149,42 @@ dan retry memakai key yang sama.
 ## Template entry berikutnya
 
 ```
+## v1 · DRAFT 6 — 2026-10-08
+
+Overstay akhirnya punya aturan. Ini perubahan **perilaku**, bukan bentuk data —
+tidak ada field yang berubah, tapi arti `EXPIRED` berubah untuk semua client.
+
+**CHANGED — API** · semua client · **DEC-023**
+- `EXPIRED` sekarang berarti "waktu paket sudah lewat", **bukan** "sesi berhenti".
+  Timer terus berjalan, station tetap terpakai, dan kelebihan waktunya ditagih
+  saat checkout. Catatan lama di `API.md` §7 ("Overstay belum diatur — jangan
+  diimplementasikan") sudah dicabut.
+- `POST /sessions/{id}/checkout` menambah langkah 1b: menit di luar
+  `durasi_paket + total_extend` ditagih sebagai item `ADJUSTMENT` bernama
+  "Kelebihan waktu". Pembulatan per 30 menit dengan toleransi 5 menit (DEC-009)
+  **tanpa** lantai minimum 30. Harga per blok sama dengan extend.
+
+**CHANGED — API** · operator app · **DEC-024**
+- Prepaid yang berhenti lebih awal: sisa waktunya **hangus**, tidak ada
+  pengembalian. Member bisa menyimpannya — tabel saldonya menyusul bersama
+  endpoint checkout, jadi belum ada field baru di kontrak.
+
+**FIXED — API** · semua client
+- `409 EXTEND_GRACE_EXPIRED` mengirim `error.details.grace_until`, sesuai contoh
+  di `API.md` §2. Sebelumnya belum ada implementasinya, jadi ini bukan breaking.
+
+**Yang WAJIB diketahui Kotlin TV Agent:** TV **tidak boleh** mengunci, memblank,
+atau mematikan tampilan saat `end_at` lewat. Yang ditampilkan adalah waktu
+berjalan maju (overtime). Perilaku lock/overlay saat EXPIRED masih OD-004 —
+sampai itu diputuskan, TV cukup menampilkan timer yang terus berjalan.
+
+**Yang perlu diketahui Flutter:** kartu station berstatus `EXPIRED` tetap
+menampilkan timer berjalan, bukan "selesai". `extendable` tetap dari server —
+setelah grace 10 menit lewat, tombol extend hilang tapi sesi tetap hidup, dan
+operator menutupnya lewat checkout.
+
+---
+
 ## v1 · DRAFT <n> — YYYY-MM-DD
 
 **<JENIS> — API|REALTIME** · terdampak: Flutter | Kotlin | Admin | semua
