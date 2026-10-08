@@ -12,6 +12,17 @@ use Illuminate\Database\Seeder;
  * yang `is_available = false`, supaya kedua cabang di API.md §8 ada datanya
  * untuk diuji.
  */
+/*
+ * PERINGATAN — ANGKA DI BAWAH ADALAH DATA UJI, BUKAN TARIF ASLI.
+ *
+ * Dikonfirmasi user 8 Okt 2026: "belum final, masih uji coba ini."
+ * Nama tipe konsol, harga paket, dan pembagian station per tipe semuanya
+ * karangan untuk keperluan pengujian.
+ *
+ * JANGAN dipakai untuk transaksi uang nyata sebelum diganti tarif sebenarnya
+ * (DEC-002 butir 4). Yang mengubahnya nanti adalah owner lewat aplikasi
+ * (DEC-019/020), bukan seeder ini.
+ */
 class FnbSeeder extends Seeder
 {
     public function run(): void

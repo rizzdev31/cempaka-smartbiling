@@ -16,6 +16,17 @@ use Illuminate\Database\Seeder;
  * ANGKA HARGA DI SINI DATA TEST, bukan tarif Amor Gaming Space. Tarif
  * sebenarnya diatur owner dari aplikasi kasir (DEC-019/020).
  */
+/*
+ * PERINGATAN — ANGKA DI BAWAH ADALAH DATA UJI, BUKAN TARIF ASLI.
+ *
+ * Dikonfirmasi user 8 Okt 2026: "belum final, masih uji coba ini."
+ * Nama tipe konsol, harga paket, dan pembagian station per tipe semuanya
+ * karangan untuk keperluan pengujian.
+ *
+ * JANGAN dipakai untuk transaksi uang nyata sebelum diganti tarif sebenarnya
+ * (DEC-002 butir 4). Yang mengubahnya nanti adalah owner lewat aplikasi
+ * (DEC-019/020), bukan seeder ini.
+ */
 class MasterDataSeeder extends Seeder
 {
     public function run(): void
