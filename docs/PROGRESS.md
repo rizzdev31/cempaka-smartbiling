@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
-| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **66 unit test lulus; 118 feature test (36 baru sesi ini) BELUM dijalankan** → kredensial MySQL tidak ada di worktree ini. Berikutnya: master data read-only |
+| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **184 test LULUS** (66 unit + 118 feature, 640 assertion) dan **golden path 33/33 lewat HTTP sungguhan**. Berikutnya: endpoint shift + master data read-only |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -58,7 +58,7 @@ Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat 
 - [x] Reverb lokal + semua event PRD §23 → 8 Okt, 8 event (`device.heartbeat` menunggu Tahap 2)
 - [x] Scheduler reconciliation `session.expired` → 8 Okt, `sessions:reconcile` tiap menit
 - [x] `audit_logs` terisi untuk aksi sensitif → 8 Okt, 14 aksi termasuk saldo member
-- [ ] Golden path ST01 lulus dari Postman → koleksi + test otomatis SUDAH ADA, **belum dijalankan** (butuh DB)
+- [x] Golden path ST01 lulus → 8 Okt. 33/33 lewat HTTP (`php artisan serve` + curl), plus `GoldenPathTest` otomatis. Koleksi Postman tersedia di `docs/postman/`
 
 ### Checklist Tahap 1 (Flutter)
 
@@ -1835,3 +1835,69 @@ Lalu import `docs/postman/cempaka-tahap0.postman_collection.json`, isi `base_url
 1. Isi `.env`, jalankan 118 feature test, perbaiki yang gagal.
 2. Jalankan golden path dari Postman — ini exit criteria Tahap 0.
 3. Master data read-only: `GET /stations`, `GET /packages`, `GET /customers`.
+
+---
+
+### 2026-10-08 — [Backend] Verifikasi: seluruh test dijalankan, golden path lulus
+
+Sesi sebelumnya menulis kode tanpa bisa membuktikannya — worktree tidak punya
+`.env`. Ternyata file-nya ada di folder kerja utama; tinggal disalin.
+
+**Hasil**
+
+| | |
+|---|---|
+| Unit | **66 lulus** |
+| Feature | **118 lulus** |
+| Total | **184 lulus, 640 assertion, 12 detik** |
+| Golden path HTTP | **33/33 lulus** |
+
+**Tiga bug ditemukan — semuanya di test, bukan di aplikasi**
+
+1. `FnbOrderTest::session()` dan `SessionPaymentTest::session()` menabrak
+   `session()` milik `Illuminate\Foundation\Testing\TestCase` yang bersifat
+   public. PHP menolak menurunkan visibility-nya → fatal error sebelum satu
+   test pun jalan. Diganti `makeSession()`.
+2. `SessionSwapTest::swap()` menabrak `swap()` milik TestCase (protected,
+   dari `InteractsWithContainer`). Diganti `doSwap()`.
+3. `SessionPaymentTest::test_tanpa_idempotency_key_ditolak` dapat 409 bukan
+   400. Penyebabnya `withHeaders()` Laravel **bertahan antar request dalam
+   satu test**, jadi `Idempotency-Key` dari pembuatan sesi masih menempel dan
+   yang teruji justru "key dipakai ulang". Ditambah `flushHeaders()`.
+
+Tidak ada satu pun kode aplikasi yang berubah untuk membuat test hijau.
+
+**Golden path dijalankan dari luar**
+
+`php artisan serve` pada database terpisah (`cempaka_billing_golden`, dibuat
+dan dihapus lagi supaya data dev tidak tersentuh), lalu 33 pemeriksaan lewat
+HTTP sungguhan:
+
+```
+start Prepaid -> tolak tanpa Idempotency-Key -> tolak station terpakai
+-> bayar -> tolak bayar lebih -> F&B -> antrian PENDING..DELIVERED
+-> tolak lompat status -> tolak extend 45 menit -> extend 30 menit
+-> swap ST01->ST02 (end_at & session_id tidak berubah) -> tolak kurang bayar
+-> checkout -> tolak checkout ulang
+```
+
+Struk `INV-20261008-0001`, grand total 47.500 (rental 25.000 + F&B 10.000 +
+extend 12.500). Angkanya cocok dengan hitungan manual.
+
+**Yang masih BELUM terbukti lewat HTTP:** perpindahan `WARNING` dan `EXPIRED`,
+karena curl tidak bisa memajukan jam satu jam. Keduanya terbukti di
+`GoldenPathTest` yang memakai `travelTo()`, dan `sessions:reconcile` ikut
+dipanggil di sana.
+
+**Known issues**
+- `shift_id` masih selalu NULL — `POST /shifts/open` belum ada.
+- `GET /stations` dan `GET /packages` belum ada, jadi golden path HTTP masih
+  mengambil `station_id`/`package_id` langsung dari database. Exit criteria
+  ROADMAP menuntut "tanpa sentuh DB manual" — baru terpenuhi penuh setelah
+  master data read-only selesai.
+- Throttle broadcast (REALTIME.md §7) belum dipasang.
+
+**Next step**
+1. `POST /shifts/open` + `close` + `GET /shifts/current` — supaya uang bisa
+   dihubungkan ke yang jaga.
+2. Master data read-only: `GET /stations`, `GET /packages`, `GET /customers`.

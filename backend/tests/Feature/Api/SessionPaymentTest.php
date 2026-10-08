@@ -33,7 +33,7 @@ class SessionPaymentTest extends TestCase
         $this->actingAs($this->operator(['name' => 'Budi']), 'sanctum');
     }
 
-    private function session(string $mode): array
+    private function makeSession(string $mode): array
     {
         return $this->withHeaders($this->idempotent())
             ->postJson('/api/v1/sessions', [
@@ -51,7 +51,7 @@ class SessionPaymentTest extends TestCase
 
     public function test_pembayaran_rental_menyalakan_timer_prepaid(): void
     {
-        $session = $this->session('PREPAID');
+        $session = $this->makeSession('PREPAID');
 
         $response = $this->pay($session['id'], ['method' => 'CASH', 'amount' => 20000]);
 
@@ -70,7 +70,7 @@ class SessionPaymentTest extends TestCase
 
     public function test_end_at_prepaid_sepanjang_durasi_paket(): void
     {
-        $session = $this->session('PREPAID');
+        $session = $this->makeSession('PREPAID');
 
         $this->pay($session['id'], ['method' => 'CASH', 'amount' => 20000])->assertCreated();
 
@@ -81,7 +81,7 @@ class SessionPaymentTest extends TestCase
 
     public function test_rental_ditandai_lunas_setelah_dibayar(): void
     {
-        $session = $this->session('PREPAID');
+        $session = $this->makeSession('PREPAID');
 
         $this->pay($session['id'], ['method' => 'CASH', 'amount' => 20000])->assertCreated();
 
@@ -98,7 +98,7 @@ class SessionPaymentTest extends TestCase
     {
         // Kembalian tidak dicatat di V1 (API.md §7). Kelebihan yang masuk
         // membuat laporan kas tidak bisa dicocokkan.
-        $session = $this->session('PREPAID');
+        $session = $this->makeSession('PREPAID');
 
         $this->pay($session['id'], ['method' => 'CASH', 'amount' => 25000])
             ->assertStatus(422)
@@ -110,7 +110,7 @@ class SessionPaymentTest extends TestCase
     {
         // QRIS statis tidak punya callback gateway — nomor referensi satu-satunya
         // bukti yang bisa dicocokkan saat rekonsiliasi.
-        $session = $this->session('PREPAID');
+        $session = $this->makeSession('PREPAID');
 
         $this->pay($session['id'], ['method' => 'QRIS_STATIC', 'amount' => 20000])
             ->assertStatus(422)
@@ -119,7 +119,7 @@ class SessionPaymentTest extends TestCase
 
     public function test_qris_dengan_referensi_diterima(): void
     {
-        $session = $this->session('PREPAID');
+        $session = $this->makeSession('PREPAID');
 
         $this->pay($session['id'], [
             'method' => 'QRIS_STATIC',
@@ -134,7 +134,7 @@ class SessionPaymentTest extends TestCase
     {
         // PRD §11 menaruh PENDING_PAYMENT justru supaya station tidak terpakai
         // oleh sesi yang belum lunas.
-        $session = $this->session('PREPAID');
+        $session = $this->makeSession('PREPAID');
 
         $this->pay($session['id'], ['method' => 'CASH', 'amount' => 5000])
             ->assertCreated()
@@ -145,7 +145,7 @@ class SessionPaymentTest extends TestCase
 
     public function test_sisa_pembayaran_menyalakan_timer(): void
     {
-        $session = $this->session('PREPAID');
+        $session = $this->makeSession('PREPAID');
 
         $this->pay($session['id'], ['method' => 'CASH', 'amount' => 5000])->assertCreated();
 
@@ -158,7 +158,7 @@ class SessionPaymentTest extends TestCase
     public function test_key_sama_tidak_mencatat_pembayaran_dua_kali(): void
     {
         // R06 — pertahanan utama terhadap duplicate payment.
-        $session = $this->session('PREPAID');
+        $session = $this->makeSession('PREPAID');
         $headers = $this->idempotent();
 
         $this->pay($session['id'], ['method' => 'CASH', 'amount' => 20000], $headers)->assertCreated();
@@ -169,7 +169,12 @@ class SessionPaymentTest extends TestCase
 
     public function test_tanpa_idempotency_key_ditolak(): void
     {
-        $session = $this->session('PREPAID');
+        $session = $this->makeSession('PREPAID');
+
+        // withHeaders() Laravel bertahan antar request dalam satu test, jadi
+        // Idempotency-Key dari pembuatan sesi masih menempel. Tanpa flush,
+        // yang diuji jadi "key dipakai ulang" (409), bukan "key tidak ada" (400).
+        $this->flushHeaders();
 
         $this->postJson("/api/v1/sessions/{$session['id']}/payments", [
             'method' => 'CASH', 'amount' => 20000,
@@ -179,7 +184,7 @@ class SessionPaymentTest extends TestCase
 
     public function test_pembayaran_tercatat_di_audit(): void
     {
-        $session = $this->session('PREPAID');
+        $session = $this->makeSession('PREPAID');
 
         $this->pay($session['id'], ['method' => 'CASH', 'amount' => 20000])->assertCreated();
 
@@ -194,7 +199,7 @@ class SessionPaymentTest extends TestCase
     {
         // Prepaid dibuat lebih dulu dan baru aktif setelah dibayar, jadi
         // "sesi dibuat" dan "timer mulai" adalah dua kejadian berbeda.
-        $session = $this->session('PREPAID');
+        $session = $this->makeSession('PREPAID');
 
         $this->pay($session['id'], ['method' => 'CASH', 'amount' => 20000])->assertCreated();
 

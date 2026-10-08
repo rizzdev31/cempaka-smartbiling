@@ -36,7 +36,7 @@ class FnbOrderTest extends TestCase
         $this->actingAs($this->operator(['name' => 'Budi']), 'sanctum');
     }
 
-    private function session(string $mode = 'POSTPAID'): string
+    private function makeSession(string $mode = 'POSTPAID'): string
     {
         return $this->withHeaders($this->idempotent())
             ->postJson('/api/v1/sessions', [
@@ -65,7 +65,7 @@ class FnbOrderTest extends TestCase
 
     public function test_order_masuk_open_tab_session(): void
     {
-        $id = $this->session();
+        $id = $this->makeSession();
 
         $this->order($id, [['product_id' => $this->teh->id, 'qty' => 2]])
             ->assertCreated()
@@ -86,7 +86,7 @@ class FnbOrderTest extends TestCase
     {
         // PRD §8. Kalau client boleh mengirim harga, diskon bisa dibuat dari
         // tablet. Harga yang dikirim di body harus diabaikan sepenuhnya.
-        $id = $this->session();
+        $id = $this->makeSession();
 
         $this->withHeaders($this->idempotent())
             ->postJson("/api/v1/sessions/{$id}/fnb/orders", [
@@ -99,7 +99,7 @@ class FnbOrderTest extends TestCase
     {
         // Ini yang menutup ghost order (T05): makanan keluar untuk sesi yang
         // belum punya Open Tab yang bisa ditagih.
-        $id = $this->session('PREPAID');
+        $id = $this->makeSession('PREPAID');
 
         $this->order($id, [['product_id' => $this->teh->id, 'qty' => 1]])
             ->assertStatus(409)
@@ -108,7 +108,7 @@ class FnbOrderTest extends TestCase
 
     public function test_produk_tidak_tersedia_ditolak(): void
     {
-        $id = $this->session();
+        $id = $this->makeSession();
         $this->teh->update(['is_available' => false]);
 
         $this->order($id, [['product_id' => $this->teh->id, 'qty' => 1]])
@@ -118,7 +118,7 @@ class FnbOrderTest extends TestCase
 
     public function test_stok_yang_dilacak_berkurang_dan_tidak_boleh_minus(): void
     {
-        $id = $this->session();
+        $id = $this->makeSession();
         $mie = $this->fnbProduct(['name' => 'Mie Goreng', 'price' => 12000, 'stock' => 3]);
 
         $this->order($id, [['product_id' => $mie->id, 'qty' => 2]])->assertCreated();
@@ -133,7 +133,7 @@ class FnbOrderTest extends TestCase
 
     public function test_antrian_bergerak_sampai_diantar(): void
     {
-        $id = $this->session();
+        $id = $this->makeSession();
         $orderId = $this->order($id, [['product_id' => $this->teh->id, 'qty' => 1]])->json('data.order.id');
 
         foreach (['PROCESSING', 'READY', 'DELIVERED'] as $status) {
@@ -145,7 +145,7 @@ class FnbOrderTest extends TestCase
 
     public function test_tidak_boleh_melompati_status(): void
     {
-        $id = $this->session();
+        $id = $this->makeSession();
         $orderId = $this->order($id, [['product_id' => $this->teh->id, 'qty' => 1]])->json('data.order.id');
 
         $this->postJson("/api/v1/fnb/orders/{$orderId}/status", ['status' => 'DELIVERED'])
@@ -155,7 +155,7 @@ class FnbOrderTest extends TestCase
 
     public function test_order_dibatalkan_tidak_ikut_ditagih(): void
     {
-        $id = $this->session();
+        $id = $this->makeSession();
         $orderId = $this->order($id, [['product_id' => $this->teh->id, 'qty' => 2]])->json('data.order.id');
 
         $this->assertSame(30000, BillingSession::find($id)->totals()->balanceDue());
@@ -168,7 +168,7 @@ class FnbOrderTest extends TestCase
 
     public function test_antrian_bisa_difilter_per_status(): void
     {
-        $id = $this->session();
+        $id = $this->makeSession();
         $a = $this->order($id, [['product_id' => $this->teh->id, 'qty' => 1]])->json('data.order.id');
         $this->order($id, [['product_id' => $this->teh->id, 'qty' => 1]])->assertCreated();
 
@@ -182,7 +182,7 @@ class FnbOrderTest extends TestCase
 
     public function test_key_sama_tidak_membuat_order_dua_kali(): void
     {
-        $id = $this->session();
+        $id = $this->makeSession();
         $headers = $this->idempotent();
 
         $this->order($id, [['product_id' => $this->teh->id, 'qty' => 1]], $headers)->assertCreated();

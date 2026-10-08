@@ -60,7 +60,7 @@ class SessionSwapTest extends TestCase
         return BillingSession::find($id);
     }
 
-    private function swap(string $sessionId, string $targetId, array $headers = []): TestResponse
+    private function doSwap(string $sessionId, string $targetId, array $headers = []): TestResponse
     {
         return $this->withHeaders($headers ?: $this->idempotent())
             ->postJson("/api/v1/sessions/{$sessionId}/swap", [
@@ -85,7 +85,7 @@ class SessionSwapTest extends TestCase
 
         $this->travelTo(Carbon::parse('2026-10-08T07:30:00Z'));
 
-        $this->swap($session->id, $this->st02->id)
+        $this->doSwap($session->id, $this->st02->id)
             ->assertOk()
             ->assertJsonPath('data.station.code', 'ST02')
             // Inti R07: id dan end_at tidak boleh bergerak.
@@ -103,7 +103,7 @@ class SessionSwapTest extends TestCase
     {
         $session = $this->activeSession();
 
-        $this->swap($session->id, $this->st02->id)->assertOk();
+        $this->doSwap($session->id, $this->st02->id)->assertOk();
 
         $this->assertNull($this->st01->fresh()->currentSession());
         $this->assertSame($session->id, $this->st02->fresh()->currentSession()?->id);
@@ -118,7 +118,7 @@ class SessionSwapTest extends TestCase
 
         $session = $this->activeSession();
 
-        $this->swap($session->id, $st03->id)
+        $this->doSwap($session->id, $st03->id)
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'STATION_TYPE_MISMATCH');
     }
@@ -127,7 +127,7 @@ class SessionSwapTest extends TestCase
     {
         $session = $this->activeSession();
 
-        $this->swap($session->id, $this->st01->id)
+        $this->doSwap($session->id, $this->st01->id)
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'TARGET_STATION_SAME');
     }
@@ -143,7 +143,7 @@ class SessionSwapTest extends TestCase
                 'mode' => 'POSTPAID',
             ])->assertCreated();
 
-        $this->swap($session->id, $this->st02->id)
+        $this->doSwap($session->id, $this->st02->id)
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'STATION_HAS_ACTIVE_SESSION');
     }
@@ -153,7 +153,7 @@ class SessionSwapTest extends TestCase
         $session = $this->activeSession();
         $this->st02->update(['status' => 'MAINTENANCE']);
 
-        $this->swap($session->id, $this->st02->id)
+        $this->doSwap($session->id, $this->st02->id)
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'STATION_NOT_AVAILABLE');
     }
@@ -168,7 +168,7 @@ class SessionSwapTest extends TestCase
                 'mode' => 'PREPAID',
             ])->json('data.id');
 
-        $this->swap($id, $this->st02->id)
+        $this->doSwap($id, $this->st02->id)
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'SESSION_STATUS_INVALID');
     }
@@ -178,7 +178,7 @@ class SessionSwapTest extends TestCase
         Event::fake([SessionSwapped::class]);
 
         $session = $this->activeSession();
-        $this->swap($session->id, $this->st02->id)->assertOk();
+        $this->doSwap($session->id, $this->st02->id)->assertOk();
 
         Event::assertDispatched(SessionSwapped::class, function (SessionSwapped $event) {
             // TV lama harus tahu untuk kembali idle, TV baru untuk mulai
@@ -193,7 +193,7 @@ class SessionSwapTest extends TestCase
     {
         $session = $this->activeSession();
 
-        $this->swap($session->id, $this->st02->id)->assertOk();
+        $this->doSwap($session->id, $this->st02->id)->assertOk();
 
         $this->assertDatabaseHas('audit_logs', [
             'action' => AuditAction::SESSION_SWAPPED,
@@ -207,8 +207,8 @@ class SessionSwapTest extends TestCase
         $session = $this->activeSession();
         $headers = $this->idempotent();
 
-        $this->swap($session->id, $this->st02->id, $headers)->assertOk();
-        $this->swap($session->id, $this->st02->id, $headers)->assertOk();
+        $this->doSwap($session->id, $this->st02->id, $headers)->assertOk();
+        $this->doSwap($session->id, $this->st02->id, $headers)->assertOk();
 
         $this->assertSame('ST02', BillingSession::find($session->id)->station->code);
     }
