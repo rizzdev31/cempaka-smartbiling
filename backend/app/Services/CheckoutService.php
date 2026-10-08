@@ -134,17 +134,30 @@ class CheckoutService
             return;
         }
 
-        $rental = $session->items()->where('type', SessionItemType::RENTAL->value)->first();
-
-        if ($rental === null) {
-            return;
-        }
-
-        $rental->update([
+        $attributes = [
             'name' => "Paket {$session->package_name} ({$billing['rental_minutes']} menit)",
             'unit_price' => $billing['rental_price'],
             'subtotal' => $billing['rental_price'],
-        ]);
+        ];
+
+        $rental = $session->items()->where('type', SessionItemType::RENTAL->value)->first();
+
+        /*
+         * Postpaid terbuka tidak punya baris rental selama sesi berjalan
+         * (DEC-034) — barisnya lahir di sini, saat angkanya sudah pasti.
+         */
+        if ($rental === null) {
+            $session->items()->create($attributes + [
+                'type' => SessionItemType::RENTAL,
+                'qty' => 1,
+                'is_paid' => false,
+                'meta' => ['duration_minutes' => $billing['rental_minutes']],
+            ]);
+
+            return;
+        }
+
+        $rental->update($attributes);
     }
 
     /**

@@ -312,6 +312,49 @@ maju — itu bagian DRAFT 6 yang juga dicabut.
 
 ---
 
+## v1 · DRAFT 10 — 2026-10-08
+
+**BREAKING — arti Postpaid berubah.** Ditemukan saat user bertanya apakah
+perilakunya sudah terpasang: ternyata kontrak memberi Postpaid batas waktu,
+padahal maksudnya "main dulu berapapun, bayar belakangan".
+
+**BREAKING — API** · semua client · **DEC-034**
+- `POST /sessions` dengan `mode: POSTPAID` sekarang membuat sesi **`end_at: null`**.
+  Kalimat lama (`end_at = now + package.duration_minutes`) dicabut.
+- Item `RENTAL` **tidak lagi dibuat saat start** untuk Postpaid. Barisnya lahir
+  saat checkout dengan angka final. Client yang membaca `items[0]` sebagai rental
+  akan menemukan daftar kosong di awal sesi.
+- Selama sesi Postpaid berjalan, `totals.rental` adalah **tagihan berjalan** dari
+  waktu yang sudah terpakai, minimum satu blok 30 menit. Angkanya **bertambah
+  seiring waktu** — bukan diam di harga paket.
+- Paket pada Postpaid hanya menentukan tarif per jam, bukan durasi.
+
+**Yang WAJIB diketahui Kotlin TV Agent**
+
+| `end_at` | Artinya |
+|---|---|
+| ada isinya | Prepaid. Timer **mundur**, peringatan 10/5/1 menit, TV mati saat habis (DEC-030, DEC-033) |
+| `null` | Postpaid. Timer **maju** dari `started_at`. Tidak ada peringatan, tidak ada mati sendiri |
+
+TV pada sesi Postpaid baru berhenti saat menerima `session.updated` berstatus
+`COMPLETED`. Jangan ada cabang yang mengasumsikan `end_at` selalu ada —
+sekarang `null` adalah keadaan normal, bukan data rusak.
+
+**Yang perlu diketahui Flutter**
+- Kartu station Postpaid tidak punya sisa waktu. Yang ditampilkan waktu berjalan
+  dan **tagihan berjalan** dari `totals.rental` — itu angka yang disebut ke
+  customer kalau dia bertanya "sudah berapa?".
+- Tombol extend tidak berlaku untuk Postpaid. `extendable` dari server sudah
+  `false` — jangan hitung sendiri.
+- Daftar item sesi Postpaid kosong di awal. Itu benar, bukan gagal memuat.
+
+**Risiko yang perlu disampaikan ke pemilik**
+Tanpa batas waktu, tidak ada rem otomatis untuk customer yang pergi tanpa bayar.
+Dulu kerugian terbatas pada durasi paket; sekarang tidak terbatas. **OD-002**
+(deposit / batas Open Tab / catat identitas) naik jadi mendesak.
+
+---
+
 ## v1 · DRAFT <n> — YYYY-MM-DD
 
 **<JENIS> — API|REALTIME** · terdampak: Flutter | Kotlin | Admin | semua

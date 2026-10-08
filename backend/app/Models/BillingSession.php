@@ -8,6 +8,7 @@ use App\Enums\SessionStatus;
 use App\Exceptions\ApiException;
 use App\Models\Concerns\HasUuidKey;
 use App\Support\Api\ErrorCode;
+use App\Support\Billing\CheckoutBilling;
 use App\Support\Billing\ExtendPolicy;
 use App\Support\Billing\SessionTotals;
 use Carbon\CarbonInterface;
@@ -135,7 +136,29 @@ class BillingSession extends Model
 
     public function totals(): SessionTotals
     {
-        return SessionTotals::of($this->items, $this->paidAmount());
+        $totals = SessionTotals::of($this->items, $this->paidAmount());
+
+        if ($this->mode !== SessionMode::POSTPAID || $this->started_at === null) {
+            return $totals;
+        }
+
+        /*
+         * Postpaid terbuka (DEC-034) belum punya baris rental tersimpan — harganya
+         * baru pasti saat sesi ditutup. Tagihan berjalan dihitung di sini dari
+         * waktu yang sudah terpakai, memakai rumus yang sama persis dengan
+         * checkout: satu cara menghitung, bukan dua yang bisa berbeda.
+         *
+         * Setelah checkout barisnya ada dan nilainya sama — `withRental`
+         * mengganti, bukan menambah, jadi tidak tertagih dua kali.
+         */
+        return $totals->withRental(CheckoutBilling::compute(
+            $this->mode,
+            (int) $this->package_duration_minutes,
+            (int) $this->package_price,
+            (int) $this->hourly_rate,
+            $this->entitledMinutes() - (int) $this->package_duration_minutes,
+            $this->actualMinutes(),
+        )['rental_price']);
     }
 
     /**

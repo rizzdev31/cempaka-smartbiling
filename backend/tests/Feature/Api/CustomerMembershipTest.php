@@ -109,7 +109,8 @@ class CustomerMembershipTest extends TestCase
 
         $session = BillingSession::find($sessionId);
 
-        $this->assertSame(30000, $session->totals()->balanceDue());   // rental 20rb + biaya 10rb
+        // Rental berjalan 10rb (minimum satu blok, DEC-034) + biaya daftar 10rb.
+        $this->assertSame(20000, $session->totals()->balanceDue());
         $this->assertSame(10000, $session->totals()->adjustment);
     }
 

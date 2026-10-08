@@ -59,12 +59,19 @@ class SessionCreateTest extends TestCase
 
         $response->assertCreated()
             ->assertJsonPath('data.status', 'ACTIVE')
-            ->assertJsonPath('data.totals.balance_due', 20000)
-            ->assertJsonPath('data.items.0.type', 'RENTAL')
-            ->assertJsonPath('data.items.0.is_paid', false);
+            // DEC-034 — Postpaid tidak punya batas waktu.
+            ->assertJsonPath('data.end_at', null)
+            ->assertJsonPath('data.extendable', false)
+            /*
+             * Belum ada baris rental: harganya baru pasti saat sesi ditutup.
+             * Yang ditampilkan adalah tagihan berjalan — minimum satu blok
+             * 30 menit (DEC-009), jadi 10.000 pada tarif 20.000/jam.
+             */
+            ->assertJsonCount(0, 'data.items')
+            ->assertJsonPath('data.totals.rental', 10000)
+            ->assertJsonPath('data.totals.balance_due', 10000);
 
         $this->assertNotNull($response->json('data.started_at'));
-        $this->assertNotNull($response->json('data.end_at'));
     }
 
     public function test_harga_dibekukan_saat_session_dibuat(): void

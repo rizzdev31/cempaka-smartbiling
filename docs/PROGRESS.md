@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
-| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **200 test LULUS** (58 unit + 142 feature, 707 assertion). Shift + customer + membership selesai; **DEC-033 mencabut penagihan overstay & grace extend** (8 Okt). Berikutnya: `GET /stations` + `GET /packages` |
+| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **208 test LULUS** (58 unit + 150 feature, 761 assertion). Shift + customer + membership selesai; **DEC-033** (waktu habis = berhenti) dan **DEC-034** (Postpaid tanpa batas waktu) (8 Okt). Berikutnya: `GET /stations` + `GET /packages` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -2023,6 +2023,52 @@ setiap tempat.
   benar-benar berhenti. Operator yang menunda checkout mengurangi saldo member.
   Sudah ada testnya (`test_checkout_terlambat_tidak_menghapus_sisa_waktu`)
   sebagai catatan batas, belum diputuskan apakah perlu diperbaiki.
+
+**Next step**
+- `GET /stations` + `GET /packages`.
+
+---
+
+### 2026-10-08 — [Backend] DEC-034: Postpaid tidak punya batas waktu
+
+**Ditemukan dari pertanyaan user**, bukan dari test: *"apakah sudah diterapkan
+kalau orang main dulu berapapun, lalu kalau mau bayar baru TV-nya mati?"*
+
+Jawabannya **belum**. Kontrak menulis Postpaid mendapat
+`end_at = now + durasi paket`, jadi Postpaid ikut dipotong persis seperti
+Prepaid dan bedanya cuma kapan membayar. Kalimat itu ditulis sebelum maksud
+Postpaid dijelaskan — salah tangkap dari awal, bukan keputusan yang pernah
+diambil. User memilih **tanpa batas**.
+
+**Yang berubah**
+- `end_at` Postpaid sekarang `null`. Scheduler melewatinya, jadi tidak pernah
+  `WARNING` maupun `EXPIRED`. TV baru berhenti saat operator menutup sesi.
+- Baris `RENTAL` Postpaid **tidak dibuat saat start**. Lahir saat checkout
+  dengan angka final.
+- `totals.rental` Postpaid dihitung **berjalan** dari waktu terpakai, memakai
+  `CheckoutBilling` yang sama dengan checkout — satu rumus, bukan dua.
+- Extend tidak berlaku untuk Postpaid: tidak ada `end_at` yang bisa digeser.
+
+**Kenapa baris rental tidak dibuat di awal**
+
+Kalau dibuat dengan harga paket, operator akan melihat tagihan 25.000 untuk
+customer yang baru main 5 menit — dan menagihkannya. Angka yang ditampilkan
+harus angka yang benar saat itu juga, bukan angka yang kebetulan tersimpan.
+
+**Tests**
+- **208 lulus, 761 assertion.** `PostpaidOpenEndedTest` (8 test) menguji hal
+  yang paling mudah salah: sesi tidak pernah berhenti sendiri walau scheduler
+  dijalankan 6 jam kemudian, dan tagihan berjalan benar-benar bertambah
+  (10.000 di menit 0 → 20.000 di menit 45 → 30.000 di menit 90).
+- 14 test lama disesuaikan. `SessionExtendTest` dan `SessionSwapTest` sekarang
+  memakai sesi **Prepaid yang sudah dibayar** sebagai sesi bertimer, karena
+  Postpaid tidak punya `end_at` lagi.
+
+**Known issues**
+- **OD-002 naik jadi mendesak.** Tanpa batas waktu, kerugian kalau customer
+  kabur tidak terbatas lagi. Dulu paling banyak sebesar durasi paket.
+- Sisa waktu member masih dihitung dari kapan sesi ditutup, bukan kapan customer
+  berhenti (catatan dari entry sebelumnya, belum diperbaiki).
 
 **Next step**
 - `GET /stations` + `GET /packages`.

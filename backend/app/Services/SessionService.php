@@ -105,7 +105,15 @@ class SessionService
                 'mode' => $mode,
                 'status' => $isPostpaid ? SessionStatus::ACTIVE : SessionStatus::PENDING_PAYMENT,
                 'started_at' => $isPostpaid ? $now : null,
-                'end_at' => $isPostpaid ? $now->copy()->addMinutes($package->duration_minutes) : null,
+                /*
+                 * DEC-034 — Postpaid TIDAK punya batas waktu: customer main
+                 * sampai dia sendiri menyatakan selesai. `end_at` null berarti
+                 * scheduler melewatinya, tidak ada WARNING/EXPIRED, dan TV
+                 * menghitung maju alih-alih mundur.
+                 *
+                 * Prepaid mendapat `end_at` setelah dibayar, di PaymentService.
+                 */
+                'end_at' => null,
                 'opened_by' => $actor->id,
                 'shift_id' => $actor->activeShift()?->id,
             ]);
@@ -113,20 +121,29 @@ class SessionService
             $session->save();
 
             /*
-             * Rental selalu masuk Open Tab sebagai item, termasuk Prepaid.
-             * Kalau rental hanya hidup sebagai kolom di sesi, `balance_due`
-             * tidak punya apa pun untuk ditagih saat pembayaran pertama.
+             * Baris rental dibuat di awal HANYA untuk Prepaid, karena harganya
+             * memang sudah pasti: harga paket yang dibekukan. Tanpa baris ini,
+             * `balance_due` tidak punya apa pun untuk ditagih saat pembayaran
+             * pertama.
+             *
+             * Postpaid tidak mendapatkannya (DEC-034). Harganya baru pasti saat
+             * sesi ditutup; menuliskan harga paket di awal akan membuat operator
+             * melihat tagihan 25.000 untuk customer yang baru main 5 menit — dan
+             * menagihkannya. Selama sesi berjalan, `totals.rental` dihitung
+             * langsung dari waktu terpakai (lihat BillingSession::totals()).
              */
-            $session->items()->create([
-                'type' => SessionItemType::RENTAL,
-                'name' => "Paket {$package->name}",
-                'qty' => 1,
-                'unit_price' => $package->price,
-                'subtotal' => $package->price,
-                'is_paid' => false,
-                'meta' => ['duration_minutes' => $package->duration_minutes],
-                'created_by' => $actor->id,
-            ]);
+            if (! $isPostpaid) {
+                $session->items()->create([
+                    'type' => SessionItemType::RENTAL,
+                    'name' => "Paket {$package->name}",
+                    'qty' => 1,
+                    'unit_price' => $package->price,
+                    'subtotal' => $package->price,
+                    'is_paid' => false,
+                    'meta' => ['duration_minutes' => $package->duration_minutes],
+                    'created_by' => $actor->id,
+                ]);
+            }
 
             $this->audit->forUser($actor, AuditAction::SESSION_CREATED, [
                 'subject_type' => 'session',

@@ -1067,6 +1067,58 @@ menyentuh backend. Digabungkan ke **OD-004** yang sudah mengatur overlay warning
 
 ---
 
+## DEC-034 — Postpaid tidak punya batas waktu
+**Tanggal:** 8 Okt 2026 · **Status:** APPROVED · **Override:** `API.md` §7 (`POSTPAID → end_at = now + package.duration_minutes`) · **Melengkapi:** DEC-033
+
+Diputuskan user: Postpaid = **"main dulu berapapun, lalu kalau mau bayar baru
+TV-nya mati."** Tanpa batas waktu. TV baru berhenti saat customer sendiri
+menyatakan selesai dan operator menutup sesinya.
+
+Ditemukan saat user bertanya apakah perilakunya sudah terpasang. Ternyata
+belum: kontrak menulis Postpaid mendapat `end_at = now + durasi paket`, jadi
+Postpaid ikut dipotong persis seperti Prepaid dan bedanya cuma kapan membayar.
+Kalimat itu ditulis sebelum maksud Postpaid dijelaskan — salah tangkap dari
+awal, bukan keputusan yang pernah diambil.
+
+### Yang berubah
+
+| | Prepaid | Postpaid |
+|---|---|---|
+| `end_at` | `started_at + durasi paket` | **`null`** — tidak ada batas |
+| Peringatan 10/5/1 menit | ada | **tidak ada** — tidak ada yang habis |
+| TV mati sendiri | ya, saat waktu habis (DEC-033) | **tidak** — menyala sampai operator menutup sesi |
+| Timer di TV | menghitung **mundur** | menghitung **maju** |
+| Extend | boleh sebelum habis | **tidak berlaku** — tidak ada yang bisa diperpanjang |
+| Tagihan rental | harga paket, dibekukan di depan | durasi aktual, dibulatkan DEC-009 |
+
+Paket pada Postpaid hanya menentukan **tarif per jam**, bukan durasi. Customer
+tetap memilih paket saat start karena tarif berbeda per tipe konsol (DEC-019).
+
+### Tagihan berjalan harus benar sejak menit pertama
+
+Konsekuensi yang tidak boleh dilewatkan: rental Postpaid **baru pasti saat sesi
+ditutup**. Kalau baris rental dibuat di awal dengan harga paket, operator akan
+melihat tagihan 25.000 untuk customer yang baru main 5 menit — dan menagihkannya.
+
+Karena itu baris `RENTAL` Postpaid **tidak dibuat saat start**; ia lahir saat
+checkout dengan angka final. Selama sesi berjalan, `totals.rental` dihitung
+langsung dari waktu yang sudah terpakai, memakai rumus yang sama persis dengan
+checkout (`CheckoutBilling`) supaya tidak ada dua cara menghitung yang bisa
+berbeda. Minimum tetap 30 menit (DEC-009), jadi di menit pertama pun angkanya
+sudah masuk akal.
+
+### Risiko yang jadi lebih besar
+
+Tanpa batas waktu, tidak ada rem otomatis sama sekali untuk customer yang pergi
+tanpa bayar. **OD-002** (mitigasi Postpaid kabur) yang user tunda jadi lebih
+mendesak — dulu kerugian terbatas pada durasi paket, sekarang tidak terbatas.
+
+**Yang mengikat untuk Kotlin TV Agent:** sesi dengan `end_at: null` berarti TV
+menghitung **maju** dari `started_at`, tanpa peringatan dan tanpa mati sendiri.
+TV baru berhenti ketika menerima `session.updated` berstatus `COMPLETED`.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -1074,7 +1126,7 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | ID | Pertanyaan | Kenapa penting | Blokir tahap |
 |---|---|---|---|
 | ~~OD-001~~ | ~~Overstay: EXPIRED tapi customer masih bermain~~ | **DIPUTUSKAN → DEC-023** (timer jalan terus, kelebihan ditagih di checkout) + **DEC-024** (sisa waktu hangus kecuali member). Perilaku lock/overlay TV saat EXPIRED tetap di OD-004 | — |
-| **OD-002** | Mitigasi Postpaid/Open Tab kabur tanpa bayar — deposit? batas maksimum open tab? catat identitas? | PRD §12 memperbolehkan Postpaid tapi tidak punya mitigasi kerugian. | Tahap 1 |
+| **OD-002 🔴** | **Jadi lebih mendesak sejak DEC-034** — Postpaid tidak lagi punya batas waktu, jadi kerugian kalau customer kabur tidak terbatas. Deposit? batas maksimum? catat identitas? — deposit? batas maksimum open tab? catat identitas? | PRD §12 memperbolehkan Postpaid tapi tidak punya mitigasi kerugian. | Tahap 1 |
 | ~~OD-003~~ | ~~Extend pricing & extend setelah EXPIRED~~ | **DIPUTUSKAN → DEC-007** | — |
 | ~~OD-004~~ | ~~Perilaku warning di TV~~ | **DIPUTUSKAN → DEC-030** (overlay kecil di kanan atas). Bunyi & bisa-ditutup belum, default: tanpa suara, tidak bisa ditutup | — |
 | **OD-005** | Model & versi Android TV final; bisa sideload APK? ADB over network aktif? | Menentukan apakah Tahap 2 layak sama sekali (R01). **Cek Sabtu.** | Tahap 2 |

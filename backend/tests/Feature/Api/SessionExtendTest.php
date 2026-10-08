@@ -44,12 +44,22 @@ class SessionExtendTest extends TestCase
     {
         $this->travelTo($startedAt);
 
+        /*
+         * PREPAID, bukan POSTPAID. Sejak DEC-034 Postpaid tidak punya `end_at`
+         * sama sekali — tidak ada yang bisa diperpanjang maupun dipindahkan
+         * batasnya, jadi sesi bertimer harus datang dari Prepaid yang sudah
+         * dibayar.
+         */
         $id = $this->withHeaders($this->idempotent())
             ->postJson('/api/v1/sessions', [
                 'station_id' => $this->stationModel->id,
                 'package_id' => $this->packageModel->id,
-                'mode' => 'POSTPAID',
+                'mode' => 'PREPAID',
             ])->json('data.id');
+
+        $this->withHeaders($this->idempotent())
+            ->postJson("/api/v1/sessions/{$id}/payments", ['method' => 'CASH', 'amount' => 20000])
+            ->assertCreated();
 
         return BillingSession::find($id);
     }
@@ -71,8 +81,9 @@ class SessionExtendTest extends TestCase
             ->assertJsonPath('data.extend.duration_minutes', 30)
             ->assertJsonPath('data.extend.price', 10000)
             ->assertJsonPath('data.session.totals.extend', 10000)
-            // Masuk Open Tab, dibayar saat checkout (PRD §12).
-            ->assertJsonPath('data.session.totals.balance_due', 30000);
+            // Rental Prepaid sudah lunas; extend masuk Open Tab dan dibayar
+            // saat checkout (PRD §12).
+            ->assertJsonPath('data.session.totals.balance_due', 10000);
     }
 
     public function test_end_at_baru_dihitung_dari_end_at_lama(): void

@@ -73,8 +73,8 @@ class FnbOrderTest extends TestCase
             ->assertJsonPath('data.order.status', 'PENDING')
             ->assertJsonPath('data.order.station_code', 'ST01')
             ->assertJsonPath('data.session.totals.fnb', 10000)
-            // Rental Postpaid 20.000 + F&B 10.000.
-            ->assertJsonPath('data.session.totals.balance_due', 30000);
+            // Rental berjalan 10.000 (minimum satu blok, DEC-034) + F&B 10.000.
+            ->assertJsonPath('data.session.totals.balance_due', 20000);
 
         $this->assertSame(
             1,
@@ -158,12 +158,12 @@ class FnbOrderTest extends TestCase
         $id = $this->makeSession();
         $orderId = $this->order($id, [['product_id' => $this->teh->id, 'qty' => 2]])->json('data.order.id');
 
-        $this->assertSame(30000, BillingSession::find($id)->totals()->balanceDue());
+        $this->assertSame(20000, BillingSession::find($id)->totals()->balanceDue());
 
         $this->postJson("/api/v1/fnb/orders/{$orderId}/status", ['status' => 'CANCELLED'])->assertOk();
 
-        // Kembali ke rental saja.
-        $this->assertSame(20000, BillingSession::find($id)->totals()->balanceDue());
+        // Kembali ke rental berjalan saja.
+        $this->assertSame(10000, BillingSession::find($id)->totals()->balanceDue());
     }
 
     public function test_antrian_bisa_difilter_per_status(): void

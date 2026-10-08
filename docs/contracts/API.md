@@ -323,7 +323,7 @@ Catatan penting:
 | `status` | `PENDING_PAYMENT` `ACTIVE` `WARNING` `EXPIRED` `CHECKOUT` `COMPLETED` `CANCELLED` (PRD §11). Tidak ada `AVAILABLE` — itu status station, bukan session |
 | `mode` | `PREPAID` \| `POSTPAID` |
 | `customer` / `customer_name` | DEC-008: **satu** customer per session. Walk-in non-member → `customer: null` + `customer_name: "Walk-in"` |
-| `end_at` | `null` saat `PENDING_PAYMENT`. Diisi saat payment confirmed |
+| `end_at` | `null` saat `PENDING_PAYMENT`, diisi saat payment confirmed. **Selalu `null` untuk Postpaid** (DEC-034) — artinya tidak ada batas waktu, tidak ada peringatan, dan TV menghitung **maju** dari `started_at` alih-alih mundur |
 | `extendable` | **server** yang memutuskan, client tidak menghitung sendiri |
 | `extend_deadline_at` | **Sama dengan `end_at`** sejak DEC-033. Grace 10 menit DEC-007 dicabut — "habis ya habis". Field-nya dipertahankan supaya client lama tidak patah |
 | `totals.balance_due` | yang ditagih saat checkout |
@@ -364,7 +364,8 @@ Catatan penting:
 
 Perilaku:
 - `mode: PREPAID` → session dibuat `PENDING_PAYMENT`. `started_at` dan `end_at` **belum** diisi. Timer belum jalan.
-- `mode: POSTPAID` → session langsung `ACTIVE`, `started_at = now`, `end_at = now + package.duration_minutes`. Item `RENTAL` dibuat dengan `is_paid: false`.
+- `mode: POSTPAID` → session langsung `ACTIVE`, `started_at = now`, dan **`end_at = null`** (DEC-034 — Postpaid tidak punya batas waktu). Item `RENTAL` **belum dibuat**; barisnya lahir saat checkout dengan angka final, karena harganya baru pasti saat sesi ditutup. Selama sesi berjalan `totals.rental` adalah **tagihan berjalan** dari waktu yang sudah terpakai, minimum satu blok 30 menit.
+- Paket pada Postpaid hanya menentukan **tarif per jam**, bukan durasi. Customer tetap memilihnya karena tarif berbeda per tipe konsol (DEC-019).
 - `customer_id` dan `customer_name` → kirim **salah satu**. Keduanya kosong → `customer_name` di-default `"Walk-in"`.
 
 → `201` objek `session`

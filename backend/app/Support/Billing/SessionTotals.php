@@ -66,6 +66,26 @@ final class SessionTotals
         );
     }
 
+    /**
+     * Mengganti nilai rental — DEC-034.
+     *
+     * Dipakai Postpaid terbuka, yang rental-nya belum punya baris tersimpan
+     * selama sesi berjalan. MENGGANTI, bukan menambah: setelah checkout baris
+     * rental sudah ada dan nilainya sama, jadi menambah akan menagih dua kali.
+     */
+    public function withRental(int $rental): self
+    {
+        return new self(
+            rental: $rental,
+            fnb: $this->fnb,
+            extend: $this->extend,
+            discount: $this->discount,
+            adjustment: $this->adjustment,
+            paid: $this->paid,
+            unpaid: $this->unpaid,
+        );
+    }
+
     public function grandTotal(): int
     {
         return $this->rental + $this->fnb + $this->extend + $this->discount + $this->adjustment;

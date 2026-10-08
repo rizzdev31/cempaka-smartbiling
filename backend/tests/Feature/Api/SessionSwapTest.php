@@ -50,12 +50,21 @@ class SessionSwapTest extends TestCase
     {
         $this->travelTo(Carbon::parse('2026-10-08T07:00:00Z'));
 
+        /*
+         * PREPAID yang sudah dibayar, bukan POSTPAID. Sejak DEC-034 Postpaid
+         * tidak punya `end_at` sama sekali — padahal jaminan R07 yang diuji di
+         * sini justru "end_at tidak berubah setelah swap".
+         */
         $id = $this->withHeaders($this->idempotent())
             ->postJson('/api/v1/sessions', [
                 'station_id' => $this->st01->id,
                 'package_id' => $this->packageModel->id,
-                'mode' => 'POSTPAID',
+                'mode' => 'PREPAID',
             ])->json('data.id');
+
+        $this->withHeaders($this->idempotent())
+            ->postJson("/api/v1/sessions/{$id}/payments", ['method' => 'CASH', 'amount' => 20000])
+            ->assertCreated();
 
         return BillingSession::find($id);
     }
