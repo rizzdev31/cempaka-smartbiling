@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Enums\PaymentMethod;
 use App\Enums\SessionItemType;
 use App\Enums\SessionStatus;
+use App\Events\PaymentConfirmed;
+use App\Events\SessionStarted;
+use App\Events\SessionUpdated;
 use App\Exceptions\ApiException;
 use App\Models\BillingSession;
 use App\Models\Payment;
@@ -100,7 +103,23 @@ class PaymentService
                 ],
             ]);
 
+            $statusBefore = $session->status;
+
             $this->settle($session, $actor, $now);
+
+            $session->refresh()->load(['station', 'customer', 'items', 'payments']);
+
+            /*
+             * Prepaid baru "mulai" di sini: sesi dibuat lebih dulu dan timernya
+             * menunggu uang masuk. Karena itu session.started dipicu dari
+             * pembayaran, bukan dari pembuatan sesi.
+             */
+            if ($statusBefore === SessionStatus::PENDING_PAYMENT && $session->status === SessionStatus::ACTIVE) {
+                SessionStarted::dispatch($session);
+            }
+
+            PaymentConfirmed::dispatch($session, $payment, $actor);
+            SessionUpdated::dispatch($session, ['totals', 'status']);
 
             return $payment;
         });

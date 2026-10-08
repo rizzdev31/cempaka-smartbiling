@@ -23,6 +23,9 @@ final class ErrorCode
     public const STATION_NOT_AVAILABLE = 'STATION_NOT_AVAILABLE';
     public const STATION_HAS_ACTIVE_SESSION = 'STATION_HAS_ACTIVE_SESSION';
     public const TARGET_STATION_SAME = 'TARGET_STATION_SAME';
+
+    /** DEC-021 — swap hanya dalam tipe konsol yang sama. */
+    public const STATION_TYPE_MISMATCH = 'STATION_TYPE_MISMATCH';
     public const SESSION_STATUS_INVALID = 'SESSION_STATUS_INVALID';
     public const SESSION_NOT_ORDERABLE = 'SESSION_NOT_ORDERABLE';
     public const EXTEND_DURATION_INVALID = 'EXTEND_DURATION_INVALID';

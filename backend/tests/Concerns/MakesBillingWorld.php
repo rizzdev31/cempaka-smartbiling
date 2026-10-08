@@ -5,6 +5,8 @@ namespace Tests\Concerns;
 use App\Enums\StationStatus;
 use App\Enums\UserRole;
 use App\Models\Customer;
+use App\Models\FnbProduct;
+use App\Models\Membership;
 use App\Models\Package;
 use App\Models\Station;
 use App\Models\StationType;
@@ -65,6 +67,31 @@ trait MakesBillingWorld
         return Customer::query()->create(['name' => $name, 'phone' => '08'.random_int(100000000, 999999999)]);
     }
 
+    protected function fnbProduct(array $attributes = []): FnbProduct
+    {
+        return FnbProduct::query()->create($attributes + [
+            "category" => "Minuman",
+            "name" => "Teh Manis",
+            "price" => 5000,
+            "stock" => null,          // null = tidak dilacak (API.md §8)
+            "is_available" => true,
+        ]);
+    }
+
+    /** Member aktif — syarat menyimpan sisa waktu (DEC-024). */
+    protected function activeMember(string $name = "Siti"): Customer
+    {
+        $customer = $this->member($name);
+
+        Membership::query()->create([
+            "customer_id" => $customer->id,
+            "tier" => "SILVER",
+            "is_active" => true,
+            "joined_at" => now(),
+        ]);
+
+        return $customer->fresh("membership");
+    }
     /** Header wajib untuk POST yang membuat data (API.md §3). */
     protected function idempotent(): array
     {

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\SessionItemType;
 use App\Enums\SessionStatus;
+use App\Events\SessionExtended;
 use App\Exceptions\ApiException;
 use App\Models\BillingSession;
 use App\Models\User;
@@ -108,8 +109,19 @@ class ExtendService
                 ],
             ]);
 
+            $fresh = $session->fresh(['station', 'customer', 'items', 'payments']);
+
+            $extend = [
+                'duration_minutes' => $minutes,
+                'price' => $price,
+                'previous_end_at' => $previousEndAt->toIso8601ZuluString(),
+                'new_end_at' => $newEndAt->toIso8601ZuluString(),
+            ];
+
+            SessionExtended::dispatch($fresh, $extend, $actor);
+
             return [
-                'session' => $session->fresh(['station', 'customer', 'items', 'payments']),
+                'session' => $fresh,
                 'duration_minutes' => $minutes,
                 'price' => $price,
                 'previous_end_at' => $previousEndAt,

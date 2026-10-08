@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\SessionItemType;
 use App\Enums\SessionMode;
 use App\Enums\SessionStatus;
+use App\Events\SessionStarted;
 use App\Exceptions\ApiException;
 use App\Models\BillingSession;
 use App\Models\Package;
@@ -139,7 +140,20 @@ class SessionService
                 ],
             ]);
 
-            return $session->fresh(['station', 'customer', 'items', 'payments']);
+            $fresh = $session->fresh(['station', 'customer', 'items', 'payments']);
+
+            /*
+             * Postpaid langsung ACTIVE, jadi timernya mulai sekarang. Prepaid
+             * belum — event-nya menyusul dari PaymentService saat dibayar.
+             *
+             * Dipanggil di dalam transaksi karena tidak ada lagi yang bisa
+             * gagal setelah titik ini; broadcast sendiri berjalan asinkron.
+             */
+            if ($fresh->status === SessionStatus::ACTIVE) {
+                SessionStarted::dispatch($fresh);
+            }
+
+            return $fresh;
         });
     }
 

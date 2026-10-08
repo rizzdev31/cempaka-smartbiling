@@ -23,4 +23,14 @@ final class AuditAction
 
     /** PRD §24 mewajibkan audit untuk setiap payment. */
     public const PAYMENT_CONFIRMED = 'payment.confirmed';
+
+    public const SESSION_SWAPPED = 'session.swapped';
+    public const SESSION_CHECKOUT = 'session.checkout';
+
+    public const FNB_ORDER_CREATED = 'fnb.order.created';
+    public const FNB_STATUS_CHANGED = 'fnb.order.status_changed';
+
+    /** DEC-026 — saldo member. Wajib diaudit: ini uang customer. */
+    public const CREDIT_EARNED = 'customer.credit.earned';
+    public const CREDIT_USED = 'customer.credit.used';
 }

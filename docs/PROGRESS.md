@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
-| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi response + idempotency; schema 16 entity + seeder; auth + RBAC 3 role; **mesin state + billing engine + extend + payment** (8 Okt). **54 unit test lulus; 36 feature test baru BELUM dijalankan** — kredensial MySQL tidak ada di worktree ini. Berikutnya: master data read-only |
+| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **66 unit test lulus; 118 feature test (36 baru sesi ini) BELUM dijalankan** → kredensial MySQL tidak ada di worktree ini. Berikutnya: master data read-only |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -50,15 +50,15 @@ Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat 
 - [x] Rounding durasi Postpaid per DEC-009 + unit test (35→30, 63→60, 70→90, 95→90) — 8 Okt
 - [x] Extend blok 30 menit + grace 10 menit per DEC-007 + test penolakan di menit ke-11 — 8 Okt
 - [x] Payment manual cash + QRIS statis + audit — 8 Okt (checkout belum)
-- [ ] **Overstay DEC-023**: item ADJUSTMENT "Kelebihan waktu" saat checkout (rumusnya sudah ada + diuji, tinggal dipasang)
-- [ ] F&B order endpoint
-- [ ] Extend + approval operator
-- [ ] Station Swap atomic
-- [ ] Checkout → satu final transaction
-- [ ] Reverb lokal + semua event PRD §23
-- [ ] Scheduler reconciliation `session.expired`
-- [ ] `audit_logs` terisi untuk aksi sensitif
-- [ ] Golden path ST01 lulus dari Postman
+- [x] **Overstay DEC-023**: item ADJUSTMENT "Kelebihan waktu" saat checkout → 8 Okt
+- [x] F&B order endpoint → 8 Okt, 4 endpoint + antrian dapur
+- [x] Extend + approval operator → 8 Okt (operator = approver, PRD §14)
+- [x] Station Swap atomic → 8 Okt, jaminan R07 diuji terpisah
+- [x] Checkout → satu final transaction → 8 Okt, termasuk overstay + saldo member
+- [x] Reverb lokal + semua event PRD §23 → 8 Okt, 8 event (`device.heartbeat` menunggu Tahap 2)
+- [x] Scheduler reconciliation `session.expired` → 8 Okt, `sessions:reconcile` tiap menit
+- [x] `audit_logs` terisi untuk aksi sensitif → 8 Okt, 14 aksi termasuk saldo member
+- [ ] Golden path ST01 lulus dari Postman → koleksi + test otomatis SUDAH ADA, **belum dijalankan** (butuh DB)
 
 ### Checklist Tahap 1 (Flutter)
 
@@ -1756,3 +1756,79 @@ Semua POST wajib header `Idempotency-Key: <uuid v4>`.
 **Next step**
 - Jalankan 36 feature test setelah `.env` tersedia, perbaiki yang gagal.
 - **Langkah 6**: master data read-only — `GET /stations`, `GET /packages`, `GET /customers`.
+
+---
+
+### 2026-10-08 — [Backend] Langkah 6: F&B, Swap, Checkout, Reverb, Scheduler, Golden Path
+
+**Keputusan baru**
+
+**DEC-026** — saldo member. User melengkapi OD-022: *"sisa waktu berapapun
+disimpan di akunnya, nanti bisa dipakai dan digabungkan dengan tambahan biling
+lainnya."* Tiga hal yang dikunci: tidak ada minimum, saldo melekat ke customer
+(bukan sesi), dan saldo mengurangi **seluruh** Open Tab — bukan hanya rental.
+Disimpan dalam **rupiah** (DEC-019 membuat menit tidak punya nilai tetap) sebagai
+**buku besar** `customer_credits`, bukan satu kolom saldo (PRD §24 butuh jejak).
+
+**Dikerjakan**
+- Migration `customer_credits` + `CustomerCredit` + `CustomerCreditType` (entity ke-17)
+- `FnbService` + 4 endpoint: `GET /fnb/products`, `GET /fnb/orders`,
+  `POST /sessions/{id}/fnb/orders`, `POST /fnb/orders/{id}/status`
+- `SwapService` + `POST /sessions/{id}/swap` — atomic, dua station dikunci
+- `CheckoutService` + `POST /sessions/{id}/checkout` — overstay, saldo member, struk
+- `CheckoutBilling` (murni, bisa diuji tanpa DB)
+- Laravel Reverb terpasang; 8 event + 3 channel + `POST /broadcasting/auth`
+- `sessions:reconcile` + jadwal tiap menit
+- Koleksi Postman golden path: `docs/postman/cempaka-tahap0.postman_collection.json`
+- Endpoint 9 → 15
+
+**Keputusan teknis yang perlu diingat**
+- **Rental Postpaid dikurangi menit extend.** Postpaid menagih dari durasi aktual
+  (DEC-009) sementara extend tetap item sendiri (PRD §12) — dua aturan itu tumpang
+  tindih dan akan menagih 30 menit yang sama dua kali. Totalnya sekarang tetap
+  `rounded(aktual)`, hanya dibagi antara rental dan extend. **Ini turunan, bukan
+  keputusan user** — kalau salah baca, yang berubah angka tagihan.
+- **Overstay hanya untuk Prepaid.** Postpaid sudah menagih durasi aktual, jadi
+  tidak ada kelebihan yang belum tertagih.
+- **`use_credit` default `false`.** Memakai saldo harus keputusan sadar operator
+  di depan customer, bukan perilaku diam-diam.
+- **Pembayaran checkout harus persis `balance_due`.** Kurang dan lebih sama-sama
+  ditolak — V1 tidak mencatat kembalian.
+- **Order F&B yang dibatalkan menghapus `session_item`-nya** kalau belum dibayar.
+  Kalau sudah dibayar, barisnya dibiarkan: V1 tidak punya refund.
+- **`broadcasting/auth` pakai `auth:sanctum`**, bukan parameter `channels:` di
+  `withRouting` — parameter itu memakai guard `web`, dan Flutter/Kotlin datang
+  dengan Bearer token.
+
+**Tests**
+- **66 unit test lulus, 156 assertion** (sebelumnya 54). Tambahan: `CheckoutBillingTest`
+  — termasuk kasus yang membuktikan menit extend tidak tertagih dua kali.
+- **36 feature test baru ditulis** (F&B 11, Swap 10, Checkout 13, Golden Path 2),
+  total 118 di repo. **Semuanya belum dijalankan.**
+
+**Known issues**
+- **Semua feature test masih belum terbukti.** Worktree ini tidak punya `.env`
+  berisi password MySQL. Perbaikannya: `cp ../../../backend/.env backend/.env`
+  dari root worktree, lalu `php artisan migrate:fresh --seed`.
+- **Golden path Postman belum dijalankan** — sama, menunggu DB.
+- `device.heartbeat` punya kelas event dan payload, tapi belum ada yang memicunya:
+  `POST /devices/heartbeat` milik Tahap 2.
+- Channel `private-station.{code}` belum bisa di-subscribe TV — guard
+  `X-Device-Token` menyusul di Tahap 2.
+- Throttle broadcast REALTIME.md §7 (debounce `session.updated` 500 ms) belum dipasang.
+- Seeder belum punya `station_type_id` untuk produk F&B — tidak memblokir.
+
+**Manual test**
+```
+php artisan migrate:fresh --seed
+php artisan serve --host 0.0.0.0
+php artisan schedule:work          # terminal lain
+php artisan reverb:start           # terminal lain, kalau ingin melihat event
+```
+Lalu import `docs/postman/cempaka-tahap0.postman_collection.json`, isi `base_url`,
+`station_id`, `package_id`, `product_id`, jalankan Collection Runner berurutan.
+
+**Next step**
+1. Isi `.env`, jalankan 118 feature test, perbaiki yang gagal.
+2. Jalankan golden path dari Postman — ini exit criteria Tahap 0.
+3. Master data read-only: `GET /stations`, `GET /packages`, `GET /customers`.

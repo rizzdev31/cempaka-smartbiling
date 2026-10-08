@@ -26,6 +26,19 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    /*
+     * Endpoint otorisasi channel `POST /broadcasting/auth` (REALTIME.md §2).
+     *
+     * Dipasang lewat withBroadcasting dengan guard `auth:sanctum`, bukan lewat
+     * parameter `channels:` di withRouting — parameter itu memakai middleware
+     * `web` (cookie + session), sedangkan Flutter dan Kotlin datang dengan
+     * Bearer token. Tanpa ini, otorisasi channel selalu 401 untuk client
+     * yang justru harus memakainya.
+     */
+    ->withBroadcasting(
+        __DIR__.'/../routes/channels.php',
+        ['middleware' => ['auth:sanctum']],
+    )
     ->withMiddleware(function (Middleware $middleware): void {
         // ServerTime dipasang GLOBAL dan paling luar, bukan di grup 'api'.
         //

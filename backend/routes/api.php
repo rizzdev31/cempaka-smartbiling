@@ -1,10 +1,13 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\FnbController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\SessionCheckoutController;
 use App\Http\Controllers\Api\V1\SessionController;
 use App\Http\Controllers\Api\V1\SessionExtendController;
 use App\Http\Controllers\Api\V1\SessionPaymentController;
+use App\Http\Controllers\Api\V1\SessionSwapController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -50,4 +53,29 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
 
     Route::post('/sessions/{session}/extend', [SessionExtendController::class, 'store'])
         ->middleware(['can:session.extend', 'idempotency']);
+
+    Route::post('/sessions/{session}/swap', [SessionSwapController::class, 'store'])
+        ->middleware(['can:session.swap', 'idempotency']);
+
+    Route::post('/sessions/{session}/checkout', [SessionCheckoutController::class, 'store'])
+        ->middleware(['can:session.checkout', 'idempotency']);
+
+    /*
+     * F&B — API.md §8.
+     *
+     * Membaca menu dan antrian cukup `fnb.read`; membuat order dan memindahkan
+     * statusnya butuh `fnb.manage`. Dipisah karena layar antrian dapur nanti
+     * bisa dibuka perangkat yang tidak boleh mengubah apa pun.
+     */
+    Route::get('/fnb/products', [FnbController::class, 'products'])
+        ->middleware('can:fnb.read');
+
+    Route::get('/fnb/orders', [FnbController::class, 'orders'])
+        ->middleware('can:fnb.read');
+
+    Route::post('/sessions/{session}/fnb/orders', [FnbController::class, 'store'])
+        ->middleware(['can:fnb.manage', 'idempotency']);
+
+    Route::post('/fnb/orders/{order}/status', [FnbController::class, 'updateStatus'])
+        ->middleware('can:fnb.manage');
 });
