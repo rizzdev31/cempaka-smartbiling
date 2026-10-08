@@ -12,9 +12,12 @@ namespace App\Support\Billing;
  * minimum 30 menit
  * ```
  *
- * Hanya berlaku untuk **Postpaid** dan untuk overstay (DEC-023).
- * Prepaid memakai durasi paket apa adanya, dan extend selalu kelipatan 30
- * sejak awal — keduanya tidak pernah lewat sini.
+ * Hanya berlaku untuk **Postpaid**. Prepaid memakai durasi paket apa adanya,
+ * dan extend selalu kelipatan 30 sejak awal — keduanya tidak pernah lewat sini.
+ *
+ * Dulu dipakai juga oleh penagihan overstay (DEC-023) dengan lantai 30 menit
+ * dimatikan. DEC-033 menghapus jalur itu, jadi sakelarnya ikut dibuang —
+ * parameter yang tidak dipakai siapa pun hanya mengundang pemakaian yang salah.
  */
 final class DurationRounding
 {
@@ -23,16 +26,12 @@ final class DurationRounding
     /** Toleransi DEC-009: lebihan sampai 5 menit dianggap tidak terjadi. */
     public const TOLERANCE_MINUTES = 5;
 
-    /**
-     * @param  bool  $applyMinimum  Lantai 30 menit (DEC-009). Dimatikan untuk
-     *                              overstay: kelebihan 2 menit tidak boleh
-     *                              langsung ditagih setengah jam (DEC-023,
-     *                              asumsi OD-021).
-     */
-    public static function toBillableMinutes(int $minutes, bool $applyMinimum = true): int
+    public static function toBillableMinutes(int $minutes): int
     {
+        // Main 3 menit tetap ditagih setengah jam: station sudah dipakai dan
+        // tidak bisa dijual ke orang lain selama itu.
         if ($minutes <= 0) {
-            return $applyMinimum ? self::BLOCK_MINUTES : 0;
+            return self::BLOCK_MINUTES;
         }
 
         $remainder = $minutes % self::BLOCK_MINUTES;
@@ -41,14 +40,12 @@ final class DurationRounding
             ? $minutes - $remainder
             : $minutes - $remainder + self::BLOCK_MINUTES;
 
-        return $applyMinimum
-            ? max($billable, self::BLOCK_MINUTES)
-            : $billable;
+        return max($billable, self::BLOCK_MINUTES);
     }
 
     /** Jumlah blok 30 menit yang ditagih. Dasar perhitungan harga. */
-    public static function toBlocks(int $minutes, bool $applyMinimum = true): int
+    public static function toBlocks(int $minutes): int
     {
-        return intdiv(self::toBillableMinutes($minutes, $applyMinimum), self::BLOCK_MINUTES);
+        return intdiv(self::toBillableMinutes($minutes), self::BLOCK_MINUTES);
     }
 }

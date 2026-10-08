@@ -267,6 +267,51 @@ diperhatikan Flutter, tiga error code baru, satu field baru.
 
 ---
 
+## v1 · DRAFT 9 — 2026-10-08
+
+**BREAKING — perilaku.** Aturan "waktu habis" berbalik dari DRAFT 6. Tidak ada
+field yang hilang, tapi arti `EXPIRED` dan syarat extend berubah untuk semua client.
+
+**BREAKING — API & REALTIME** · semua client · **DEC-033** (mencabut DEC-023)
+- `EXPIRED` sekarang berarti **berhenti**. Waktu habis → TV mati/standby,
+  customer tidak bisa melanjutkan. Kalimat di DRAFT 6 yang menyebut `EXPIRED`
+  sebagai "penanda, bukan penghenti" **dicabut**.
+- **Tidak ada penagihan kelebihan waktu.** Langkah 1b di checkout (item
+  `ADJUSTMENT` "Kelebihan waktu") dihapus dari kontrak dan dari kode.
+- **Extend hanya boleh sebelum waktu habis** (`now ≤ end_at`). Grace 10 menit
+  DEC-007 dicabut — "habis ya habis". Customer yang ingin melanjutkan dibuatkan
+  **sesi baru dengan paket baru**.
+- `extend_deadline_at` **sekarang sama persis dengan `end_at`**. Field-nya
+  sengaja tidak dihapus supaya client yang sudah membacanya tidak patah.
+- `409 EXTEND_GRACE_EXPIRED` **tetap dipakai dengan nama yang sama**, tapi
+  artinya berubah jadi "waktunya sudah lewat". Namanya tidak diubah supaya
+  daftar error code yang sudah disalin client tidak perlu dibongkar.
+- `status` yang diterima `POST /sessions/{id}/extend` sekarang hanya `ACTIVE`
+  dan `WARNING`. `EXPIRED` → `409 SESSION_STATUS_INVALID`.
+
+**Yang WAJIB diketahui Kotlin TV Agent — instruksinya berbalik**
+
+| | Isi instruksi |
+|---|---|
+| DRAFT 6 (pagi ini) | TV **tidak boleh** mengunci atau memblank saat `end_at` lewat |
+| DRAFT 9 (sekarang) | TV **harus** mati / standby saat `end_at` lewat |
+
+Kalau yang pertama sudah dikerjakan, pekerjaan itu terbuang — dan itu akibat
+perubahan keputusan bisnis, bukan kesalahan implementasi. Peringatan warning
+10/5/1 menit tetap seperti DEC-030: overlay kecil di pojok kanan atas, dihitung
+client dari `end_at`. Setelah `end_at` lewat, TV **tidak** menampilkan hitungan
+maju — itu bagian DRAFT 6 yang juga dicabut.
+
+**Yang perlu diketahui Flutter**
+- Tombol extend **hilang** begitu waktu habis, bukan 10 menit sesudahnya.
+  `extendable` dari server sudah mencerminkan itu — jangan hitung sendiri.
+- Kartu station berstatus `EXPIRED` menampilkan "waktu habis", bukan timer
+  berjalan maju. Bagian DRAFT 6 yang menyuruh sebaliknya dicabut.
+- Checkout sesi `EXPIRED` tidak lagi memunculkan baris "Kelebihan waktu".
+- Customer yang mau lanjut: buat **sesi baru**, bukan extend.
+
+---
+
 ## v1 · DRAFT <n> — YYYY-MM-DD
 
 **<JENIS> — API|REALTIME** · terdampak: Flutter | Kotlin | Admin | semua

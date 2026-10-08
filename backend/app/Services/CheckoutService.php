@@ -29,7 +29,7 @@ use Illuminate\Support\Facades\DB;
  *
  * Urutannya penting dan tidak boleh ditukar:
  *   1. kunci sesi, tutup waktunya (`ended_at`)
- *   2. hitung ulang rental / overstay
+ *   2. hitung ulang rental
  *   3. pakai saldo member (mengurangi tagihan)
  *   4. baru cocokkan pembayaran dengan `balance_due`
  * Kalau pembayaran dicocokkan sebelum langkah 2 dan 3, angkanya adalah tagihan
@@ -67,7 +67,6 @@ class CheckoutService
             );
 
             $this->applyRental($session, $billing);
-            $this->applyOverstay($session, $billing, $actor);
 
             $session->load('items');
 
@@ -145,25 +144,6 @@ class CheckoutService
             'name' => "Paket {$session->package_name} ({$billing['rental_minutes']} menit)",
             'unit_price' => $billing['rental_price'],
             'subtotal' => $billing['rental_price'],
-        ]);
-    }
-
-    /** Kelebihan waktu Prepaid — DEC-023. Baris terpisah supaya terbaca di struk. */
-    private function applyOverstay(BillingSession $session, array $billing, User $actor): void
-    {
-        if ($billing['overstay_price'] <= 0) {
-            return;
-        }
-
-        $session->items()->create([
-            'type' => SessionItemType::ADJUSTMENT,
-            'name' => "Kelebihan waktu ({$billing['overstay_minutes']} menit)",
-            'qty' => 1,
-            'unit_price' => $billing['overstay_price'],
-            'subtotal' => $billing['overstay_price'],
-            'is_paid' => false,
-            'meta' => ['overstay_minutes' => $billing['overstay_minutes']],
-            'created_by' => $actor->id,
         ]);
     }
 

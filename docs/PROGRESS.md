@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
-| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **208 test LULUS** (66 unit + 142 feature, 721 assertion) dan **golden path 33/33 lewat HTTP**. Shift + customer + membership selesai (8 Okt). Berikutnya: `GET /stations` + `GET /packages` |
+| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **200 test LULUS** (58 unit + 142 feature, 707 assertion). Shift + customer + membership selesai; **DEC-033 mencabut penagihan overstay & grace extend** (8 Okt). Berikutnya: `GET /stations` + `GET /packages` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -26,7 +26,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **OD-011** | Perlukah penemuan IP server otomatis (scan subnet) di Flutter? | 2 Okt 2026 | **Setelah DHCP reservation diuji di SESI 1.** Kalau IP laptop tetap stabil → tidak perlu. Kalau masih sering berubah → pasang scan subnet (± 100 baris) |
 | **OD-019** | Owner ubah tarif lewat **login owner** di tablet, atau **PIN** di atas sesi operator? | 7 Okt 2026 | Saat layar pengaturan tarif dikerjakan. Backend sama (token owner) — ini soal cara login di Flutter |
 | **OD-002** | Mitigasi Postpaid/Open Tab kabur tanpa bayar — deposit? batas maksimum? catat identitas? | 2 Okt 2026 | User menunda 8 Okt: "tanyakan nanti lagi, saya konfirmasi dulu" |
-| **OD-024** | Rental Postpaid dikurangi menit extend, supaya 30 menit yang sama tidak ditagih dua kali. Sudah diterapkan, tapi user belum paham pertanyaannya — perlu dijelaskan ulang dengan contoh angka | 8 Okt 2026 | Sudah jalan sebagai asumsi. Mengubahnya cukup di `CheckoutBilling` |
+
 | **OD-021** | Toleransi pembulatan **overstay** — dipakai DEC-009 tanpa lantai 30 menit (lewat 4 menit = tidak ditagih). Benar? | 8 Okt 2026 | Saat checkout dikerjakan. Sudah jalan sebagai asumsi; mengubahnya cukup di `OverstayPolicy` |
 | **OD-022** | Daftar member di kasir: biayanya berapa, siapa yang boleh mendaftarkan (bentrok OD-014), saldo berlaku berapa lama, bisa diuangkan? | 8 Okt 2026 | Saat checkout dikerjakan. Muncul dari DEC-024 |
 
@@ -52,7 +52,7 @@ Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat 
 - [x] Rounding durasi Postpaid per DEC-009 + unit test (35→30, 63→60, 70→90, 95→90) — 8 Okt
 - [x] Extend blok 30 menit + grace 10 menit per DEC-007 + test penolakan di menit ke-11 — 8 Okt
 - [x] Payment manual cash + QRIS statis + audit — 8 Okt (checkout belum)
-- [x] **Overstay DEC-023**: item ADJUSTMENT "Kelebihan waktu" saat checkout → 8 Okt
+- [x] ~~Overstay DEC-023~~ — **dicabut DEC-033**: waktu habis berarti berhenti, TV mati, tidak ada penagihan kelebihan sama sekali
 - [x] F&B order endpoint → 8 Okt, 4 endpoint + antrian dapur
 - [x] Extend + approval operator → 8 Okt (operator = approver, PRD §14)
 - [x] Station Swap atomic → 8 Okt, jaminan R07 diuji terpisah
@@ -1966,3 +1966,63 @@ menawarkan membership saat checkout, tapi operator tidak punya permission-nya.
 **Next step**
 - `GET /stations` + `GET /packages` — menutup butir terakhir master data dan
   membuat golden path benar-benar bebas dari database.
+
+---
+
+### 2026-10-08 — [Backend] DEC-033: waktu habis berarti berhenti (pembatalan DEC-023)
+
+**Keputusan user berbalik dalam satu hari.** Pagi: *"timer jalan terus,
+kelebihan ditagih di checkout"* (DEC-023). Sore: *"kalau jamnya sudah selesai ya
+TV-nya mati... tidak ada toleransi, kalau dia bayar 1 jam bisa lebih mainnya,
+tidak bisa."* Ditanyakan ulang karena bertentangan; user menegaskan yang baru,
+dan menambahkan bahwa extend setelah habis juga tidak boleh.
+
+**Yang dicabut**
+- **DEC-023 seluruhnya.** `OverstayPolicy` dan `OverstayPolicyTest` **dihapus**,
+  bukan dimatikan. Cabang overstay di `CheckoutBilling` dan item `ADJUSTMENT`
+  "Kelebihan waktu" di `CheckoutService` ikut hilang.
+- **Grace 10 menit DEC-007.** Extend sekarang hanya boleh `now ≤ end_at`.
+  Rumus harga, kelipatan 30 menit, dan `end_at_baru = end_at_lama + durasi`
+  **tetap berlaku**.
+- **OD-021** (toleransi pembulatan overstay) kehilangan objeknya dan ditutup.
+
+**Perubahan kode**
+- `SessionStatus`: `EXPIRED` tidak lagi `isExtendable()` maupun `isRunning()`,
+  dan satu-satunya transisi keluarnya sekarang `CHECKOUT`.
+- `ExtendPolicy`: `isWithinGrace()` → `isWithinWindow()`; `deadlineFor()`
+  mengembalikan `end_at` apa adanya.
+- `DurationRounding`: parameter `applyMinimum` dihapus — hanya overstay yang
+  memakainya, dan parameter yang tidak dipakai siapa pun mengundang
+  pemakaian yang salah.
+- `CheckoutBilling`: `billable_minutes` Prepaid = hak waktu (paket + extend),
+  tidak lagi ditambah menit kelebihan.
+- Error code `EXTEND_GRACE_EXPIRED` **dipertahankan namanya** walau artinya
+  berubah jadi "waktunya sudah lewat" — mengganti nama akan memaksa client
+  membongkar daftar error yang sudah disalin.
+
+**Tests**
+- **200 lulus, 707 assertion** (sebelumnya 208/721). Turun karena 8 test
+  overstay dihapus, bukan karena ada yang dilewati.
+- 20 test gagal saat pertama dijalankan — semuanya memang mengunci aturan lama.
+  Diperbaiki satu per satu, bukan dilonggarkan.
+
+**Biaya yang perlu dicatat**
+Instruksi ke Kotlin TV Agent berbalik dua kali dalam satu hari: CHANGELOG
+DRAFT 6 bilang TV **tidak boleh** mati saat waktu habis; DRAFT 9 bilang TV
+**harus** mati. Kalau rekan yang memegang Kotlin sudah mengerjakan yang pertama,
+pekerjaan itu terbuang — akibat perubahan keputusan, bukan kesalahan
+implementasi. Lebih murah berubah sekarang daripada setelah dipakai di lokasi.
+
+**Yang jadi lebih sederhana**
+Mesin billing kehilangan satu cabang penuh. `EXPIRED` kembali punya satu arti
+tunggal dan tidak perlu lagi dijelaskan sebagai "penanda, bukan penghenti" di
+setiap tempat.
+
+**Known issues**
+- Sisa waktu member dihitung dari kapan sesi **ditutup**, bukan kapan customer
+  benar-benar berhenti. Operator yang menunda checkout mengurangi saldo member.
+  Sudah ada testnya (`test_checkout_terlambat_tidak_menghapus_sisa_waktu`)
+  sebagai catatan batas, belum diputuskan apakah perlu diperbaiki.
+
+**Next step**
+- `GET /stations` + `GET /packages`.

@@ -94,31 +94,32 @@ class SessionCheckoutTest extends TestCase
         $this->assertSame(0, CustomerCredit::query()->count());
     }
 
-    public function test_prepaid_overstay_ditagih_sebagai_baris_terpisah(): void
+    public function test_checkout_terlambat_tidak_menambah_tagihan(): void
     {
-        // DEC-023. Main 95 menit dengan paket 60 -> lewat 35 -> dibulatkan
-        // jadi 30 menit -> 10.000.
+        /*
+         * DEC-033 mencabut DEC-023. TV mati di menit ke-60, tapi operator baru
+         * menutup sesinya 35 menit kemudian karena antre di kasir.
+         *
+         * `actual` ikut terbawa jam kasir (95 menit), tapi yang ditagih tetap
+         * hak waktunya (60 menit). Keterlambatan kasir tidak boleh menambah
+         * tagihan customer.
+         */
         $id = $this->running('PREPAID');
 
         $this->travelTo(Carbon::parse('2026-10-08T08:35:00Z'));
 
-        $response = $this->checkout($id, ['payments' => [['method' => 'CASH', 'amount' => 10000]]])
+        $this->checkout($id, ['payments' => []])
             ->assertOk()
             ->assertJsonPath('data.receipt.actual_duration_minutes', 95)
-            ->assertJsonPath('data.receipt.billable_duration_minutes', 90)
-            // Rental prepaid TIDAK dihitung ulang (PRD §12).
+            ->assertJsonPath('data.receipt.billable_duration_minutes', 60)
             ->assertJsonPath('data.session.totals.rental', 20000)
-            ->assertJsonPath('data.session.totals.adjustment', 10000);
-
-        $this->assertStringContainsString(
-            'Kelebihan waktu',
-            collect($response->json('data.receipt.lines'))->pluck('name')->implode(' | '),
-        );
+            ->assertJsonPath('data.session.totals.adjustment', 0)
+            ->assertJsonPath('data.receipt.totals.grand_total', 20000);
     }
 
-    public function test_lewat_dalam_toleransi_tidak_ditagih(): void
+    public function test_prepaid_tidak_pernah_ditagih_di_luar_paket(): void
     {
-        // Lewat 4 menit — toleransi 5 menit DEC-009 (OD-021).
+        // DEC-033: tidak ada penagihan kelebihan waktu sama sekali.
         $id = $this->running('PREPAID');
 
         $this->travelTo(Carbon::parse('2026-10-08T08:04:00Z'));

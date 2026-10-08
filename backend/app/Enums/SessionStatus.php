@@ -26,9 +26,10 @@ enum SessionStatus: string
      *
      * Yang perlu diperhatikan:
      *
-     * - `EXPIRED -> ACTIVE` ada karena grace extend DEC-007: extend dari
-     *   EXPIRED menggeser `end_at` ke depan, jadi sesi hidup lagi.
-     * - `WARNING -> ACTIVE` ada karena alasan yang sama — extend membuat sisa
+     * - `EXPIRED` TIDAK bisa kembali hidup. DEC-033: waktu habis berarti
+     *   berhenti, TV mati, dan extend tidak lagi diizinkan setelahnya.
+     *   Customer yang mau lanjut dibuatkan sesi baru.
+     * - `WARNING -> ACTIVE` tetap ada: extend SEBELUM waktu habis membuat sisa
      *   waktu kembali di atas ambang warning.
      * - `ACTIVE -> CHECKOUT` langsung diperbolehkan: customer berhenti lebih
      *   awal. Sisa waktunya hangus (DEC-024), bukan error.
@@ -44,7 +45,8 @@ enum SessionStatus: string
             self::PENDING_PAYMENT => [self::ACTIVE, self::CANCELLED],
             self::ACTIVE => [self::WARNING, self::EXPIRED, self::CHECKOUT],
             self::WARNING => [self::ACTIVE, self::EXPIRED, self::CHECKOUT],
-            self::EXPIRED => [self::ACTIVE, self::CHECKOUT],
+            // Satu-satunya jalan keluar dari EXPIRED adalah checkout (DEC-033).
+            self::EXPIRED => [self::CHECKOUT],
             self::CHECKOUT => [self::COMPLETED],
             self::COMPLETED, self::CANCELLED => [],
         };
@@ -62,14 +64,14 @@ enum SessionStatus: string
     }
 
     /**
-     * Timer sedang berjalan: `end_at` sudah ada dan bergerak.
+     * Timer sedang berjalan: `end_at` sudah ada dan belum lewat.
      *
-     * EXPIRED ikut di sini sejak DEC-023 — waktu paket habis tapi customer
-     * masih bermain, dan menit yang lewat tetap ditagih.
+     * EXPIRED TIDAK termasuk. DEC-023 sempat memasukkannya — saat itu sesi
+     * boleh lanjut dan menit yang lewat ditagih — tapi DEC-033 mencabutnya.
      */
     public function isRunning(): bool
     {
-        return in_array($this, [self::ACTIVE, self::WARNING, self::EXPIRED], true);
+        return in_array($this, [self::ACTIVE, self::WARNING], true);
     }
 
     /** Status yang masih memakai station — station tidak bisa dipakai session lain. */
@@ -90,9 +92,14 @@ enum SessionStatus: string
         return $this === self::ACTIVE || $this === self::WARNING;
     }
 
-    /** Boleh di-extend sebelum cek grace 10 menit (DEC-007). */
+    /**
+     * Boleh di-extend — sebelum pemeriksaan jam (DEC-007, diubah DEC-033).
+     *
+     * EXPIRED dikeluarkan: sejak DEC-033 tidak ada lagi grace 10 menit setelah
+     * waktu habis.
+     */
     public function isExtendable(): bool
     {
-        return in_array($this, [self::ACTIVE, self::WARNING, self::EXPIRED], true);
+        return in_array($this, [self::ACTIVE, self::WARNING], true);
     }
 }

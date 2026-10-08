@@ -50,33 +50,35 @@ class ExtendPolicyTest extends TestCase
         $this->assertSame('2026-10-08T08:30:00Z', $baru->toIso8601ZuluString());
     }
 
-    public function test_grace_sepuluh_menit_masih_boleh(): void
+    public function test_boleh_extend_selama_waktunya_belum_habis(): void
     {
         $endAt = $this->endAt();
 
-        $this->assertTrue(ExtendPolicy::isWithinGrace($endAt, Carbon::parse('2026-10-08T07:59:00Z')));
-        $this->assertTrue(ExtendPolicy::isWithinGrace($endAt, Carbon::parse('2026-10-08T08:00:00Z')));
-        $this->assertTrue(ExtendPolicy::isWithinGrace($endAt, Carbon::parse('2026-10-08T08:09:59Z')));
+        $this->assertTrue(ExtendPolicy::isWithinWindow($endAt, Carbon::parse('2026-10-08T07:00:00Z')));
+        $this->assertTrue(ExtendPolicy::isWithinWindow($endAt, Carbon::parse('2026-10-08T07:59:59Z')));
 
-        // Tepat di menit ke-10 masih boleh — batasnya "<=", bukan "<".
-        $this->assertTrue(ExtendPolicy::isWithinGrace($endAt, Carbon::parse('2026-10-08T08:10:00Z')));
+        // Tepat di detik habis masih boleh — batasnya "<=", bukan "<".
+        $this->assertTrue(ExtendPolicy::isWithinWindow($endAt, Carbon::parse('2026-10-08T08:00:00Z')));
     }
 
-    public function test_ditolak_di_menit_ke_sebelas(): void
+    public function test_ditolak_begitu_waktunya_lewat(): void
     {
-        // Yang diminta eksplisit di checklist Tahap 0.
+        // DEC-033 mencabut grace 10 menit: "habis ya habis". Lewat satu detik
+        // pun sudah tidak boleh — customer yang mau lanjut dibuatkan sesi baru.
         $endAt = $this->endAt();
 
-        $this->assertFalse(ExtendPolicy::isWithinGrace($endAt, Carbon::parse('2026-10-08T08:10:01Z')));
-        $this->assertFalse(ExtendPolicy::isWithinGrace($endAt, Carbon::parse('2026-10-08T08:11:00Z')));
+        $this->assertFalse(ExtendPolicy::isWithinWindow($endAt, Carbon::parse('2026-10-08T08:00:01Z')));
+        $this->assertFalse(ExtendPolicy::isWithinWindow($endAt, Carbon::parse('2026-10-08T08:05:00Z')));
+        $this->assertFalse(ExtendPolicy::isWithinWindow($endAt, Carbon::parse('2026-10-08T08:10:00Z')));
     }
 
-    public function test_deadline_dikirim_server_sepuluh_menit_setelah_end_at(): void
+    public function test_deadline_sama_dengan_end_at(): void
     {
-        // `extend_deadline_at` di API.md §7 — supaya Flutter dan Kotlin tidak
-        // menghitung ulang aturan grace masing-masing.
+        // `extend_deadline_at` di API.md §7. Sejak DEC-033 nilainya sama persis
+        // dengan `end_at`; field-nya sengaja tidak dihapus supaya client yang
+        // sudah membacanya tidak patah.
         $this->assertSame(
-            '2026-10-08T08:10:00Z',
+            '2026-10-08T08:00:00Z',
             ExtendPolicy::deadlineFor($this->endAt())->toIso8601ZuluString(),
         );
     }
@@ -84,7 +86,7 @@ class ExtendPolicyTest extends TestCase
     public function test_menghitung_deadline_tidak_mengubah_end_at_aslinya(): void
     {
         // Carbon mutable: lupa copy() di sini membuat end_at session ikut
-        // bergeser 10 menit setiap kali response dibentuk.
+        // bergeser setiap kali response dibentuk.
         $endAt = $this->endAt();
         ExtendPolicy::deadlineFor($endAt);
         ExtendPolicy::newEndAt($endAt, 60);

@@ -42,11 +42,20 @@ class SessionTransitionTest extends TestCase
         $this->assertFalse(SessionStatus::PENDING_PAYMENT->canTransitionTo(SessionStatus::EXPIRED));
     }
 
-    public function test_extend_mengembalikan_sesi_dari_warning_dan_expired(): void
+    public function test_extend_mengembalikan_sesi_dari_warning(): void
     {
-        // DEC-007: extend menggeser end_at ke depan, jadi sesi hidup lagi.
+        // Extend SEBELUM waktu habis menggeser end_at ke depan, jadi sisa waktu
+        // kembali di atas ambang warning.
         $this->assertTrue(SessionStatus::WARNING->canTransitionTo(SessionStatus::ACTIVE));
-        $this->assertTrue(SessionStatus::EXPIRED->canTransitionTo(SessionStatus::ACTIVE));
+    }
+
+    public function test_sesi_yang_sudah_habis_tidak_bisa_hidup_lagi(): void
+    {
+        // DEC-033 mencabut DEC-023. Waktu habis berarti berhenti; satu-satunya
+        // jalan keluar dari EXPIRED adalah checkout.
+        $this->assertFalse(SessionStatus::EXPIRED->canTransitionTo(SessionStatus::ACTIVE));
+        $this->assertFalse(SessionStatus::EXPIRED->canTransitionTo(SessionStatus::WARNING));
+        $this->assertSame([SessionStatus::CHECKOUT], SessionStatus::EXPIRED->allowedNext());
     }
 
     public function test_berhenti_lebih_awal_langsung_ke_checkout(): void
@@ -74,11 +83,11 @@ class SessionTransitionTest extends TestCase
         $this->assertFalse(SessionStatus::ACTIVE->isFinal());
     }
 
-    public function test_expired_adalah_penanda_bukan_penghenti(): void
+    public function test_expired_berhenti_tapi_station_masih_terpakai(): void
     {
-        // DEC-023 mengubah arti EXPIRED: timer tetap jalan dan menit yang
-        // lewat tetap ditagih, jadi station masih terpakai.
-        $this->assertTrue(SessionStatus::EXPIRED->isRunning());
+        // DEC-033: timer berhenti dan TV mati. Tapi station belum kosong —
+        // customer masih di sana dan tagihannya belum ditutup.
+        $this->assertFalse(SessionStatus::EXPIRED->isRunning());
         $this->assertTrue(SessionStatus::EXPIRED->occupiesStation());
         $this->assertFalse(SessionStatus::EXPIRED->isFinal());
     }

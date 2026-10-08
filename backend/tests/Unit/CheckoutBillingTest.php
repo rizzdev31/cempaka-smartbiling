@@ -7,7 +7,7 @@ use App\Support\Billing\CheckoutBilling;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Perhitungan checkout — API.md §7, DEC-009, DEC-023, DEC-024, DEC-026.
+ * Perhitungan checkout — API.md §7, DEC-009, DEC-024, DEC-026, DEC-032, DEC-033.
  *
  * Paket acuan di seluruh berkas ini: 1 jam, 20.000, jadi `hourly_rate` 20.000
  * dan satu blok 30 menit = 10.000.
@@ -39,7 +39,7 @@ class CheckoutBillingTest extends TestCase
 
     public function test_postpaid_dengan_extend_tidak_menagih_menit_yang_sama_dua_kali(): void
     {
-        // Paket 60 + extend 30, main 90 menit.
+        // DEC-032. Paket 60 + extend 30, main 90 menit.
         //
         // Tanpa pengurangan menit extend, rental akan dihitung 90 menit
         // (30.000) DITAMBAH item extend 10.000 — 30 menit dibayar dua kali.
@@ -51,16 +51,6 @@ class CheckoutBillingTest extends TestCase
 
         // rental 20.000 + extend 10.000 = 30.000 = 90 menit x 20.000/jam.
         $this->assertSame(30000, $billing['rental_price'] + 10000);
-    }
-
-    public function test_postpaid_tidak_punya_overstay(): void
-    {
-        // Rental Postpaid sudah dihitung dari durasi aktual, jadi tidak ada
-        // kelebihan yang belum tertagih.
-        $billing = $this->postpaid(0, 200);
-
-        $this->assertSame(0, $billing['overstay_minutes']);
-        $this->assertSame(0, $billing['overstay_price']);
     }
 
     public function test_postpaid_minimum_tiga_puluh_menit(): void
@@ -80,35 +70,32 @@ class CheckoutBillingTest extends TestCase
         $this->assertSame(60, $billing['rental_minutes']);
     }
 
-    public function test_prepaid_lewat_dalam_toleransi_tidak_ditagih(): void
+    public function test_prepaid_tidak_pernah_ditagih_lebih_dari_hak_waktunya(): void
     {
-        // Lewat 4 menit — DEC-023 memakai toleransi 5 menit DEC-009.
-        $billing = $this->prepaid(0, 64);
+        /*
+         * DEC-033 mencabut DEC-023. Waktu habis berarti TV mati, jadi customer
+         * tidak bisa bermain melebihi haknya dan tidak ada apa pun yang ditagih
+         * di luar paket.
+         *
+         * Angka `actual` yang besar di sini mewakili keadaan nyata: TV sudah
+         * mati sejak menit ke-60, tapi operator baru menutup sesinya 40 menit
+         * kemudian karena antre di kasir. Keterlambatan kasir tidak boleh
+         * menambah tagihan customer.
+         */
+        $billing = $this->prepaid(0, 100);
 
-        $this->assertSame(0, $billing['overstay_price']);
+        $this->assertSame(20000, $billing['rental_price']);
         $this->assertSame(60, $billing['billable_minutes']);
     }
 
-    public function test_prepaid_overstay_ditagih_per_blok(): void
+    public function test_extend_prepaid_menambah_hak_waktu(): void
     {
-        // Main 90 menit dengan paket 60 tanpa extend -> lewat 30 -> 10.000.
-        $billing = $this->prepaid(0, 90);
-
-        $this->assertSame(30, $billing['overstay_minutes']);
-        $this->assertSame(10000, $billing['overstay_price']);
-        $this->assertSame(90, $billing['billable_minutes']);
-
-        // Rental tidak ikut berubah — PRD §12 "tidak ada pembayaran rental kedua".
-        $this->assertSame(20000, $billing['rental_price']);
-    }
-
-    public function test_extend_menambah_hak_waktu_sehingga_overstay_berkurang(): void
-    {
-        // Paket 60 + extend 30 = hak 90 menit. Main 90 -> tidak ada overstay.
+        // Paket 60 + extend 30 = hak 90 menit.
         $billing = $this->prepaid(30, 90);
 
-        $this->assertSame(0, $billing['overstay_minutes']);
         $this->assertSame(90, $billing['billable_minutes']);
+        // Rental tetap harga paket; extend punya barisnya sendiri.
+        $this->assertSame(20000, $billing['rental_price']);
     }
 
     public function test_sisa_waktu_prepaid_dihitung_proporsional_per_menit(): void
@@ -131,6 +118,21 @@ class CheckoutBillingTest extends TestCase
         $this->assertSame(0, CheckoutBilling::leftoverValue(-10, 20000));
     }
 
+    public function test_checkout_terlambat_tidak_menghapus_sisa_waktu(): void
+    {
+        // Customer berhenti di menit ke-40, tapi operator baru menutup sesinya
+        // di menit ke-70. `actual` ikut terbawa jam kasir — sisa waktunya jadi
+        // nol, bukan 20 menit.
+        //
+        // Ini batas yang diketahui dari pendekatan sekarang: sisa waktu dihitung
+        // dari kapan sesi DITUTUP, bukan kapan customer benar-benar berhenti.
+        // Operator perlu tahu bahwa menunda checkout merugikan member.
+        $billing = $this->prepaid(0, 70);
+
+        $this->assertSame(0, $billing['leftover_minutes']);
+        $this->assertSame(0, $billing['leftover_value']);
+    }
+
     public function test_postpaid_tidak_punya_sisa_yang_bisa_disimpan(): void
     {
         // Postpaid tidak membayar di muka, jadi tidak ada yang hangus maupun
@@ -141,12 +143,11 @@ class CheckoutBillingTest extends TestCase
         $this->assertSame(0, $billing['leftover_value']);
     }
 
-    public function test_main_tepat_sesuai_paket_tidak_ada_sisa_maupun_kelebihan(): void
+    public function test_main_tepat_sesuai_paket_tidak_ada_sisa(): void
     {
         $billing = $this->prepaid(0, 60);
 
         $this->assertSame(0, $billing['leftover_value']);
-        $this->assertSame(0, $billing['overstay_price']);
         $this->assertSame(60, $billing['billable_minutes']);
     }
 }

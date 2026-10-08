@@ -5,25 +5,30 @@ namespace App\Support\Billing;
 use App\Enums\SessionMode;
 
 /**
- * Perhitungan uang saat checkout — API.md §7, DEC-009, DEC-023, DEC-024.
+ * Perhitungan uang saat checkout — API.md §7, DEC-009, DEC-024, DEC-032, DEC-033.
  *
  * Murni: tidak menyentuh database, jadi bisa diuji tanpa MySQL.
  *
- * ## Kenapa rental Postpaid dikurangi menit extend
+ * ## Tidak ada penagihan kelebihan waktu
  *
- * Postpaid menagih rental dari durasi AKTUAL (DEC-009), sementara PRD §12
- * menetapkan extend tetap masuk Open Tab sebagai item sendiri. Dua aturan itu
- * tumpang tindih: customer paket 1 jam yang extend 30 menit dan bermain 90
- * menit akan ditagih 90 menit sebagai rental **plus** 30 menit sebagai extend —
- * 30 menit dibayar dua kali.
+ * DEC-033 mencabut DEC-023. Waktu habis berarti TV mati dan sesi berhenti —
+ * customer tidak bisa bermain melewati haknya, jadi tidak ada menit di luar hak
+ * yang perlu ditagih. Seluruh cabang overstay beserta `OverstayPolicy` sudah
+ * dihapus, bukan dimatikan.
  *
- * Penyelesaiannya: total waktu yang ditagih tetap `rounded(aktual)`, lalu
- * dibagi — menit yang sudah ditanggung item EXTEND dikeluarkan dari rental.
- * Jumlah akhirnya sama dengan tarif per jam dikali durasi aktual, dan tidak ada
- * menit yang tertagih dua kali.
+ * ## Kenapa rental Postpaid dikurangi menit extend (DEC-032)
  *
- * Prepaid tidak punya masalah ini: rental-nya harga paket yang dibekukan, dan
- * kelebihan waktunya ditagih lewat jalur overstay (DEC-023).
+ * Postpaid menagih rental dari durasi AKTUAL (DEC-009), sementara extend juga
+ * punya barisnya sendiri. Kalau keduanya dijumlahkan apa adanya, menit yang
+ * sama tertagih dua kali: paket 1 jam + extend 30 menit + main 90 menit akan
+ * jadi 90 menit rental DITAMBAH 30 menit extend.
+ *
+ * Penyelesaiannya: total yang ditagih tetap `rounded(aktual)`, lalu dibagi —
+ * menit yang sudah ditanggung item EXTEND dikeluarkan dari rental. Jumlah
+ * akhirnya sama dengan tarif per jam dikali durasi aktual.
+ *
+ * Prepaid tidak punya masalah ini: rental-nya harga paket yang dibekukan di
+ * depan, jadi extend memang pembelian tambahan yang sah.
  */
 final class CheckoutBilling
 {
@@ -31,7 +36,6 @@ final class CheckoutBilling
      * @param  int  $extendMinutes  Total menit dari semua item EXTEND.
      * @return array{
      *     rental_minutes: int, rental_price: int,
-     *     overstay_minutes: int, overstay_price: int,
      *     billable_minutes: int, leftover_minutes: int, leftover_value: int
      * }
      */
@@ -43,8 +47,6 @@ final class CheckoutBilling
         int $extendMinutes,
         int $actualMinutes,
     ): array {
-        $entitled = $packageDurationMinutes + $extendMinutes;
-
         if ($mode === SessionMode::POSTPAID) {
             $billable = DurationRounding::toBillableMinutes($actualMinutes);
             $rentalMinutes = max(0, $billable - $extendMinutes);
@@ -52,10 +54,6 @@ final class CheckoutBilling
             return [
                 'rental_minutes' => $rentalMinutes,
                 'rental_price' => HalfHourPricing::priceFor($hourlyRate, $rentalMinutes),
-                // Postpaid menagih durasi aktual, jadi tidak ada "kelebihan"
-                // yang belum tertagih.
-                'overstay_minutes' => 0,
-                'overstay_price' => 0,
                 'billable_minutes' => $billable,
                 // Postpaid tidak membayar di muka, jadi tidak ada sisa yang
                 // bisa hangus maupun disimpan (DEC-024).
@@ -64,7 +62,7 @@ final class CheckoutBilling
             ];
         }
 
-        $overstayMinutes = OverstayPolicy::billableMinutes($actualMinutes, $entitled);
+        $entitled = $packageDurationMinutes + $extendMinutes;
         $leftoverMinutes = max(0, $entitled - $actualMinutes);
 
         return [
@@ -72,9 +70,12 @@ final class CheckoutBilling
             // DEC-024: harga paket tidak pernah dihitung ulang dari durasi
             // aktual, termasuk saat customer berhenti lebih awal.
             'rental_price' => $packagePrice,
-            'overstay_minutes' => $overstayMinutes,
-            'overstay_price' => HalfHourPricing::priceFor($hourlyRate, $overstayMinutes),
-            'billable_minutes' => $entitled + $overstayMinutes,
+            /*
+             * Seluruh hak waktu, bukan durasi aktual. Customer yang berhenti
+             * lebih awal tetap membayar paket penuh, jadi yang ditagih memang
+             * sepanjang itu — dan sejak DEC-033 dia tidak mungkin melebihinya.
+             */
+            'billable_minutes' => $entitled,
             'leftover_minutes' => $leftoverMinutes,
             'leftover_value' => self::leftoverValue($leftoverMinutes, $hourlyRate),
         ];

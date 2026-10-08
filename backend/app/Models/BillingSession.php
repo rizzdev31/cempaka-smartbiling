@@ -9,7 +9,6 @@ use App\Exceptions\ApiException;
 use App\Models\Concerns\HasUuidKey;
 use App\Support\Api\ErrorCode;
 use App\Support\Billing\ExtendPolicy;
-use App\Support\Billing\OverstayPolicy;
 use App\Support\Billing\SessionTotals;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -141,7 +140,8 @@ class BillingSession extends Model
 
     /**
      * Hak waktu customer: durasi paket + semua extend, dibayar maupun belum.
-     * Dasar perhitungan overstay (DEC-023).
+     * Dipakai checkout untuk memisahkan menit rental dari menit extend
+     * (DEC-032) dan menghitung sisa waktu member (DEC-026).
      */
     public function entitledMinutes(): int
     {
@@ -168,24 +168,9 @@ class BillingSession extends Model
         return max(0, (int) ceil($this->started_at->diffInSeconds($until, absolute: false) / 60));
     }
 
-    /** Menit overstay yang ditagih — DEC-023. */
-    public function overstayBillableMinutes(?CarbonInterface $now = null): int
-    {
-        return OverstayPolicy::billableMinutes($this->actualMinutes($now), $this->entitledMinutes());
-    }
-
-    public function overstayPrice(?CarbonInterface $now = null): int
-    {
-        return OverstayPolicy::priceFor(
-            (int) $this->hourly_rate,
-            $this->actualMinutes($now),
-            $this->entitledMinutes(),
-        );
-    }
-
     /**
      * `extend_deadline_at` (API.md §7). Null selama `PENDING_PAYMENT`, karena
-     * `end_at` belum ada.
+     * `end_at` belum ada. Sejak DEC-033 nilainya sama dengan `end_at`.
      */
     public function extendDeadlineAt(): ?CarbonInterface
     {
@@ -194,8 +179,8 @@ class BillingSession extends Model
 
     /**
      * `extendable` (API.md §7) — **server** yang memutuskan, bukan client.
-     * Kalau client menghitung sendiri, aturan grace DEC-007 punya dua sumber
-     * kebenaran yang bisa berbeda saat jam device meleset.
+     * Kalau client menghitung sendiri, aturannya punya dua sumber kebenaran
+     * yang bisa berbeda saat jam device meleset.
      */
     public function isExtendable(?CarbonInterface $now = null): bool
     {
@@ -203,7 +188,7 @@ class BillingSession extends Model
             return false;
         }
 
-        return ExtendPolicy::isWithinGrace($this->end_at, $now ?? Carbon::now());
+        return ExtendPolicy::isWithinWindow($this->end_at, $now ?? Carbon::now());
     }
 
     /**

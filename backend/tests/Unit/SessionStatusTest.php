@@ -30,11 +30,14 @@ class SessionStatusTest extends TestCase
         $this->assertFalse(SessionStatus::CANCELLED->isOrderable());
     }
 
-    public function test_expired_masih_boleh_diextend_karena_ada_grace(): void
+    public function test_expired_tidak_bisa_diextend(): void
     {
-        // DEC-007 memberi grace 10 menit setelah end_at, jadi EXPIRED belum
-        // menutup pintu extend. Batas waktunya diuji terpisah di langkah 9.
-        $this->assertTrue(SessionStatus::EXPIRED->isExtendable());
+        // DEC-033 mencabut grace 10 menit DEC-007: "habis ya habis". Customer
+        // yang ingin melanjutkan dibuatkan sesi baru.
+        $this->assertFalse(SessionStatus::EXPIRED->isExtendable());
+
+        $this->assertTrue(SessionStatus::ACTIVE->isExtendable());
+        $this->assertTrue(SessionStatus::WARNING->isExtendable());
         $this->assertFalse(SessionStatus::COMPLETED->isExtendable());
         $this->assertFalse(SessionStatus::PENDING_PAYMENT->isExtendable());
     }

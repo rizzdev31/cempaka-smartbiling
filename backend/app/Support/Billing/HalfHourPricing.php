@@ -9,10 +9,9 @@ namespace App\Support\Billing;
  * harga = ceil(hourly_rate / 2 * (menit / 30))
  * ```
  *
- * Dipakai extend DAN overstay (DEC-023) supaya satu menit tambahan berharga
- * sama, tidak peduli lewat jalur mana. Kalau keduanya punya rumus sendiri,
- * extend dan overstay bisa berbeda harga untuk durasi yang sama — dan
- * operator tidak akan bisa menjelaskannya ke customer.
+ * Dipakai extend dan rental Postpaid, supaya satu blok 30 menit berharga sama
+ * lewat jalur mana pun. Kalau masing-masing punya rumusnya sendiri, durasi yang
+ * sama bisa beda tagihan dan operator tidak akan bisa menjelaskannya ke customer.
  *
  * Dibulatkan ke ATAS: tarif per jam ganjil (mis. 21.667 dari paket 3 jam)
  * kalau dibulatkan ke bawah membuat rental kehilangan rupiah di setiap extend.

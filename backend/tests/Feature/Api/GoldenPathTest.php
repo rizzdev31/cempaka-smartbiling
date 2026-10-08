@@ -119,36 +119,45 @@ class GoldenPathTest extends TestCase
 
         $this->assertSame(SessionStatus::WARNING, BillingSession::find($id)->status);
 
-        // ── 08:40 lewat end_at: EXPIRED, tapi sesi TIDAK berhenti (DEC-023) ─
+        // ── 08:40 lewat end_at: EXPIRED, TV mati, sesi berhenti (DEC-033) ───
         $this->travelTo(Carbon::parse('2026-10-08T08:40:00Z'));
         $this->artisan('sessions:reconcile')->assertSuccessful();
 
         $fresh = BillingSession::find($id);
         $this->assertSame(SessionStatus::EXPIRED, $fresh->status);
-        $this->assertTrue($fresh->status->occupiesStation(), 'EXPIRED harus tetap memakai station');
+        $this->assertFalse($fresh->status->isRunning(), 'waktu habis berarti berhenti');
+        // Tapi station belum kosong: customer masih di sana, tagihan belum ditutup.
+        $this->assertTrue($fresh->status->occupiesStation());
         Event::assertDispatched(SessionExpired::class);
+
+        // Extend sudah tidak boleh lagi — "habis ya habis".
+        $this->withHeaders($this->idempotent())
+            ->postJson("/api/v1/sessions/{$id}/extend", ['duration_minutes' => 30])
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'SESSION_STATUS_INVALID');
 
         // ── 08:45 checkout ──────────────────────────────────────────────────
         //
-        // Hak waktu 90 menit (paket 60 + extend 30), mulai 07:01, jadi habis
-        // 08:31. Selesai 08:45 -> aktual 104 menit -> lewat 14 menit ->
-        // dibulatkan jadi 30 menit -> 10.000 (DEC-023).
+        // Hak waktu 90 menit (paket 60 + extend 30), mulai 07:01, habis 08:31.
+        // Operator baru menutup 08:45, jadi `actual` 104 menit — tapi yang
+        // ditagih tetap 90 menit (DEC-033: tidak ada kelebihan waktu).
         //
-        // Tagihan: F&B 10.000 + extend 10.000 + overstay 10.000 = 30.000.
+        // Sisa tagihan: F&B 10.000 + extend 10.000 = 20.000.
         $this->travelTo(Carbon::parse('2026-10-08T08:45:00Z'));
 
         $receipt = $this->withHeaders($this->idempotent())
             ->postJson("/api/v1/sessions/{$id}/checkout", [
-                'payments' => [['method' => 'CASH', 'amount' => 30000]],
+                'payments' => [['method' => 'CASH', 'amount' => 20000]],
             ])->assertOk()
             ->assertJsonPath('data.session.status', 'COMPLETED')
             ->assertJsonPath('data.session.totals.balance_due', 0)
+            ->assertJsonPath('data.session.totals.adjustment', 0)
             ->assertJsonPath('data.receipt.actual_duration_minutes', 104)
-            ->assertJsonPath('data.receipt.billable_duration_minutes', 120)
+            ->assertJsonPath('data.receipt.billable_duration_minutes', 90)
             ->json('data.receipt');
 
-        // Rental prepaid tidak dihitung ulang (PRD §12).
-        $this->assertSame(50000, $receipt['totals']['grand_total']);
+        // Rental 20.000 + F&B 10.000 + extend 10.000.
+        $this->assertSame(40000, $receipt['totals']['grand_total']);
         $this->assertStringStartsWith('INV-', $receipt['number']);
 
         // ── station kembali kosong ──────────────────────────────────────────

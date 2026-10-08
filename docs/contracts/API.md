@@ -71,7 +71,7 @@ List pakai pagination:
   "error": {
     "code": "EXTEND_GRACE_EXPIRED",
     "message": "Sesi sudah lewat 10 menit dari waktu habis. Lakukan checkout lalu buat sesi baru.",
-    "details": { "end_at": "2026-10-02T07:00:00Z", "grace_until": "2026-10-02T07:10:00Z" }
+    "details": { "end_at": "2026-10-02T07:00:00Z", "grace_until": "2026-10-02T07:00:00Z" }
   },
   "meta": { "server_time": "2026-10-02T07:15:00Z" }
 }
@@ -296,7 +296,7 @@ Error: `409 CUSTOMER_ALREADY_MEMBER`, `409 SESSION_STATUS_INVALID`, `404 NOT_FOU
   "ended_at":   null,
 
   "extendable": true,
-  "extend_deadline_at": "2026-10-02T08:10:00Z",
+  "extend_deadline_at": "2026-10-02T08:00:00Z",
 
   "items": [ /* lihat session_item */ ],
 
@@ -325,7 +325,7 @@ Catatan penting:
 | `customer` / `customer_name` | DEC-008: **satu** customer per session. Walk-in non-member → `customer: null` + `customer_name: "Walk-in"` |
 | `end_at` | `null` saat `PENDING_PAYMENT`. Diisi saat payment confirmed |
 | `extendable` | **server** yang memutuskan, client tidak menghitung sendiri |
-| `extend_deadline_at` | `end_at + 10 menit` (DEC-007). Server kirim nilainya supaya aturan grace tidak diduplikasi di client |
+| `extend_deadline_at` | **Sama dengan `end_at`** sejak DEC-033. Grace 10 menit DEC-007 dicabut — "habis ya habis". Field-nya dipertahankan supaya client lama tidak patah |
 | `totals.balance_due` | yang ditagih saat checkout |
 | **Tidak ada** `remaining_seconds` | sengaja. Client hitung dari `end_at` + server-time offset (PRD §16, DEC-003) |
 
@@ -409,8 +409,8 @@ Validasi (DEC-007):
 | Aturan | Error kalau gagal |
 |---|---|
 | kelipatan 30, minimum 30 | `422 EXTEND_DURATION_INVALID` |
-| `status` ∈ `ACTIVE`, `WARNING`, `EXPIRED` | `409 SESSION_STATUS_INVALID` |
-| `now ≤ end_at + 10 menit` | `409 EXTEND_GRACE_EXPIRED` |
+| `status` ∈ `ACTIVE`, `WARNING` — **bukan `EXPIRED`** (DEC-033) | `409 SESSION_STATUS_INVALID` |
+| `now ≤ end_at` (DEC-033 — tidak ada lagi grace 10 menit) | `409 EXTEND_GRACE_EXPIRED` |
 
 Perhitungan:
 ```
@@ -454,7 +454,7 @@ Error: `409 STATION_NOT_AVAILABLE`, `409 TARGET_STATION_SAME`, `409 STATION_TYPE
 Perilaku:
 1. **Postpaid:** rental dihitung dari durasi aktual dengan rounding **DEC-009** (`sisa ≤ 5` → ke bawah, `> 5` → ke atas, per 30 menit, minimum 30). Item `RENTAL` diperbarui.
    **Prepaid:** rental sudah fix dari paket, **tidak** di-rounding — dan sisa waktu yang tidak terpakai **hangus** (DEC-024), kecuali customer member.
-1b. **Overstay (DEC-023).** Menit di luar hak waktu (`durasi_paket + total_extend`) ditagih sebagai item `ADJUSTMENT` bernama "Kelebihan waktu". Dibulatkan per 30 menit dengan toleransi 5 menit DEC-009, **tanpa** lantai minimum 30. Harga per blok sama dengan extend: `ceil(hourly_rate / 2)`. Rental Prepaid yang sudah dibayar tidak dihitung ulang.
+1b. ~~Overstay~~ — **dihapus**. DEC-033 mencabut DEC-023: waktu habis berarti TV mati dan sesi berhenti, jadi tidak ada menit di luar hak waktu yang bisa ditagih.
 2. Semua item unpaid ditagih. Prepaid → hanya F&B/extend/adjustment yang belum dibayar.
 2b. **Saldo member (DEC-026).** `use_credit: true` memakai saldo customer untuk mengurangi `balance_due`, berapa pun jenis tagihannya. Muncul sebagai item `DISCOUNT` bernama "Saldo member". Default `false` → memakai saldo harus keputusan sadar operator di depan customer.
 3. `payments` harus **persis** sama dengan `balance_due`. Kurang → `422 CHECKOUT_INSUFFICIENT_PAYMENT`; lebih → `422 PAYMENT_AMOUNT_EXCEEDS_BALANCE` (tidak ada kembalian di V1). Boleh array kosong kalau tagihannya sudah nol.
@@ -490,7 +490,7 @@ Perilaku:
 ```
 Error: `409 SESSION_STATUS_INVALID`
 
-> **Overstay** (Prepaid lewat `end_at` tanpa extend) sudah diatur sejak **DEC-023**: sesi TIDAK dihentikan, timer terus berjalan, dan kelebihan waktunya ditagih saat checkout. `EXPIRED` adalah penanda bahwa waktu paket sudah lewat, **bukan** penghenti — station tetap terpakai. Perilaku lock/overlay TV saat EXPIRED masih OD-004.
+> **Waktu habis berarti berhenti (DEC-033).** Begitu `now > end_at`, status jadi `EXPIRED`, **TV mati/standby**, dan customer tidak bisa melanjutkan. Tidak ada penagihan kelebihan waktu. Extend juga tidak lagi diizinkan setelah titik ini — customer yang ingin melanjutkan dibuatkan **sesi baru dengan paket baru**. Station tetap terpakai sampai operator checkout. Bentuk tampilan "TV mati" di layar adalah urusan Tahap 2 (OD-004).
 
 ---
 
@@ -749,10 +749,10 @@ Aksi yang gagal karena jaringan di-retry **dengan `Idempotency-Key` yang sama**,
 | Tidak ada | Alasan |
 |---|---|
 | `remaining_seconds` / countdown per detik | PRD §16 — client menghitung dari `end_at` |
-| `display.mode: LOCKED` aktif | OD-001 & OD-004 belum diputuskan |
-| Penagihan overstay | OD-001 |
+| `display.mode: LOCKED` aktif | Bentuk tampilannya masih OD-004. Aturannya sudah jelas: TV mati/standby saat waktu habis (DEC-033) |
+| Penagihan overstay | **Tidak akan ada.** DEC-033 menutup kemungkinannya — waktu habis berarti berhenti |
 | `extend-requests` dari customer | Tahap 3C |
 | Booking, payment gateway, webhook | Tahap 3D |
 | Endpoint reporting/finance | Tahap 3B |
-| Kembalian / uang muka | belum ada keputusan bisnis |
+| Kembalian / uang muka | belum ada keputusan bisnis (OD-002 untuk uang muka Postpaid) |
 | Beberapa customer per session | DEC-008 — ditolak untuk V1 |

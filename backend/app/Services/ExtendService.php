@@ -56,14 +56,18 @@ class ExtendService
             }
 
             /*
-             * Grace 10 menit dihitung dari `end_at`, bukan dari sekarang.
-             * Lewat batas ini sesi tetap berjalan (DEC-023) — yang ditolak
-             * hanya extend-nya, dan kelebihan waktunya ditagih saat checkout.
+             * DEC-033 — extend hanya boleh SEBELUM waktu habis. Grace 10 menit
+             * sudah dicabut: "habis ya habis". Customer yang ingin melanjutkan
+             * dibuatkan sesi baru dengan paket baru.
+             *
+             * Nama error code-nya tetap EXTEND_GRACE_EXPIRED supaya client yang
+             * sudah menyalin daftar error tidak patah; artinya sekarang
+             * "waktunya sudah lewat", bukan "grace-nya sudah lewat".
              */
-            if (! ExtendPolicy::isWithinGrace($session->end_at, $now)) {
+            if (! ExtendPolicy::isWithinWindow($session->end_at, $now)) {
                 throw ApiException::conflict(
                     ErrorCode::EXTEND_GRACE_EXPIRED,
-                    'Batas extend sudah lewat lebih dari 10 menit setelah waktu habis.',
+                    'Waktu sesi sudah habis. Buat sesi baru untuk melanjutkan.',
                     [
                         'end_at' => $session->end_at->toIso8601ZuluString(),
                         'grace_until' => $session->extendDeadlineAt()->toIso8601ZuluString(),

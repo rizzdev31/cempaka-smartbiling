@@ -77,11 +77,12 @@ class SessionExtendTest extends TestCase
 
     public function test_end_at_baru_dihitung_dari_end_at_lama(): void
     {
-        // Inti DEC-007. Operator approve di menit ke-8 setelah habis; customer
-        // tetap dapat 30 menit dari end_at lama, bukan 38 menit.
+        // Inti DEC-007 yang TIDAK dicabut DEC-033. Operator menekan tombol 2
+        // menit sebelum habis; customer dapat 30 menit dari end_at lama,
+        // bukan 32 menit.
         $session = $this->activeSession(Carbon::parse('2026-10-08T07:00:00Z'));
 
-        $this->travelTo(Carbon::parse('2026-10-08T08:08:00Z'));
+        $this->travelTo(Carbon::parse('2026-10-08T07:58:00Z'));
 
         $this->extend($session->id, 30)
             ->assertOk()
@@ -104,39 +105,45 @@ class SessionExtendTest extends TestCase
             ->assertJsonPath('error.code', 'EXTEND_DURATION_INVALID');
     }
 
-    public function test_masih_boleh_tepat_di_menit_kesepuluh(): void
+    public function test_masih_boleh_tepat_di_detik_waktu_habis(): void
     {
         $session = $this->activeSession(Carbon::parse('2026-10-08T07:00:00Z'));
 
-        // end_at 08:00 + grace 10 menit = batasnya 08:10 tepat, inklusif.
-        $this->travelTo(Carbon::parse('2026-10-08T08:10:00Z'));
+        // Batasnya `now <= end_at` — tepat di 08:00:00 masih boleh.
+        $this->travelTo(Carbon::parse('2026-10-08T08:00:00Z'));
 
         $this->extend($session->id, 30)->assertOk();
     }
 
-    public function test_ditolak_di_menit_kesebelas(): void
+    public function test_ditolak_begitu_waktunya_lewat(): void
     {
-        // Yang diminta eksplisit di checklist Tahap 0.
+        // DEC-033 mencabut grace 10 menit: "habis ya habis". Lewat satu detik
+        // pun ditolak.
         $session = $this->activeSession(Carbon::parse('2026-10-08T07:00:00Z'));
 
-        $this->travelTo(Carbon::parse('2026-10-08T08:11:00Z'));
+        $this->travelTo(Carbon::parse('2026-10-08T08:00:01Z'));
 
         $this->extend($session->id, 30)
             ->assertStatus(409)
+            // Nama error code-nya sengaja tidak diubah supaya client yang sudah
+            // menyalin daftar error tidak patah; artinya sekarang "waktunya
+            // sudah lewat".
             ->assertJsonPath('error.code', 'EXTEND_GRACE_EXPIRED')
-            ->assertJsonPath('error.details.grace_until', '2026-10-08T08:10:00Z');
+            ->assertJsonPath('error.details.grace_until', '2026-10-08T08:00:00Z');
     }
 
-    public function test_sesi_expired_dalam_grace_hidup_lagi(): void
+    public function test_sesi_yang_sudah_habis_tidak_bisa_dihidupkan_lagi(): void
     {
+        // DEC-033. Customer yang ingin melanjutkan dibuatkan SESI BARU dengan
+        // paket baru, bukan diperpanjang.
         $session = $this->activeSession(Carbon::parse('2026-10-08T07:00:00Z'));
         $session->update(['status' => SessionStatus::EXPIRED]);
 
         $this->travelTo(Carbon::parse('2026-10-08T08:05:00Z'));
 
         $this->extend($session->id, 30)
-            ->assertOk()
-            ->assertJsonPath('data.session.status', 'ACTIVE');
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'SESSION_STATUS_INVALID');
     }
 
     public function test_extend_dua_kali_menumpuk(): void
@@ -210,7 +217,7 @@ class SessionExtendTest extends TestCase
 
     public function test_extendable_dan_deadline_dikirim_server(): void
     {
-        // Aturan grace tidak boleh diduplikasi di Flutter/Kotlin (DEC-007).
+        // Aturan kapan boleh extend tidak boleh diduplikasi di Flutter/Kotlin.
         $session = $this->activeSession(Carbon::parse('2026-10-08T07:00:00Z'));
 
         $this->travelTo(Carbon::parse('2026-10-08T07:30:00Z'));
@@ -218,9 +225,10 @@ class SessionExtendTest extends TestCase
         $this->getJson("/api/v1/sessions/{$session->id}")
             ->assertOk()
             ->assertJsonPath('data.extendable', true)
-            ->assertJsonPath('data.extend_deadline_at', '2026-10-08T08:10:00Z');
+            // Sejak DEC-033 deadline-nya sama persis dengan end_at.
+            ->assertJsonPath('data.extend_deadline_at', '2026-10-08T08:00:00Z');
 
-        $this->travelTo(Carbon::parse('2026-10-08T08:11:00Z'));
+        $this->travelTo(Carbon::parse('2026-10-08T08:00:01Z'));
 
         $this->getJson("/api/v1/sessions/{$session->id}")
             ->assertOk()

@@ -49,18 +49,10 @@ class DurationRoundingTest extends TestCase
         $this->assertSame(30, DurationRounding::toBillableMinutes(30));
     }
 
-    public function test_tanpa_lantai_minimum_sisa_kecil_jadi_nol(): void
-    {
-        // Jalur overstay (DEC-023 / OD-021): lewat 4 menit tidak ditagih.
-        $this->assertSame(0, DurationRounding::toBillableMinutes(4, applyMinimum: false));
-        $this->assertSame(0, DurationRounding::toBillableMinutes(0, applyMinimum: false));
-        $this->assertSame(30, DurationRounding::toBillableMinutes(20, applyMinimum: false));
-    }
-
     public function test_jumlah_blok_mengikuti_menit_yang_ditagih(): void
     {
         $this->assertSame(1, DurationRounding::toBlocks(35));
         $this->assertSame(3, DurationRounding::toBlocks(70));
-        $this->assertSame(0, DurationRounding::toBlocks(4, applyMinimum: false));
+        $this->assertSame(1, DurationRounding::toBlocks(4));
     }
 }

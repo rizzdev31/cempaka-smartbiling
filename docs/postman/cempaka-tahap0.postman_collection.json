@@ -309,7 +309,7 @@
       ]
     },
     {
-      "name": "11 Reconcile status (jalankan setelah end_at lewat)",
+      "name": "11 Reconcile status (jalankan setelah end_at lewat \u2014 TV harus mati)",
       "request": { "method": "GET", "url": "{{base_url}}/sessions/{{session_id}}" },
       "event": [
         {
@@ -320,9 +320,10 @@
               "// Jalankan `php artisan sessions:reconcile` dulu, atau biarkan",
               "// `schedule:work` berjalan dan tunggu satu menit.",
               "const d = pm.response.json().data;",
-              "pm.test('EXPIRED tidak menghentikan sesi (DEC-023)', () => {",
+              "pm.test('EXPIRED berarti berhenti \u2014 tidak bisa extend lagi (DEC-033)', () => {",
               "  if (d.status === 'EXPIRED') {",
-              "    pm.expect(d.ended_at).to.be.null;",
+              "    pm.expect(d.extendable).to.be.false;",
+              "    pm.expect(d.ended_at).to.be.null;   // belum checkout",
               "  }",
               "});"
             ]

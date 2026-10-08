@@ -76,7 +76,14 @@ Testing Sabtu dibatasi ke **ST01** sebagai vertical slice. TV lain hanya diuji k
 ---
 
 ## DEC-007 — Extend: blok 30 menit + grace 10 menit setelah EXPIRED
-**Tanggal:** 2 Okt 2026 · **Status:** APPROVED · **Menutup:** OD-003, PRD §35 "Extend pricing dan durasi"
+
+> ## ⚠️ SEBAGIAN DICABUT
+> **DEC-033** (8 Okt 2026) mencabut izin extend sampai 10 menit setelah `end_at`
+> — "habis ya habis". Rumus harga, kelipatan 30 menit, dan aturan
+> `end_at_baru = end_at_lama + durasi` **tetap berlaku**. Extend sekarang hanya
+> boleh SEBELUM waktu habis.
+
+**Tanggal:** 2 Okt 2026 · **Status:** SEBAGIAN DICABUT (grace), sisanya APPROVED · **Menutup:** OD-003, PRD §35 "Extend pricing dan durasi"
 
 **Durasi & harga**
 - Extend hanya kelipatan **30 menit** (30, 60, 90, …). Tidak ada extend 15 menit atau per menit.
@@ -699,7 +706,13 @@ slice pertama" jadi bisa dipenuhi setelah langkah 7 (payment manual).
 ---
 
 ## DEC-023 — Overstay Prepaid: timer jalan terus, kelebihan ditagih saat checkout
-**Tanggal:** 8 Okt 2026 · **Status:** APPROVED · **Menjawab:** OD-001 (bagian penagihan) · **Melengkapi:** PRD §11, DEC-007, DEC-009
+
+> ## ⛔ DICABUT — jangan dipakai
+> Dibatalkan **DEC-033** pada hari yang sama. User menegaskan yang sebaliknya:
+> waktu habis berarti TV mati dan tidak ada penagihan kelebihan sama sekali.
+> Entry ini disimpan sebagai riwayat, bukan aturan yang berlaku.
+
+**Tanggal:** 8 Okt 2026 · **Status:** DICABUT (sebelumnya APPROVED) · **Menjawab:** OD-001 (bagian penagihan) · **Melengkapi:** PRD §11, DEC-007, DEC-009
 
 Diputuskan user: customer **boleh terus bermain** melewati `end_at`. Sesi tidak
 dihentikan. Kelebihan waktunya ditagih saat checkout.
@@ -957,6 +970,103 @@ bisa dikerjakan Flutter tanpa backend sama sekali. Ditambahkan sebagai **OD-023*
 
 ---
 
+## DEC-032 — Postpaid: extend hanya menggeser jam, tidak menambah tagihan
+**Tanggal:** 8 Okt 2026 · **Status:** APPROVED · **Menjawab:** OD-024 · **Melengkapi:** DEC-009, PRD §12
+
+Diputuskan user: **"Pakai Pilihan 1."**
+
+Pada Postpaid, tagihan rental dihitung dari **waktu yang benar-benar dipakai**
+(DEC-009). Tombol extend di tengah permainan hanya **menggeser jam di layar**
+supaya timer dan TV tidak menyatakan habis — extend **tidak** menambah baris
+tagihan sendiri di atas waktu terpakai.
+
+**Contoh:** tarif 20.000/jam. Paket 1 jam, extend 30 menit, main 90 menit.
+
+```
+Pilihan 1 (dipilih) : 90 menit x 20.000/jam                = 30.000
+Pilihan 2 (ditolak) : 90 menit (30.000) + baris extend     = 40.000
+```
+
+Pilihan 2 ditolak karena menagih 30 menit yang sama dua kali — sekali lewat
+hitungan waktu terpakai, sekali lagi lewat baris extend.
+
+**Yang mengikat di backend:**
+- `CheckoutBilling` mengurangi menit extend dari menit rental pada Postpaid,
+  sehingga totalnya tetap `tarif x durasi aktual`.
+- Prepaid **tidak** terpengaruh: di sana harga paket dibekukan di depan, jadi
+  extend memang pembelian tambahan yang sah.
+
+Sudah berjalan sejak 8 Okt sebagai asumsi; keputusan ini hanya mengubah
+statusnya dari tebakan jadi aturan. Tidak ada kode yang berubah.
+
+---
+
+## DEC-033 — Waktu habis berarti berhenti: TV mati, tidak ada kelebihan waktu, tidak ada grace extend
+**Tanggal:** 8 Okt 2026 · **Status:** APPROVED · **MENCABUT:** DEC-023 (seluruhnya), DEC-007 (bagian grace 10 menit)
+
+Diputuskan user: **"Kalau jamnya sudah selesai ya TV-nya mati atau mode standby
+atau selesai. Tidak ada toleransi — kalau dia bayar 1 jam bisa lebih mainnya,
+tidak bisa."**
+
+Ditanyakan ulang karena ini **kebalikan** dari DEC-023 yang dipilih user sendiri
+pagi harinya. User menegaskan jawaban yang baru, dan menambahkan bahwa extend
+setelah waktu habis juga tidak boleh: **"habis ya habis."**
+
+### Aturan yang berlaku sekarang
+
+| | |
+|---|---|
+| `now > end_at` | Status `EXPIRED`. **TV mati / standby.** Customer tidak bisa melanjutkan |
+| Kelebihan waktu | **Tidak ada.** Tidak ada penagihan apa pun di luar hak waktu |
+| Extend | Hanya **sebelum** waktu habis (`now ≤ end_at`). Setelah itu ditolak |
+| Mau lanjut? | **Sesi baru dengan paket baru.** Bukan extend, bukan perpanjangan |
+| Prepaid | Tagihan = harga paket + extend yang sudah dibeli. Titik |
+| Postpaid | Tagihan = durasi aktual dibulatkan DEC-009 (tidak berubah, lihat DEC-032) |
+
+### Apa yang dicabut, dan kenapa itu perlu ditulis
+
+**DEC-023 dicabut seluruhnya.** Seluruh jalur penagihan kelebihan waktu
+(`OverstayPolicy`, item `ADJUSTMENT` "Kelebihan waktu", toleransi 5 menit)
+dihapus dari kode. Bersamanya ikut hilang **OD-021**, yang menanyakan toleransi
+pembulatan overstay — pertanyaan itu tidak punya objek lagi.
+
+**DEC-007 kehilangan bagian grace-nya.** Rumus harga extend
+(`ceil(tarif_per_jam ÷ 2 × (menit ÷ 30))`), kelipatan 30 menit, dan aturan
+`end_at_baru = end_at_lama + durasi` **tetap berlaku**. Yang dicabut hanya izin
+extend sampai 10 menit setelah `end_at`.
+
+`extend_deadline_at` di `API.md` §7 **tidak dihapus** supaya client lama tidak
+patah, tapi nilainya sekarang sama persis dengan `end_at`.
+
+### Biaya keputusan ini — jujur dicatat
+
+Instruksi ke Kotlin TV Agent **berbalik dua kali dalam satu hari**:
+
+| | Isi instruksi |
+|---|---|
+| CHANGELOG DRAFT 6 (pagi) | TV **tidak boleh** mengunci atau memblank saat `end_at` lewat |
+| CHANGELOG DRAFT 9 (sore) | TV **harus** mati/standby saat `end_at` lewat |
+
+Kalau rekan yang memegang Kotlin sudah mengerjakan yang pertama, pekerjaan itu
+terbuang. Ini bukan alasan untuk tidak mengubah — keputusan bisnis boleh
+berubah, dan lebih murah berubah sekarang daripada setelah dipakai di lokasi.
+Dicatat supaya jelas bahwa yang terbuang itu akibat perubahan keputusan, bukan
+kesalahan implementasi.
+
+### Yang jadi lebih sederhana
+
+Mesin billing kehilangan satu cabang penuh. `EXPIRED` kembali punya satu arti
+tunggal — waktu habis, berhenti — dan tidak perlu lagi dijelaskan sebagai
+"penanda, bukan penghenti" di setiap tempat.
+
+### Yang belum diputuskan
+
+Apakah "TV mati" berarti layar benar-benar padam, masuk standby, atau menampilkan
+layar "waktu habis, silakan ke kasir". Itu urusan tampilan Tahap 2 dan tidak
+menyentuh backend. Digabungkan ke **OD-004** yang sudah mengatur overlay warning.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -978,7 +1088,7 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | ~~OD-017~~ | ~~Siapa yang boleh mengubah tarif dari aplikasi kasir?~~ | **DIPUTUSKAN → DEC-020** (hanya owner) | — |
 | ~~OD-018~~ | ~~Swap ke tipe konsol berbeda?~~ | **DIPUTUSKAN → DEC-021** (tidak boleh) | — |
 | ~~OD-020~~ | ~~Sisa waktu saat pindah tipe konsol~~ | **DIPUTUSKAN → DEC-025** (dikonversi senilai rupiah ke menit di tarif konsol baru, member saja) | — |
-| **OD-021** | Toleransi pembulatan **overstay**: pakai DEC-009 (sisa ≤ 5 menit ke bawah) tanpa lantai 30 menit — sudah diterapkan sebagai asumsi di DEC-023. Benar? | Menentukan apakah overstay 4 menit ditagih 0 atau 30 menit. Soal uang, tapi tidak memblokir karena mudah diubah di satu tempat (`OverstayPolicy`) | Tahap 0 (checkout) |
+| ~~OD-021~~ | ~~Toleransi pembulatan overstay~~ | **TIDAK BERLAKU LAGI → DEC-033** mencabut penagihan overstay sepenuhnya, jadi pertanyaannya kehilangan objek | — |
 | ~~OD-022~~ | ~~Biaya & wewenang daftar member~~ | **DIPUTUSKAN → DEC-027** (operator boleh) + **DEC-029** (Rp 10.000, sementara) | — |
 | **OD-023** | Cara mengirim struk ke WA: buka `wa.me` dari tablet (gratis, operator menekan kirim) atau WhatsApp Business API (berbayar, otomatis, butuh verifikasi bisnis)? | Muncul dari DEC-031. Yang pertama bisa dikerjakan Flutter tanpa backend sama sekali; yang kedua butuh kerja backend + biaya bulanan | Tahap 3 |
 | **OD-016** | Apakah **maintenance perlu data pendukung** — teknisi, nomor tiket, estimasi selesai? | Desain contoh menampilkannya, tapi tidak ada entity-nya di PRD §22. Sekarang kartu maintenance hanya menampilkan "Sedang diperbaiki" — tidak memalsukan data yang tidak ada | Tahap 3B (Admin) |
