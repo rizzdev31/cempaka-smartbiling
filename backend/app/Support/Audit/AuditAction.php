@@ -30,6 +30,13 @@ final class AuditAction
     public const FNB_ORDER_CREATED = 'fnb.order.created';
     public const FNB_STATUS_CHANGED = 'fnb.order.status_changed';
 
+    public const SHIFT_OPENED = 'shift.opened';
+    public const SHIFT_CLOSED = 'shift.closed';
+
+    /** DEC-027 — operator boleh mendaftarkan, tapi tidak boleh tidak terlacak. */
+    public const CUSTOMER_CREATED = 'customer.created';
+    public const MEMBERSHIP_CREATED = 'customer.membership.created';
+
     /** DEC-026 — saldo member. Wajib diaudit: ini uang customer. */
     public const CREDIT_EARNED = 'customer.credit.earned';
     public const CREDIT_USED = 'customer.credit.used';

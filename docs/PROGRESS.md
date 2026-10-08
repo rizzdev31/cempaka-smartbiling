@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
-| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **184 test LULUS** (66 unit + 118 feature, 640 assertion) dan **golden path 33/33 lewat HTTP sungguhan**. Berikutnya: endpoint shift + master data read-only |
+| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **208 test LULUS** (66 unit + 142 feature, 721 assertion) dan **golden path 33/33 lewat HTTP**. Shift + customer + membership selesai (8 Okt). Berikutnya: `GET /stations` + `GET /packages` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -25,6 +25,8 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 |---|---|---|---|
 | **OD-011** | Perlukah penemuan IP server otomatis (scan subnet) di Flutter? | 2 Okt 2026 | **Setelah DHCP reservation diuji di SESI 1.** Kalau IP laptop tetap stabil → tidak perlu. Kalau masih sering berubah → pasang scan subnet (± 100 baris) |
 | **OD-019** | Owner ubah tarif lewat **login owner** di tablet, atau **PIN** di atas sesi operator? | 7 Okt 2026 | Saat layar pengaturan tarif dikerjakan. Backend sama (token owner) — ini soal cara login di Flutter |
+| **OD-002** | Mitigasi Postpaid/Open Tab kabur tanpa bayar — deposit? batas maksimum? catat identitas? | 2 Okt 2026 | User menunda 8 Okt: "tanyakan nanti lagi, saya konfirmasi dulu" |
+| **OD-024** | Rental Postpaid dikurangi menit extend, supaya 30 menit yang sama tidak ditagih dua kali. Sudah diterapkan, tapi user belum paham pertanyaannya — perlu dijelaskan ulang dengan contoh angka | 8 Okt 2026 | Sudah jalan sebagai asumsi. Mengubahnya cukup di `CheckoutBilling` |
 | **OD-021** | Toleransi pembulatan **overstay** — dipakai DEC-009 tanpa lantai 30 menit (lewat 4 menit = tidak ditagih). Benar? | 8 Okt 2026 | Saat checkout dikerjakan. Sudah jalan sebagai asumsi; mengubahnya cukup di `OverstayPolicy` |
 | **OD-022** | Daftar member di kasir: biayanya berapa, siapa yang boleh mendaftarkan (bentrok OD-014), saldo berlaku berapa lama, bisa diuangkan? | 8 Okt 2026 | Saat checkout dikerjakan. Muncul dari DEC-024 |
 
@@ -1901,3 +1903,66 @@ dipanggil di sana.
 1. `POST /shifts/open` + `close` + `GET /shifts/current` — supaya uang bisa
    dihubungkan ke yang jaga.
 2. Master data read-only: `GET /stations`, `GET /packages`, `GET /customers`.
+
+---
+
+### 2026-10-08 — [Backend] Langkah 7: shift kasir + customer + membership
+
+**Lima keputusan user sekaligus**
+
+| | |
+|---|---|
+| **DEC-027** | Operator **boleh** mendaftarkan member di kasir (menjawab OD-014) |
+| **DEC-028** | Diskon **hanya owner** (menjawab OD-006 bagian diskon) |
+| **DEC-029** | Biaya daftar member **Rp 10.000**, sementara |
+| **DEC-030** | Warning di TV = **overlay kanan atas** (menjawab OD-004 → membuka Tahap 2) |
+| **DEC-031** | Struk: layar + cetak opsional + kirim WA untuk member (menjawab OD-010) |
+
+DEC-027 membuka jalan buntu yang ditemukan kemarin: DEC-024 meminta operator
+menawarkan membership saat checkout, tapi operator tidak punya permission-nya.
+
+**Dikerjakan**
+- `ShiftService` + `POST /shifts/open`, `POST /shifts/{id}/close`, `GET /shifts/current`
+- `MembershipService` + `GET /customers`, `POST /customers`,
+  `POST /customers/{id}/membership`
+- `config/billing.php` — `membership_fee`, supaya angkanya tidak dipatri di kode
+- Permission: `CUSTOMER_CREATE` pindah ke operator; `DISCOUNT_MANAGE` baru, owner saja
+- Error code baru: `SHIFT_ALREADY_OPEN`, `SHIFT_NOT_OPEN`, `CUSTOMER_ALREADY_MEMBER`
+- Endpoint 15 → 21
+
+**Keputusan teknis yang perlu diingat**
+- **Selisih kas tidak menghalangi penutupan shift.** Shift yang tidak bisa
+  ditutup karena selisih akan membuat operator mengarang angka supaya bisa
+  pulang. Selisihnya dicatat di audit, bukan dipaksa nol.
+- **Selisih kas tidak disimpan sebagai kolom** — nilainya turunan
+  (`closing − opening − cash masuk`), dan menyimpannya berarti ada dua angka
+  yang bisa berbeda. Yang perlu bertahan adalah jejaknya di `audit_logs`.
+- **Shift orang lain hanya boleh ditutup admin ke atas.** Operator yang lupa
+  menutup shift harus bisa dibereskan tanpa menunggu dia kembali, tapi bukan
+  oleh sesama operator.
+- **Mendaftar member sekalian menautkan sesi Walk-in ke customer itu.** Tanpa
+  penautan, sesi tetap tanpa `customer_id` dan sisa waktunya tidak masuk ke akun
+  siapa pun saat checkout — persis masalah yang DEC-024 ingin selesaikan.
+- **Biaya member masuk Open Tab sesi berjalan**, bukan transaksi terpisah.
+  Customer sudah berdiri di meja kasir dengan satu tagihan di depan mata.
+- **`summary.rental` termasuk extend** — keduanya penjualan waktu bermain.
+  Dasar `rental`/`fnb` memakai nilai transaksi; itu masih OD-013.
+
+**Tests**
+- **208 lulus, 721 assertion** (sebelumnya 184). Tambahan: `ShiftTest` 12,
+  `CustomerMembershipTest` 11, plus `RbacTest` disesuaikan DEC-027/028.
+- `test_alur_lengkap_jadi_member_lalu_sisa_waktu_tersimpan` membuktikan alur
+  yang kemarin buntu: Walk-in bayar 1 jam, berhenti menit ke-40, daftar member
+  Rp 10.000, checkout — sisa 20 menit senilai 6.666 masuk saldo, tidak hangus.
+
+**Known issues**
+- `GET /stations` dan `GET /packages` masih belum ada, jadi golden path HTTP
+  masih mengambil id dari database. Exit criteria ROADMAP ("tanpa sentuh DB
+  manual") baru terpenuhi penuh setelah itu.
+- `DISCOUNT_MANAGE` sudah ada Gate-nya tapi belum ada endpoint diskon.
+- Throttle broadcast (REALTIME.md §7) belum dipasang.
+- Pengiriman struk ke WA (DEC-031) belum dikerjakan — caranya masih OD-023.
+
+**Next step**
+- `GET /stations` + `GET /packages` — menutup butir terakhir master data dan
+  membuat golden path benar-benar bebas dari database.

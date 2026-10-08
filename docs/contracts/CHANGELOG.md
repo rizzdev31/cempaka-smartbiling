@@ -226,6 +226,47 @@ diterima. Ini disengaja, bukan terlewat.
 
 ---
 
+## v1 · DRAFT 8 — 2026-10-08
+
+Shift, customer, dan membership. Satu perubahan permission yang perlu
+diperhatikan Flutter, tiga error code baru, satu field baru.
+
+**BREAKING (ringan) — API** · operator app
+- `customer.create` sekarang dipegang **operator**, bukan hanya admin (DEC-027).
+  Disebut breaking karena Flutter mungkin menyembunyikan tombol "daftar member"
+  berdasarkan permission ini — sekarang tombol itu **harus muncul** untuk
+  operator. Tidak ada endpoint yang berubah bentuk; yang berubah siapa yang boleh.
+
+**ADDED — API** · operator app
+- `POST /shifts/open`, `POST /shifts/{id}/close`, `GET /shifts/current`.
+  Sebelum ini `shift_id` pada setiap payment selalu NULL dan uang masuk tidak
+  bisa dihubungkan ke siapa yang jaga.
+- `GET /customers?q=`, `POST /customers`, `POST /customers/{id}/membership`.
+- `customer.credit_balance` — saldo member dalam rupiah (DEC-026). Dikirim di
+  objek customer supaya operator melihatnya **sebelum** checkout.
+- Permission baru `discount.manage`, **hanya owner** (DEC-028).
+- Error code: `SHIFT_ALREADY_OPEN`, `SHIFT_NOT_OPEN`, `CUSTOMER_ALREADY_MEMBER`.
+  Daftar error code jadi 27.
+
+**Yang perlu diketahui Flutter:**
+- Layar shift start/close sudah punya backend. `GET /shifts/current` membalas
+  `data: null` kalau belum buka — itu normal di awal hari, bukan error.
+- Selisih kas **tidak** menghalangi penutupan shift. Jangan memblokir tombolnya.
+- Tombol "daftar member" sekarang boleh muncul untuk operator.
+- Biaya daftar member Rp 10.000 masuk ke Open Tab sesi berjalan, jadi tagihan
+  di layar checkout akan bertambah setelah pendaftaran. Operator perlu melihat
+  itu sebelum menagih.
+- `summary.rental` di shift sudah termasuk extend.
+
+**Yang perlu diketahui Kotlin TV Agent:**
+- **DEC-030**: peringatan 10/5/1 menit ditampilkan sebagai overlay kecil di
+  **pojok kanan atas** — bukan layar penuh, bukan dialog. Dihitung client dari
+  `end_at`; tidak ada event warning dari server. Setelah `end_at` lewat, overlay
+  berganti menampilkan waktu berjalan maju (DEC-023), bukan layar mati.
+  Ini mencabut salah satu dari dua penghalang Tahap 2.
+
+---
+
 ## v1 · DRAFT <n> — YYYY-MM-DD
 
 **<JENIS> — API|REALTIME** · terdampak: Flutter | Kotlin | Admin | semua

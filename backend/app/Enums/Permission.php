@@ -34,9 +34,11 @@ enum Permission: string
     case CUSTOMER_READ = 'customer.read';
 
     /**
-     * Operator TIDAK punya ini — OD-014 belum diputuskan (bolehkah operator
-     * mendaftarkan member baru di meja kasir?). Sampai diputuskan, customer
-     * yang belum terdaftar dilayani sebagai Walk-in.
+     * DEC-027 — operator BOLEH mendaftarkan member di kasir.
+     *
+     * Sebelumnya hanya admin, dan itu membuat DEC-024 jadi jalan buntu:
+     * operator diminta menawarkan membership saat checkout supaya sisa waktu
+     * customer bisa disimpan, tapi tidak punya tombolnya.
      */
     case CUSTOMER_CREATE = 'customer.create';
 
@@ -44,6 +46,10 @@ enum Permission: string
 
     /** DEC-020 — hanya OWNER. */
     case PRICING_MANAGE = 'pricing.manage';
+
+    /** DEC-028 — hanya OWNER. Diskon adalah pengurangan harga, jadi
+     *  perlakuannya sama dengan mengubah tarif. */
+    case DISCOUNT_MANAGE = 'discount.manage';
 
     case AUDIT_READ = 'audit.read';
 }

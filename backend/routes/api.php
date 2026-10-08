@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\FnbController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\SessionCheckoutController;
@@ -8,6 +9,7 @@ use App\Http\Controllers\Api\V1\SessionController;
 use App\Http\Controllers\Api\V1\SessionExtendController;
 use App\Http\Controllers\Api\V1\SessionPaymentController;
 use App\Http\Controllers\Api\V1\SessionSwapController;
+use App\Http\Controllers\Api\V1\ShiftController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -78,4 +80,35 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
 
     Route::post('/fnb/orders/{order}/status', [FnbController::class, 'updateStatus'])
         ->middleware('can:fnb.manage');
+
+    /*
+     * Shift kasir — API.md §10.
+     *
+     * Tanpa shift terbuka, `shift_id` pada setiap payment tetap NULL dan uang
+     * masuk tidak bisa dihubungkan ke siapa yang jaga.
+     */
+    Route::get('/shifts/current', [ShiftController::class, 'current'])
+        ->middleware('can:shift.manage');
+
+    Route::post('/shifts/open', [ShiftController::class, 'open'])
+        ->middleware(['can:shift.manage', 'idempotency']);
+
+    Route::post('/shifts/{shift}/close', [ShiftController::class, 'close'])
+        ->middleware(['can:shift.manage', 'idempotency']);
+
+    /*
+     * Customer & membership — API.md §6, DEC-027.
+     *
+     * `customer.create` sekarang dipegang operator juga: DEC-024 meminta
+     * operator menawarkan membership saat checkout, dan sebelum DEC-027 dia
+     * tidak punya tombolnya.
+     */
+    Route::get('/customers', [CustomerController::class, 'index'])
+        ->middleware('can:customer.read');
+
+    Route::post('/customers', [CustomerController::class, 'store'])
+        ->middleware(['can:customer.create', 'idempotency']);
+
+    Route::post('/customers/{customer}/membership', [CustomerController::class, 'storeMembership'])
+        ->middleware(['can:customer.create', 'idempotency']);
 });

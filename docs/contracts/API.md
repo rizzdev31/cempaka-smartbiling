@@ -238,7 +238,38 @@ Error: `401 INVALID_CREDENTIALS`, `403 USER_INACTIVE`, `429 TOO_MANY_ATTEMPTS`
             "membership": { "tier": "SILVER", "is_active": true } } }
 ```
 
-`membership` boleh `null`.
+`membership` boleh `null`. `credit_balance` adalah saldo member dalam rupiah
+(DEC-026) — dikirim di sini supaya operator melihatnya **sebelum** checkout dan
+bisa memutuskan mencentang "pakai saldo"; kalau baru muncul setelah checkout,
+keputusannya sudah lewat. Non-member selalu `0`.
+
+```json
+{ "data": { "id": "uuid", "name": "Budi", "phone": "08...",
+            "membership": { "tier": "SILVER", "is_active": true,
+                            "joined_at": "...Z" },
+            "credit_balance": 6666 } }
+```
+
+`POST /customers` butuh `Idempotency-Key`. Field: `name` (wajib), `phone`
+(opsional, unik), `note`. **Boleh dipanggil operator sejak DEC-027** — PRD §6
+yang membatasinya ke Admin/Owner sudah di-override.
+
+### `POST /customers/{id}/membership`
+`Idempotency-Key` **wajib**. Permission `customer.create` (DEC-027).
+
+```json
+{ "session_id": "uuid-atau-null", "tier": "SILVER" }
+```
+
+- Biaya pendaftaran **Rp 10.000** (DEC-029, sementara; dari `config/billing.php`).
+- `session_id` diisi → biaya masuk Open Tab sesi itu sebagai item `ADJUSTMENT`
+  bernama "Biaya daftar member", dan sesi yang masih Walk-in **ditautkan** ke
+  customer tersebut. Tanpa penautan itu, sisa waktunya tidak akan masuk ke akun
+  siapa pun saat checkout (DEC-024).
+- `session_id` kosong → membership dibuat tanpa tagihan apa pun.
+
+→ `201` `{ "customer": { ... }, "fee": 10000 }`
+Error: `409 CUSTOMER_ALREADY_MEMBER`, `409 SESSION_STATUS_INVALID`, `404 NOT_FOUND`
 
 ---
 
@@ -610,6 +641,30 @@ Endpoint ini **read-only** untuk operator. Pendaftaran, pemetaan ulang, dan penc
 
 Close butuh `closing_cash` + `note` opsional; selisih dicatat untuk audit.
 
+Dasar angka di `summary`:
+
+| Field | Dihitung dari |
+|---|---|
+| `cash`, `qris`, `total` | **uang yang benar-benar masuk** — payment ber-`shift_id` sama |
+| `rental`, `fnb` | **nilai transaksi** — item pada sesi milik shift ini, dibayar maupun belum |
+
+`rental` sudah termasuk `EXTEND`: keduanya penjualan waktu bermain.
+
+> Dasar untuk `rental`/`fnb` masih **OD-013** dan belum final. Pilihan sekarang
+> menjawab "berapa yang terjual saat saya jaga"; uang masuknya sudah terwakili
+> `cash`/`qris`.
+
+Aturan lain:
+- Satu operator tidak boleh punya dua shift terbuka → `409 SHIFT_ALREADY_OPEN`.
+- Shift yang sudah ditutup → `409 SHIFT_NOT_OPEN`.
+- Shift orang lain hanya boleh ditutup **admin ke atas** → `403 FORBIDDEN`.
+  Operator yang lupa menutup shift harus bisa dibereskan tanpa menunggu dia kembali.
+- **Selisih kas tidak menghalangi penutupan.** Shift yang tidak bisa ditutup
+  karena selisih akan membuat operator mengarang angka supaya bisa pulang;
+  yang dibutuhkan adalah selisihnya tercatat, bukan dipaksa nol.
+- `GET /shifts/current` mengembalikan `data: null` kalau belum ada shift —
+  itu keadaan normal di awal hari, bukan `404`.
+
 ---
 
 ## 11. Daftar error code
@@ -629,6 +684,9 @@ Close butuh `closing_cash` + `note` opsional; selisih dicatat untuk audit.
 | `STATION_HAS_ACTIVE_SESSION` | 409 | sudah ada session jalan |
 | `TARGET_STATION_SAME` | 409 | swap ke station yang sama |
 | `STATION_TYPE_MISMATCH` | 409 | swap ke tipe konsol berbeda (DEC-021) |
+| `SHIFT_ALREADY_OPEN` | 409 | operator masih punya shift terbuka |
+| `SHIFT_NOT_OPEN` | 409 | shift sudah ditutup |
+| `CUSTOMER_ALREADY_MEMBER` | 409 | customer sudah punya membership |
 | `SESSION_STATUS_INVALID` | 409 | aksi tidak sah pada status ini |
 | `SESSION_NOT_ORDERABLE` | 409 | order F&B ke session tidak aktif (ghost order) |
 | `EXTEND_DURATION_INVALID` | 422 | bukan kelipatan 30 menit |

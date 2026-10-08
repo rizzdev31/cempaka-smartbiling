@@ -850,6 +850,113 @@ untuk dibatalkan belakangan.
 
 ---
 
+## DEC-027 — Operator boleh mendaftarkan member di kasir
+**Tanggal:** 8 Okt 2026 · **Status:** APPROVED · **Menjawab:** OD-014 · **Membuka:** DEC-024
+
+Diputuskan user: **"operator atau kasir boleh mendaftarkan member baru."**
+
+Ini membuka jalan buntu yang ditemukan saat implementasi: DEC-024 mengharuskan
+operator menawarkan membership saat checkout supaya sisa waktu customer bisa
+disimpan, tapi `Permission::CUSTOMER_CREATE` hanya dipegang admin dan owner.
+Operator menawarkan, lalu tidak punya tombolnya.
+
+**Yang mengikat di backend:**
+- `Permission::CUSTOMER_CREATE` masuk ke daftar permission **operator**.
+- `POST /customers` dan pendaftaran membership boleh dipanggil operator.
+- Pendaftaran tetap masuk `audit_logs` dengan aktor — PRD §24. Operator boleh,
+  tapi tidak boleh tidak terlacak.
+
+PRD §6 memberi akses `customer` hanya kepada Admin/Owner. Keputusan ini
+**override** bagian itu, dengan alasan yang sama seperti DEC-020 memisahkan
+owner dari admin: aturan di PRD ditulis sebelum alur kasir nyata diketahui.
+
+---
+
+## DEC-028 — Diskon hanya boleh diberikan owner
+**Tanggal:** 8 Okt 2026 · **Status:** APPROVED · **Menjawab:** OD-006 (bagian diskon) · **Melengkapi:** DEC-020
+
+Diputuskan user: **"untuk diskon sejauh ini hanya owner."**
+
+Konsisten dengan DEC-020 — yang menyentuh harga hanya owner. Diskon adalah
+pengurangan harga setelah transaksi berjalan, jadi perlakuannya sama.
+
+**Yang mengikat di backend:**
+- Permission baru `discount.manage`, **hanya owner**. Operator dan admin tidak.
+- Item `DISCOUNT` hanya boleh lahir dari dua jalur: endpoint diskon milik owner,
+  dan pemakaian saldo member (DEC-026) yang bukan diskon sesungguhnya melainkan
+  uang customer sendiri.
+- Setiap diskon wajib masuk `audit_logs` dengan nilai sebelum/sesudah.
+
+**Belum diputuskan:** `ADJUSTMENT` (koreksi tagihan selain diskon, mis. kompensasi
+TV rusak) belum diatur siapa yang boleh. Sekarang hanya lahir dari sistem
+(overstay DEC-023), belum ada endpoint manual. Tetap di OD-006.
+
+---
+
+## DEC-029 — Biaya mendaftar member Rp 10.000 (sementara)
+**Tanggal:** 8 Okt 2026 · **Status:** APPROVED (sementara) · **Melengkapi:** OD-022, DEC-024
+
+Diputuskan user: **"untuk sementara biaya jadi member 10 ribu."**
+
+Ditandai **sementara** karena user menyebutnya begitu, dan karena angkanya
+berinteraksi dengan DEC-026: customer dengan sisa waktu 20 menit (senilai 6.666)
+membayar 10.000 untuk menyimpannya. Untuk satu kali kunjungan itu merugikan;
+masuk akal hanya kalau membership punya manfaat lain. Itu urusan bisnis, bukan
+kode — tapi operator perlu tahu supaya tidak menawarkannya sebagai "biar sisa
+waktunya tidak hangus" kepada customer yang tidak akan kembali.
+
+**Yang mengikat di backend:**
+- Nilainya di `config/billing.php` (`membership_fee`), bukan dipatri di kode.
+  Owner mengubah tarif dari aplikasi (DEC-019/020); sampai layarnya ada, satu
+  tempat di config lebih mudah diubah daripada tersebar.
+- Kalau pendaftaran dilakukan saat sesi berjalan, biayanya masuk Open Tab sesi
+  itu sebagai item `ADJUSTMENT` bernama "Biaya daftar member", dibayar di
+  checkout bersama tagihan lain.
+
+---
+
+## DEC-030 — Warning di TV: overlay kecil di kanan atas
+**Tanggal:** 8 Okt 2026 · **Status:** APPROVED · **Menjawab:** OD-004 · **Membuka:** TAHAP 2
+
+Diputuskan user: **"overlay di kanan atas."**
+
+Ini mencabut salah satu dari dua penghalang Tahap 2 (sisanya OD-005, fakta TV).
+
+**Yang mengikat di Kotlin TV Agent (tim rekan):**
+- Peringatan 10/5/1 menit tampil sebagai **overlay di pojok kanan atas**, bukan
+  layar penuh dan bukan dialog yang menutupi permainan.
+- Dihitung client dari `end_at` + server-time offset. **Tidak ada event warning**
+  dari server (REALTIME.md §4) — kalau dikirim lewat WebSocket, warning justru
+  hilang saat koneksi putus, yaitu skenario yang paling harus selamat.
+- Sejak DEC-023 `EXPIRED` bukan penghenti: setelah lewat `end_at`, overlay
+  berganti menampilkan waktu berjalan maju (overtime), bukan layar mati.
+
+**Belum diputuskan:** apakah overlay berbunyi, dan apakah customer bisa
+menutupnya. Tidak memblokir — default: tanpa suara, tidak bisa ditutup.
+
+---
+
+## DEC-031 — Struk: di layar, bisa dicetak, dan bisa dikirim ke WA member
+**Tanggal:** 8 Okt 2026 · **Status:** APPROVED · **Menjawab:** OD-010
+
+Diputuskan user: **"bisa dicetak atau di layar, lalu bisa dikirimkan ke customer
+lewat WA kalau jadi member."**
+
+**Yang mengikat:**
+- Struk **selalu** tampil di layar tablet setelah checkout. Mencetak jadi
+  opsional, jadi printer bukan prasyarat untuk mulai beroperasi.
+- Pengiriman WA hanya untuk **member**, karena hanya member yang nomor
+  teleponnya tersimpan (`customers.phone`). Walk-in tidak punya nomor.
+- Data struk sudah lengkap di response checkout (`receipt`) — nomor, dua durasi,
+  baris, totals, payments, operator. Tidak ada field baru yang dibutuhkan.
+
+**Belum diputuskan, dan ini bukan hal kecil:** cara mengirim WA-nya. Membuka
+`wa.me` dari tablet (gratis, operator menekan kirim sendiri) berbeda jauh dari
+WhatsApp Business API (berbayar, otomatis, butuh verifikasi bisnis). Yang pertama
+bisa dikerjakan Flutter tanpa backend sama sekali. Ditambahkan sebagai **OD-023**.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -859,22 +966,23 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | ~~OD-001~~ | ~~Overstay: EXPIRED tapi customer masih bermain~~ | **DIPUTUSKAN → DEC-023** (timer jalan terus, kelebihan ditagih di checkout) + **DEC-024** (sisa waktu hangus kecuali member). Perilaku lock/overlay TV saat EXPIRED tetap di OD-004 | — |
 | **OD-002** | Mitigasi Postpaid/Open Tab kabur tanpa bayar — deposit? batas maksimum open tab? catat identitas? | PRD §12 memperbolehkan Postpaid tapi tidak punya mitigasi kerugian. | Tahap 1 |
 | ~~OD-003~~ | ~~Extend pricing & extend setelah EXPIRED~~ | **DIPUTUSKAN → DEC-007** | — |
-| **OD-004** | Warning 10/5/1 menit: bunyi? teks? overlay penuh atau pojok? Bisa ditutup customer? | Tahap 2 tidak bisa selesai tanpa ini. PRD §35 TBD. | Tahap 2 |
+| ~~OD-004~~ | ~~Perilaku warning di TV~~ | **DIPUTUSKAN → DEC-030** (overlay kecil di kanan atas). Bunyi & bisa-ditutup belum, default: tanpa suara, tidak bisa ditutup | — |
 | **OD-005** | Model & versi Android TV final; bisa sideload APK? ADB over network aktif? | Menentukan apakah Tahap 2 layak sama sekali (R01). **Cek Sabtu.** | Tahap 2 |
-| **OD-006** | Apakah discount/adjustment operator perlu approval admin, atau bebas dengan audit saja? | PRD mewajibkan audit tapi tidak menyebut approval. Celah kebocoran kas. | Tahap 1 |
+| **OD-006** | Siapa yang boleh membuat item **ADJUSTMENT** manual (koreksi tagihan selain diskon, mis. kompensasi TV rusak)? | Bagian diskon sudah dijawab DEC-028 (hanya owner). ADJUSTMENT manual belum ada endpointnya — sekarang hanya lahir dari sistem (overstay DEC-023) | Tahap 3B |
 | ~~OD-007~~ | ~~Satu session bisa beberapa customer?~~ | **DIPUTUSKAN → DEC-008** | — |
 | ~~OD-008~~ | ~~Rounding durasi~~ | **DIPUTUSKAN → DEC-009** | — |
 | **OD-009** | Formula profit/margin & target achievement | PRD §35 TBD. Belum blokir karena reporting di Tahap 3B. | Tahap 3B |
-| **OD-010** | Receipt: dicetak (printer model/interface) atau cukup di layar? | Mempengaruhi UI checkout dan hardware yang perlu dibeli. | Tahap 1 (UI), Tahap 3 (hardware) |
+| ~~OD-010~~ | ~~Struk dicetak atau di layar~~ | **DIPUTUSKAN → DEC-031** (layar + cetak opsional + kirim WA untuk member). Cara kirim WA-nya jadi OD-023 | — |
 | **OD-011** | Apakah Flutter perlu **penemuan IP server otomatis** (scan subnet), atau cukup DHCP reservation? | **Ditunda oleh user 2 Okt 2026 — tunggu hasil DHCP reservation di SESI 1.** Analisis ada di bawah tabel. | Tahap 1 (opsional) |
 | ~~OD-015~~ | ~~Tarif berbeda per tipe konsol?~~ | **DIPUTUSKAN → DEC-019** (ya, diatur dari aplikasi kasir) | — |
 | ~~OD-017~~ | ~~Siapa yang boleh mengubah tarif dari aplikasi kasir?~~ | **DIPUTUSKAN → DEC-020** (hanya owner) | — |
 | ~~OD-018~~ | ~~Swap ke tipe konsol berbeda?~~ | **DIPUTUSKAN → DEC-021** (tidak boleh) | — |
 | ~~OD-020~~ | ~~Sisa waktu saat pindah tipe konsol~~ | **DIPUTUSKAN → DEC-025** (dikonversi senilai rupiah ke menit di tarif konsol baru, member saja) | — |
 | **OD-021** | Toleransi pembulatan **overstay**: pakai DEC-009 (sisa ≤ 5 menit ke bawah) tanpa lantai 30 menit — sudah diterapkan sebagai asumsi di DEC-023. Benar? | Menentukan apakah overstay 4 menit ditagih 0 atau 30 menit. Soal uang, tapi tidak memblokir karena mudah diubah di satu tempat (`OverstayPolicy`) | Tahap 0 (checkout) |
-| **OD-022** | Mendaftar member di kasir: **berapa biayanya** dan **siapa yang boleh mendaftarkan** (bentrok OD-014). Masa berlaku saldo & pencairan sudah punya default aman di DEC-026 | Muncul dari DEC-024, menyempit setelah DEC-026. Sisa pertanyaannya menyangkut harga dan wewenang — tetap tidak boleh ditebak di kode | Tahap 3B (admin member) |
+| ~~OD-022~~ | ~~Biaya & wewenang daftar member~~ | **DIPUTUSKAN → DEC-027** (operator boleh) + **DEC-029** (Rp 10.000, sementara) | — |
+| **OD-023** | Cara mengirim struk ke WA: buka `wa.me` dari tablet (gratis, operator menekan kirim) atau WhatsApp Business API (berbayar, otomatis, butuh verifikasi bisnis)? | Muncul dari DEC-031. Yang pertama bisa dikerjakan Flutter tanpa backend sama sekali; yang kedua butuh kerja backend + biaya bulanan | Tahap 3 |
 | **OD-016** | Apakah **maintenance perlu data pendukung** — teknisi, nomor tiket, estimasi selesai? | Desain contoh menampilkannya, tapi tidak ada entity-nya di PRD §22. Sekarang kartu maintenance hanya menampilkan "Sedang diperbaiki" — tidak memalsukan data yang tidak ada | Tahap 3B (Admin) |
-| **OD-014** | Bolehkah **operator mendaftarkan member baru** di meja kasir, atau hanya Admin? | PRD §6 memberi akses `customer` hanya kepada Admin/Owner — operator tidak termasuk. Tapi customer yang ingin jadi member di tempat adalah kejadian harian. Sekarang operator hanya bisa mencari & memilih member yang sudah ada; yang belum terdaftar dilayani sebagai Walk-in | Tahap 1 (UI sudah siap), Tahap 3B (Admin) |
+| ~~OD-014~~ | ~~Bolehkah operator mendaftarkan member baru?~~ | **DIPUTUSKAN → DEC-027** (boleh) | — |
 | **OD-013** | Ringkasan shift: `rental`/`fnb` dihitung saat item **dibuat** (nilai transaksi) atau saat **dibayar** (uang masuk)? | Keduanya sudah dibedakan di UI, tapi mana yang jadi dasar laporan belum diputuskan. Mempengaruhi laporan harian dan formula profit (OD-009). `cash`/`qris`/`total` tidak terpengaruh — itu selalu uang masuk | Tahap 3B (reporting) |
 | ~~OD-012~~ | ~~White-label per-instance atau multi-tenant?~~ | **DIPUTUSKAN → DEC-018** (per-instance, satu server satu rental) | — |
 

@@ -51,16 +51,18 @@ enum UserRole: string
             Permission::FNB_MANAGE,
             Permission::SHIFT_MANAGE,
             Permission::CUSTOMER_READ,
+            // DEC-027 — operator boleh mendaftarkan member di kasir.
+            Permission::CUSTOMER_CREATE,
             Permission::DEVICE_READ,
         ];
 
-        // Admin = operator + master data + audit. CUSTOMER_CREATE ada di sini
-        // dan bukan di operator karena OD-014 belum diputuskan.
-        $admin = [...$operator, Permission::CUSTOMER_CREATE, Permission::AUDIT_READ];
+        // Admin = operator + audit. Sejak DEC-027, CUSTOMER_CREATE sudah ada
+        // di operator, jadi tidak perlu ditambahkan lagi di sini.
+        $admin = [...$operator, Permission::AUDIT_READ];
 
         return match ($this) {
-            // DEC-020: PRICING_MANAGE hanya milik owner.
-            self::OWNER => [...$admin, Permission::PRICING_MANAGE],
+            // DEC-020 & DEC-028: harga dan diskon hanya milik owner.
+            self::OWNER => [...$admin, Permission::PRICING_MANAGE, Permission::DISCOUNT_MANAGE],
             self::ADMIN => $admin,
             self::OPERATOR => $operator,
         };

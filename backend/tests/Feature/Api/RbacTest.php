@@ -70,12 +70,22 @@ class RbacTest extends TestCase
         }
     }
 
-    public function test_operator_belum_boleh_mendaftarkan_member_baru(): void
+    public function test_operator_boleh_mendaftarkan_member_baru(): void
     {
-        // OD-014 belum diputuskan. Sampai itu diputuskan, customer baru
-        // dilayani sebagai Walk-in, bukan didaftarkan operator.
-        $this->assertFalse(UserRole::OPERATOR->hasPermission(Permission::CUSTOMER_CREATE));
+        // DEC-027 menjawab OD-014: boleh. Sebelumnya tidak, dan itu membuat
+        // DEC-024 jadi jalan buntu — operator diminta menawarkan membership
+        // saat checkout tapi tidak punya tombolnya.
+        $this->assertTrue(UserRole::OPERATOR->hasPermission(Permission::CUSTOMER_CREATE));
         $this->assertTrue(UserRole::ADMIN->hasPermission(Permission::CUSTOMER_CREATE));
+    }
+
+    public function test_diskon_hanya_milik_owner(): void
+    {
+        // DEC-028 — diskon adalah pengurangan harga, jadi perlakuannya sama
+        // dengan mengubah tarif (DEC-020).
+        $this->assertTrue(UserRole::OWNER->hasPermission(Permission::DISCOUNT_MANAGE));
+        $this->assertFalse(UserRole::ADMIN->hasPermission(Permission::DISCOUNT_MANAGE));
+        $this->assertFalse(UserRole::OPERATOR->hasPermission(Permission::DISCOUNT_MANAGE));
     }
 
     public function test_owner_punya_semua_permission_admin(): void
@@ -86,8 +96,8 @@ class RbacTest extends TestCase
             $this->assertContains($permission, $owner);
         }
 
-        // Bedanya tepat satu: harga.
-        $this->assertCount(count(UserRole::ADMIN->permissions()) + 1, $owner);
+        // Bedanya tepat dua: harga (DEC-020) dan diskon (DEC-028).
+        $this->assertCount(count(UserRole::ADMIN->permissions()) + 2, $owner);
     }
 
     public function test_permissions_dikirim_ke_client_saat_login(): void

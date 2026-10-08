@@ -34,6 +34,13 @@ final class ErrorCode
     public const PAYMENT_REFERENCE_REQUIRED = 'PAYMENT_REFERENCE_REQUIRED';
     public const CHECKOUT_INSUFFICIENT_PAYMENT = 'CHECKOUT_INSUFFICIENT_PAYMENT';
     public const FNB_STATUS_TRANSITION_INVALID = 'FNB_STATUS_TRANSITION_INVALID';
+    /** Shift — API.md §10. */
+    public const SHIFT_ALREADY_OPEN = 'SHIFT_ALREADY_OPEN';
+    public const SHIFT_NOT_OPEN = 'SHIFT_NOT_OPEN';
+
+    /** DEC-027 — satu customer maksimal satu membership. */
+    public const CUSTOMER_ALREADY_MEMBER = 'CUSTOMER_ALREADY_MEMBER';
+
     public const DEVICE_TOKEN_INVALID = 'DEVICE_TOKEN_INVALID';
     public const DEVICE_NOT_ASSIGNED = 'DEVICE_NOT_ASSIGNED';
     public const SERVER_ERROR = 'SERVER_ERROR';
