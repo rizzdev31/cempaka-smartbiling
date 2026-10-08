@@ -1816,7 +1816,10 @@ Disimpan dalam **rupiah** (DEC-019 membuat menit tidak punya nilai tetap) sebaga
 - Channel `private-station.{code}` belum bisa di-subscribe TV — guard
   `X-Device-Token` menyusul di Tahap 2.
 - Throttle broadcast REALTIME.md §7 (debounce `session.updated` 500 ms) belum dipasang.
-- Seeder belum punya `station_type_id` untuk produk F&B — tidak memblokir.
+- **`shift_id` selalu NULL di semua payment dan session.** Endpoint `POST /shifts/open`
+  belum ada, jadi `activeShift()` tidak pernah mengembalikan apa pun. Akibatnya
+  rekonsiliasi kas per shift (PRD §20) belum bisa dijalankan sama sekali, padahal
+  kolomnya sudah terisi di schema. Harus beres sebelum dipakai untuk uang nyata.
 
 **Manual test**
 ```
