@@ -185,6 +185,47 @@ operator menutupnya lewat checkout.
 
 ---
 
+## v1 · DRAFT 7 — 2026-10-08
+
+F&B, Swap, Checkout, dan delapan event realtime terpasang. Satu error code baru,
+satu field baru di checkout. Tidak ada yang breaking — semua endpoint yang
+berubah belum pernah punya implementasi.
+
+**ADDED — API** · semua client
+- `STATION_TYPE_MISMATCH` (409) pada `POST /sessions/{id}/swap`. Menegakkan
+  DEC-021: swap hanya dalam tipe konsol yang sama. Daftar error code jadi 24.
+- `POST /sessions/{id}/checkout` menerima `use_credit` (boolean, default `false`)
+  — saldo member, DEC-026. Field opsional, jadi client lama tetap jalan.
+
+**CHANGED — API** · operator app
+- `POST /sessions/{id}/checkout` langkah 3 dipertegas: `payments` harus **persis**
+  sama dengan `balance_due`. Kurang → `CHECKOUT_INSUFFICIENT_PAYMENT`, lebih →
+  `PAYMENT_AMOUNT_EXCEEDS_BALANCE`. Kalimat lama "harus menutupi" bisa dibaca
+  sebagai boleh lebih, padahal V1 tidak mencatat kembalian.
+- `payments` boleh array kosong — Prepaid tanpa F&B sudah lunas sebelum checkout,
+  dan sejak DEC-026 saldo member juga bisa menutup seluruh tagihan.
+
+**ADDED — REALTIME** · semua client
+- Delapan event di `REALTIME.md` §4 sekarang benar-benar dikirim, kecuali
+  `device.heartbeat` yang menunggu `POST /devices/heartbeat` di Tahap 2.
+  Bentuk payload-nya sudah dikunci sekarang supaya tidak berubah nanti.
+- Channel `private-operator`, `private-station.{code}`, `private-session.{id}`
+  terdaftar. Otorisasi lewat `POST /broadcasting/auth` dengan **Bearer token**.
+
+**Yang WAJIB diketahui Kotlin TV Agent:** channel `private-station.{code}` belum
+bisa di-subscribe pakai `X-Device-Token` — guard device-nya baru ada di Tahap 2
+bersama `POST /devices/register`. Sampai itu ada, hanya token Sanctum yang
+diterima. Ini disengaja, bukan terlewat.
+
+**Yang perlu diketahui Flutter:**
+- `session.expired` tidak berarti sesi berhenti (DEC-023). Kartu station tetap
+  menampilkan timer berjalan.
+- Layar checkout butuh satu kontrol baru: centang "pakai saldo member", hanya
+  muncul kalau customer punya saldo. Jangan dicentang otomatis.
+- Nominal pembayaran di checkout harus persis `balance_due` — tidak ada kembalian.
+
+---
+
 ## v1 · DRAFT <n> — YYYY-MM-DD
 
 **<JENIS> — API|REALTIME** · terdampak: Flutter | Kotlin | Admin | semua

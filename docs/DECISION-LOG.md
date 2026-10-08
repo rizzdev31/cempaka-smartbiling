@@ -799,6 +799,57 @@ bukan di endpoint swap.
 
 ---
 
+## DEC-026 — Saldo member: buku besar rupiah, dipakai untuk tagihan apa pun
+**Tanggal:** 8 Okt 2026 · **Status:** APPROVED · **Melengkapi:** DEC-024, DEC-025 · **Menjawab sebagian:** OD-022
+
+Diputuskan user: *"orang yang ingin menjadi member dengan sisa waktu berapapun
+akan disimpan di akunnya. Lalu nanti bisa dipakai dan digabungkan dengan
+tambahan biling lainnya."*
+
+Tiga hal yang dikunci oleh kalimat itu:
+
+| | |
+|---|---|
+| **Berapapun** | Tidak ada minimum. Sisa 3 menit tetap disimpan — tidak dibulatkan ke blok 30 menit |
+| **Di akunnya** | Saldo melekat pada customer, bukan pada sesi. Bertahan lintas kunjungan |
+| **Digabungkan dengan tagihan lain** | Saldo mengurangi **seluruh** Open Tab — rental, F&B, extend, adjustment — bukan hanya rental |
+
+**Disimpan dalam rupiah, bukan menit.** DEC-019 membuat tarif berbeda per tipe
+konsol, jadi "30 menit" tidak punya nilai tetap. Menyimpan menit berarti saldo
+yang diperoleh di PS4 tiba-tiba lebih berharga saat dipakai di PS5. Konversi ke
+menit terjadi saat dipakai, memakai tarif konsol yang sedang dipakai (DEC-025).
+
+```
+nilai_disimpan = floor(sisa_menit × tarif_per_jam ÷ 60)
+```
+
+Dibulatkan ke **bawah** supaya saldo tidak pernah melebihi nilai yang benar-benar
+tersisa.
+
+**Disimpan sebagai buku besar (`customer_credits`), bukan satu kolom saldo.**
+PRD §24 mewajibkan jejak audit untuk semua yang menyangkut uang. Satu kolom
+saldo hanya menyimpan hasil akhir; kalau angkanya dipertanyakan customer, tidak
+ada yang bisa dijelaskan. Dengan ledger, setiap penambahan dan pemakaian punya
+barisnya sendiri beserta sesi asalnya. Saldo berjalan = `SUM(amount)`.
+
+**Yang mengikat di backend:**
+- `POST /sessions/{id}/checkout` menerima `use_credit` (boolean, default `false`).
+  Default-nya sengaja `false`: memakai saldo harus keputusan sadar operator di
+  depan customer, bukan perilaku diam-diam yang baru ketahuan saat saldonya habis.
+- Saldo yang dipakai muncul sebagai item `DISCOUNT` bernama "Saldo member"
+  supaya terbaca di struk.
+- Hanya membership **aktif** yang berhak memperoleh saldo (DEC-024). Membership
+  yang dinonaktifkan kehilangan hak menambah, tapi saldo yang sudah terkumpul
+  tidak dihapus.
+
+**Masih belum diputuskan (OD-022 menyempit):** biaya mendaftar member, siapa yang
+boleh mendaftarkan di kasir (bentrok OD-014), masa berlaku saldo, dan apakah
+saldo bisa diuangkan. Tiga yang terakhir belum memblokir — tanpa keputusan, saldo
+**tidak kedaluwarsa** dan **tidak bisa dicairkan**. Keduanya pilihan paling aman
+untuk dibatalkan belakangan.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -821,7 +872,7 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | ~~OD-018~~ | ~~Swap ke tipe konsol berbeda?~~ | **DIPUTUSKAN → DEC-021** (tidak boleh) | — |
 | ~~OD-020~~ | ~~Sisa waktu saat pindah tipe konsol~~ | **DIPUTUSKAN → DEC-025** (dikonversi senilai rupiah ke menit di tarif konsol baru, member saja) | — |
 | **OD-021** | Toleransi pembulatan **overstay**: pakai DEC-009 (sisa ≤ 5 menit ke bawah) tanpa lantai 30 menit — sudah diterapkan sebagai asumsi di DEC-023. Benar? | Menentukan apakah overstay 4 menit ditagih 0 atau 30 menit. Soal uang, tapi tidak memblokir karena mudah diubah di satu tempat (`OverstayPolicy`) | Tahap 0 (checkout) |
-| **OD-022** | Mendaftar member di kasir: berapa biayanya, siapa yang boleh mendaftarkan (bentrok OD-014), berapa lama saldo berlaku, bisakah diuangkan? | Muncul dari DEC-024. Tanpa ini, "sisa waktu bisa disimpan" tidak bisa dijalankan di lapangan | Tahap 0 (checkout) |
+| **OD-022** | Mendaftar member di kasir: **berapa biayanya** dan **siapa yang boleh mendaftarkan** (bentrok OD-014). Masa berlaku saldo & pencairan sudah punya default aman di DEC-026 | Muncul dari DEC-024, menyempit setelah DEC-026. Sisa pertanyaannya menyangkut harga dan wewenang — tetap tidak boleh ditebak di kode | Tahap 3B (admin member) |
 | **OD-016** | Apakah **maintenance perlu data pendukung** — teknisi, nomor tiket, estimasi selesai? | Desain contoh menampilkannya, tapi tidak ada entity-nya di PRD §22. Sekarang kartu maintenance hanya menampilkan "Sedang diperbaiki" — tidak memalsukan data yang tidak ada | Tahap 3B (Admin) |
 | **OD-014** | Bolehkah **operator mendaftarkan member baru** di meja kasir, atau hanya Admin? | PRD §6 memberi akses `customer` hanya kepada Admin/Owner — operator tidak termasuk. Tapi customer yang ingin jadi member di tempat adalah kejadian harian. Sekarang operator hanya bisa mencari & memilih member yang sudah ada; yang belum terdaftar dilayani sebagai Walk-in | Tahap 1 (UI sudah siap), Tahap 3B (Admin) |
 | **OD-013** | Ringkasan shift: `rental`/`fnb` dihitung saat item **dibuat** (nilai transaksi) atau saat **dibayar** (uang masuk)? | Keduanya sudah dibedakan di UI, tapi mana yang jadi dasar laporan belum diputuskan. Mempengaruhi laporan harian dan formula profit (OD-009). `cash`/`qris`/`total` tidak terpengaruh — itu selalu uang masuk | Tahap 3B (reporting) |

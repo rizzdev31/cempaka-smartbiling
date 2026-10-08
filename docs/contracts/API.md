@@ -406,13 +406,18 @@ harga       = ceil(hourly_rate ÷ 2 × (duration_minutes ÷ 30))
 Dijamin: `session_id` **tidak berubah** · `end_at`, items, payments, totals **tidak berubah** · station lama jadi kosong · audit log mencatat asal → tujuan.
 
 → `200` objek `session` dengan `station` baru.
-Error: `409 STATION_NOT_AVAILABLE`, `409 TARGET_STATION_SAME`, `409 SESSION_STATUS_INVALID`
+Error: `409 STATION_NOT_AVAILABLE`, `409 TARGET_STATION_SAME`, `409 STATION_TYPE_MISMATCH`, `409 SESSION_STATUS_INVALID`, `409 STATION_HAS_ACTIVE_SESSION`
+
+`STATION_TYPE_MISMATCH` menegakkan DEC-021: swap hanya dalam tipe konsol yang sama. Pindah tipe konsol adalah **sesi baru** (DEC-025), bukan swap.
 
 ### `POST /sessions/{id}/checkout`
 `Idempotency-Key` **wajib**. Menghasilkan **satu** final transaction (PRD §12, T13).
 
 ```json
-{ "payments": [ { "method": "CASH", "amount": 25000, "reference": null } ] }
+{
+  "use_credit": false,
+  "payments": [ { "method": "CASH", "amount": 25000, "reference": null } ]
+}
 ```
 
 Perilaku:
@@ -420,8 +425,10 @@ Perilaku:
    **Prepaid:** rental sudah fix dari paket, **tidak** di-rounding — dan sisa waktu yang tidak terpakai **hangus** (DEC-024), kecuali customer member.
 1b. **Overstay (DEC-023).** Menit di luar hak waktu (`durasi_paket + total_extend`) ditagih sebagai item `ADJUSTMENT` bernama "Kelebihan waktu". Dibulatkan per 30 menit dengan toleransi 5 menit DEC-009, **tanpa** lantai minimum 30. Harga per blok sama dengan extend: `ceil(hourly_rate / 2)`. Rental Prepaid yang sudah dibayar tidak dihitung ulang.
 2. Semua item unpaid ditagih. Prepaid → hanya F&B/extend/adjustment yang belum dibayar.
-3. `payments` harus menutupi `balance_due`, kalau tidak → `422 CHECKOUT_INSUFFICIENT_PAYMENT`.
+2b. **Saldo member (DEC-026).** `use_credit: true` memakai saldo customer untuk mengurangi `balance_due`, berapa pun jenis tagihannya. Muncul sebagai item `DISCOUNT` bernama "Saldo member". Default `false` → memakai saldo harus keputusan sadar operator di depan customer.
+3. `payments` harus **persis** sama dengan `balance_due`. Kurang → `422 CHECKOUT_INSUFFICIENT_PAYMENT`; lebih → `422 PAYMENT_AMOUNT_EXCEEDS_BALANCE` (tidak ada kembalian di V1). Boleh array kosong kalau tagihannya sudah nol.
 4. Status → `COMPLETED`, `ended_at = now`, station kembali kosong.
+5. **Sisa waktu Prepaid (DEC-024/026).** Member aktif: nilai sisa masuk saldo akunnya, `floor(sisa_menit x hourly_rate / 60)`. Non-member: hangus, tidak ada baris apa pun.
 
 → `200`
 ```json
@@ -621,6 +628,7 @@ Close butuh `closing_cash` + `note` opsional; selisih dicatat untuk audit.
 | `STATION_NOT_AVAILABLE` | 409 | station maintenance/disabled |
 | `STATION_HAS_ACTIVE_SESSION` | 409 | sudah ada session jalan |
 | `TARGET_STATION_SAME` | 409 | swap ke station yang sama |
+| `STATION_TYPE_MISMATCH` | 409 | swap ke tipe konsol berbeda (DEC-021) |
 | `SESSION_STATUS_INVALID` | 409 | aksi tidak sah pada status ini |
 | `SESSION_NOT_ORDERABLE` | 409 | order F&B ke session tidak aktif (ghost order) |
 | `EXTEND_DURATION_INVALID` | 422 | bukan kelipatan 30 menit |
