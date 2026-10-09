@@ -217,6 +217,9 @@ Error: `401 INVALID_CREDENTIALS`, `403 USER_INACTIVE`, `429 TOO_MANY_ATTEMPTS`
 - `session` = `null` kalau station kosong. Inilah yang membuat station tampil `AVAILABLE` di dashboard.
 - `session.started_at` = `null` saat `PENDING_PAYMENT`. Bersama `end_at`, dipakai client untuk menggambar proporsi waktu terpakai tanpa perlu memuat detail sesi.
 - `device` = `null` kalau belum ada TV Agent terdaftar (normal sampai Tahap 2).
+- `device.status` **dihitung** dari `last_seen_at`, tidak disimpan — kolom status yang disimpan pasti basi begitu heartbeat berhenti.
+- `meta.offline_threshold_seconds` dikirim bersama daftar, supaya ambang ONLINE/OFFLINE tidak dituliskan ulang di client.
+- `session` di sini adalah **ringkasan**, bukan objek `session` penuh: enam station dikali seluruh item dan payment akan membuat response dashboard jauh lebih besar daripada yang dipakai menggambar kartunya. Ambil detailnya lewat `GET /sessions/{id}`.
 
 ### `GET /packages`
 
@@ -224,12 +227,23 @@ Error: `401 INVALID_CREDENTIALS`, `403 USER_INACTIVE`, `429 TOO_MANY_ATTEMPTS`
 {
   "data": [
     { "id": "uuid", "name": "1 Jam", "duration_minutes": 60, "price": 20000,
-      "hourly_rate": 20000, "is_active": true }
+      "hourly_rate": 20000, "station_type_id": "uuid",
+      "console_type": "PS5 VIP", "is_active": true }
   ]
 }
 ```
 
 `hourly_rate` = `price ÷ (duration_minutes ÷ 60)`, **dihitung server**. Client memakai nilai ini untuk menampilkan estimasi harga extend — tapi harga final tetap dari server (DEC-007).
+
+Filter yang didukung:
+
+| Parameter | Gunanya |
+|---|---|
+| `station_id` | **Dipakai layar Start Session.** Hanya paket yang sah untuk tipe konsol station itu yang dikembalikan (DEC-019). Station tanpa tipe konsol mengembalikan daftar kosong, bukan seluruh paket — daftar penuh akan membuat operator memilih paket yang pasti ditolak server |
+| `station_type_id` | sama, tapi langsung dari tipe konsol |
+| `only_active` | default `true`. `false` untuk menampilkan paket yang sudah tidak dijual |
+
+`station_type_id` dan `console_type` ada di setiap paket supaya client bisa mengelompokkannya sendiri tanpa panggilan kedua.
 
 ### `GET /customers?q=<nama|telepon>` · `POST /customers`
 
@@ -492,7 +506,13 @@ Perilaku:
 ```json
 { "reason": "Customer berubah pikiran" }
 ```
-Error: `409 SESSION_STATUS_INVALID`
+
+Station langsung kosong setelah dibatalkan dan bisa segera dipakai sesi baru —
+operator yang salah memilih station harus bisa langsung mengulang.
+
+Error: `409 SESSION_STATUS_INVALID` (sesi sudah berjalan; selesaikan lewat checkout), `409 SESSION_HAS_PAYMENT`
+
+> Status diperiksa **lebih dulu** daripada pembayaran. Sesi yang sudah berjalan hampir selalu juga sudah dibayar; kalau uangnya yang dilaporkan, operator akan mencari uang itu alih-alih menekan tombol checkout.
 
 > **Waktu habis berarti berhenti (DEC-033).** Begitu `now > end_at`, status jadi `EXPIRED`, **TV mati/standby**, dan customer tidak bisa melanjutkan. Tidak ada penagihan kelebihan waktu. Extend juga tidak lagi diizinkan setelah titik ini — customer yang ingin melanjutkan dibuatkan **sesi baru dengan paket baru**. Station tetap terpakai sampai operator checkout. Bentuk tampilan "TV mati" di layar adalah urusan Tahap 2 (OD-004).
 
@@ -691,6 +711,7 @@ Aturan lain:
 | `SHIFT_ALREADY_OPEN` | 409 | operator masih punya shift terbuka |
 | `SHIFT_NOT_OPEN` | 409 | shift sudah ditutup |
 | `CUSTOMER_ALREADY_MEMBER` | 409 | customer sudah punya membership |
+| `SESSION_HAS_PAYMENT` | 409 | sesi sudah menerima uang, tidak bisa dibatalkan (V1 tanpa refund) |
 | `SESSION_STATUS_INVALID` | 409 | aksi tidak sah pada status ini |
 | `SESSION_NOT_ORDERABLE` | 409 | order F&B ke session tidak aktif (ghost order) |
 | `EXTEND_DURATION_INVALID` | 422 | bukan kelipatan 30 menit |

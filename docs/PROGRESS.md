@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
-| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **214 test LULUS** (64 unit + 150 feature, 774 assertion). Shift + customer + membership selesai; **DEC-033** (waktu habis = berhenti) dan **DEC-034** (Postpaid tanpa batas waktu) (8 Okt). Berikutnya: `GET /stations` + `GET /packages` |
+| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **233 test LULUS** (64 unit + 169 feature, 838 assertion) dan **golden path 38/38 lewat HTTP tanpa menyentuh database**. Shift + customer + membership selesai; **DEC-033** (waktu habis = berhenti) dan **DEC-034** (Postpaid tanpa batas waktu) (8 Okt). Berikutnya: `GET /stations` + `GET /packages` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -62,10 +62,10 @@ Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat 
 - [x] `audit_logs` terisi untuk aksi sensitif → 8 Okt, 14 aksi termasuk saldo member
 - [x] Shift kasir: `open` / `close` / `current` → 8 Okt. Sebelumnya `shift_id` selalu NULL
 - [x] Customer + membership: cari, daftar, jadikan member (DEC-027/029) → 8 Okt
-- [ ] **Master data read-only: `GET /stations`, `GET /packages`** → belum ada
-- [ ] **`POST /sessions/{id}/cancel`** → belum ada. Ada di kontrak §7, batal dari `PENDING_PAYMENT`
-- [ ] Throttle broadcast (REALTIME.md §7): debounce `session.updated` 500 ms
-- [x] Golden path ST01 lulus → 8 Okt. 33/33 lewat HTTP (`php artisan serve` + curl), plus `GoldenPathTest` otomatis. Koleksi Postman di `docs/postman/`. **Catatan:** `station_id`/`package_id` masih diambil dari database karena `GET /stations` belum ada, jadi exit criteria ROADMAP "tanpa sentuh DB manual" belum terpenuhi penuh
+- [x] Master data read-only: `GET /stations`, `GET /packages` → 9 Okt. `/packages` menerima filter `station_id` (DEC-019)
+- [x] `POST /sessions/{id}/cancel` → 9 Okt. Batal dari `PENDING_PAYMENT`, station langsung kosong
+- [ ] Throttle broadcast (REALTIME.md §7): debounce `session.updated` 500 ms → **sengaja ditunda**, alasannya di entry 9 Okt
+- [x] Golden path ST01 lulus → 8 Okt. 33/33 lewat HTTP (`php artisan serve` + curl), plus `GoldenPathTest` otomatis. Koleksi Postman di `docs/postman/`. **9 Okt: exit criteria ROADMAP terpenuhi penuh** → 38 pemeriksaan lewat HTTP, semua id dari `GET /stations` / `GET /packages` / `GET /fnb/products`, tanpa menyentuh database sama sekali
 
 ### Checklist Tahap 1 (Flutter)
 
@@ -2108,3 +2108,60 @@ bukan perbaikan.
 
 **Next step** — tiga endpoint terakhir Tahap 0: `GET /stations`, `GET /packages`,
 `POST /sessions/{id}/cancel`.
+
+---
+
+### 2026-10-09 — [Backend] Tiga endpoint terakhir — TAHAP 0 SELESAI
+
+**Dikerjakan**
+- `GET /stations` — dashboard dalam satu panggilan: station, sesi aktif, status
+  TV. `meta.offline_threshold_seconds` ikut dikirim.
+- `GET /packages` — filter `station_id` / `station_type_id` / `only_active`,
+  plus `station_type_id` + `console_type` di tiap paket.
+- `POST /sessions/{id}/cancel` — batal dari `PENDING_PAYMENT`.
+- Endpoint 21 → 24. Error code baru `SESSION_HAS_PAYMENT`.
+
+**Exit criteria ROADMAP akhirnya terpenuhi penuh**
+
+Golden path dijalankan ulang dari luar lewat HTTP — **38 pemeriksaan, nol
+gagal**, dan kali ini **tanpa satu pun id diambil dari database**. Semuanya dari
+`GET /stations`, `GET /packages?station_id=`, dan `GET /fnb/products`, persis
+seperti yang akan dilakukan tablet.
+
+Alurnya: login → buka shift → baca station & paket → start Prepaid → **batal** →
+start lagi di station yang sama → bayar → daftar member → F&B → antrian dapur →
+extend → swap → checkout → cek saldo member → tutup shift → station kosong.
+
+**Satu bug ditemukan — oleh golden path, bukan oleh test**
+
+`CancelService` memeriksa pembayaran **sebelum** status. Akibatnya sesi yang
+sudah berjalan ditolak dengan "sesi ini sudah menerima pembayaran" padahal
+alasan sebenarnya "sesi sudah berjalan, selesaikan lewat checkout". Operator
+akan mencari uangnya alih-alih menekan tombol yang benar.
+
+Lolos dari test karena test memakai sesi Postpaid yang belum dibayar — di sana
+kedua pemeriksaan memberi jawaban yang sama. Urutannya dibalik dan test
+regresinya ditambahkan.
+
+**Throttle broadcast sengaja ditunda — ini keputusan, bukan kelalaian**
+
+`REALTIME.md` §7 meminta `session.updated` di-*debounce* 500 ms per sesi.
+Implementasi naif (buang event yang datang dalam 500 ms terakhir) adalah
+**throttle**, bukan debounce, dan bisa membuang event **terakhir** — dashboard
+operator lalu menampilkan tagihan basi sampai ada event berikutnya. Itu lebih
+berbahaya daripada rebuild berlebihan.
+
+Debounce yang benar butuh job tertunda yang membaca state terbaru saat berjalan,
+dan itu butuh queue worker yang belum ada di Tahap 0 (DEC-002 — semuanya lokal).
+Ditunda sampai Reverb benar-benar jalan di bawah beban nyata dan queue worker
+sudah ada.
+
+**Tests** — 233 lulus, 838 assertion. Tambahan: `MasterDataTest` (10),
+`SessionCancelTest` (10).
+
+**Yang tersisa dari Tahap 0** — hanya throttle di atas, dan itu ditunda sadar.
+
+**Next step**
+- Keputusan **OD-002** (Postpaid kabur) sebelum sistem dipakai untuk uang nyata.
+- Tarif dan menu asli menggantikan data uji di seeder.
+- Setelah itu: Tahap 2 (`/devices/*`) atau Tahap 1 menyambung Flutter ke API.

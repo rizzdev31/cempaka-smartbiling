@@ -2,14 +2,17 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\PackageController;
 use App\Http\Controllers\Api\V1\FnbController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\SessionCancelController;
 use App\Http\Controllers\Api\V1\SessionCheckoutController;
 use App\Http\Controllers\Api\V1\SessionController;
 use App\Http\Controllers\Api\V1\SessionExtendController;
 use App\Http\Controllers\Api\V1\SessionPaymentController;
 use App\Http\Controllers\Api\V1\SessionSwapController;
 use App\Http\Controllers\Api\V1\ShiftController;
+use App\Http\Controllers\Api\V1\StationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -111,4 +114,21 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
 
     Route::post('/customers/{customer}/membership', [CustomerController::class, 'storeMembership'])
         ->middleware(['can:customer.create', 'idempotency']);
+
+    /*
+     * Master data read-only — API.md §6.
+     *
+     * `GET /stations` adalah sumber data dashboard: station, sesi aktifnya,
+     * dan status TV dalam satu panggilan. `GET /packages` menerima filter
+     * `station_id` supaya layar Start Session hanya menampilkan paket yang
+     * sah untuk tipe konsol station itu (DEC-019).
+     */
+    Route::get('/stations', [StationController::class, 'index'])
+        ->middleware('can:station.read');
+
+    Route::get('/packages', [PackageController::class, 'index'])
+        ->middleware('can:package.read');
+
+    Route::post('/sessions/{session}/cancel', [SessionCancelController::class, 'store'])
+        ->middleware(['can:session.cancel', 'idempotency']);
 });

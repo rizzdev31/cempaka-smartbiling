@@ -25,6 +25,7 @@ final class AuditAction
     public const PAYMENT_CONFIRMED = 'payment.confirmed';
 
     public const SESSION_SWAPPED = 'session.swapped';
+    public const SESSION_CANCELLED = 'session.cancelled';
     public const SESSION_CHECKOUT = 'session.checkout';
 
     public const FNB_ORDER_CREATED = 'fnb.order.created';

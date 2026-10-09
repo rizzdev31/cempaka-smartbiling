@@ -1,400 +1,587 @@
 {
-  "info": {
-    "name": "Cempaka Smart Billing — Tahap 0 Golden Path",
-    "description": "Golden Path ST01 sesuai CLAUDE.md §8: start -> timer -> F&B -> extend -> warning -> checkout -> completed.\n\nJalankan berurutan lewat Collection Runner. Setiap request menyimpan id yang dibutuhkan request berikutnya, jadi tidak ada yang perlu disalin manual.\n\nSebelum menjalankan:\n1. `php artisan migrate:fresh --seed`\n2. `php artisan serve --host 0.0.0.0`\n3. `php artisan schedule:work` di terminal lain (untuk langkah WARNING/EXPIRED)\n4. `php artisan reverb:start` kalau ingin melihat event\n\nIsi variabel `base_url` sesuai IP laptop. Jangan hardcode IP di tempat lain (DEC-002).",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-  },
-  "variable": [
-    { "key": "base_url", "value": "http://127.0.0.1:8000/api/v1" },
-    { "key": "token", "value": "" },
-    { "key": "station_id", "value": "" },
-    { "key": "package_id", "value": "" },
-    { "key": "product_id", "value": "" },
-    { "key": "session_id", "value": "" },
-    { "key": "fnb_order_id", "value": "" }
-  ],
-  "auth": {
-    "type": "bearer",
-    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
-  },
-  "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          "// Idempotency-Key = UUID v4 BARU per niat aksi, bukan per retry (API.md §3).",
-          "// Collection Runner menjalankan tiap request sekali, jadi satu key per",
-          "// request sudah benar. Untuk menguji retry, kirim ulang dengan key sama.",
-          "pm.variables.set('idem', require('uuid').v4());"
+    "info": {
+        "name": "Cempaka Smart Billing — Tahap 0 Golden Path",
+        "description": "Golden Path ST01 sesuai CLAUDE.md §8: start -> timer -> F&B -> extend -> warning -> checkout -> completed.\n\nJalankan berurutan lewat Collection Runner. Semua id diambil dari API — station, paket, dan menu dibaca lewat GET, lalu disimpan sendiri ke variabel. TIDAK ADA yang perlu disalin dari database.\n\nSebelum menjalankan:\n1. php artisan migrate:fresh --seed\n2. php artisan serve --host 0.0.0.0\n3. php artisan schedule:work di terminal lain (untuk langkah WARNING/EXPIRED)\n4. php artisan reverb:start kalau ingin melihat event\n\nIsi variabel base_url sesuai IP laptop. Jangan hardcode IP di tempat lain (DEC-002).",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://127.0.0.1:8000/api/v1"
+        },
+        {
+            "key": "token",
+            "value": ""
+        },
+        {
+            "key": "station_id",
+            "value": ""
+        },
+        {
+            "key": "package_id",
+            "value": ""
+        },
+        {
+            "key": "product_id",
+            "value": ""
+        },
+        {
+            "key": "session_id",
+            "value": ""
+        },
+        {
+            "key": "fnb_order_id",
+            "value": ""
+        },
+        {
+            "key": "station_type_id",
+            "value": ""
+        },
+        {
+            "key": "package_price",
+            "value": ""
+        }
+    ],
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{token}}",
+                "type": "string"
+            }
         ]
-      }
-    }
-  ],
-  "item": [
-    {
-      "name": "00 Health (tanpa auth)",
-      "request": {
-        "auth": { "type": "noauth" },
-        "method": "GET",
-        "url": "{{base_url}}/health"
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('200 + database ok', () => {",
-              "  pm.response.to.have.status(200);",
-              "  pm.expect(pm.response.json().data.database).to.eql('ok');",
-              "});",
-              "pm.test('ada header server time (DEC-003)', () => {",
-              "  pm.expect(pm.response.headers.has('X-Server-Time')).to.be.true;",
-              "});"
-            ]
-          }
-        }
-      ]
     },
-    {
-      "name": "01 Login operator",
-      "request": {
-        "auth": { "type": "noauth" },
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"username\": \"operator1\",\n  \"password\": \"password\"\n}"
+    "event": [
+        {
+            "listen": "prerequest",
+            "script": {
+                "type": "text/javascript",
+                "exec": [
+                    "// Idempotency-Key = UUID v4 BARU per niat aksi, bukan per retry (API.md §3).",
+                    "// Collection Runner menjalankan tiap request sekali, jadi satu key per",
+                    "// request sudah benar. Untuk menguji retry, kirim ulang dengan key sama.",
+                    "pm.variables.set('idem', require('uuid').v4());"
+                ]
+            }
+        }
+    ],
+    "item": [
+        {
+            "name": "00 Health (tanpa auth)",
+            "request": {
+                "auth": {
+                    "type": "noauth"
+                },
+                "method": "GET",
+                "url": "{{base_url}}/health"
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('200 + database ok', () => {",
+                            "  pm.response.to.have.status(200);",
+                            "  pm.expect(pm.response.json().data.database).to.eql('ok');",
+                            "});",
+                            "pm.test('ada header server time (DEC-003)', () => {",
+                            "  pm.expect(pm.response.headers.has('X-Server-Time')).to.be.true;",
+                            "});"
+                        ]
+                    }
+                }
+            ]
         },
-        "url": "{{base_url}}/auth/login"
-      },
-      "event": [
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('dapat token', () => {",
-              "  pm.response.to.have.status(200);",
-              "  pm.collectionVariables.set('token', pm.response.json().data.token);",
-              "});"
+            "name": "01 Login operator",
+            "request": {
+                "auth": {
+                    "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"username\": \"operator1\",\n  \"password\": \"password\"\n}"
+                },
+                "url": "{{base_url}}/auth/login"
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('dapat token', () => {",
+                            "  pm.response.to.have.status(200);",
+                            "  pm.collectionVariables.set('token', pm.response.json().data.token);",
+                            "});"
+                        ]
+                    }
+                }
             ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "02 Daftar station (ambil ST01)",
-      "request": { "method": "GET", "url": "{{base_url}}/sessions?status=ACTIVE" },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "// Endpoint GET /stations belum ada di Tahap 0 langkah ini;",
-              "// station_id dan package_id diisi manual dari seeder untuk sementara.",
-              "pm.test('200', () => pm.response.to.have.status(200));"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "03 Start session Prepaid di ST01",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Idempotency-Key", "value": "{{idem}}" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"station_id\": \"{{station_id}}\",\n  \"package_id\": \"{{package_id}}\",\n  \"mode\": \"PREPAID\"\n}"
         },
-        "url": "{{base_url}}/sessions"
-      },
-      "event": [
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "const d = pm.response.json().data;",
-              "pm.collectionVariables.set('session_id', d.id);",
-              "pm.test('201 PENDING_PAYMENT', () => {",
-              "  pm.response.to.have.status(201);",
-              "  pm.expect(d.status).to.eql('PENDING_PAYMENT');",
-              "});",
-              "pm.test('timer belum jalan', () => {",
-              "  pm.expect(d.started_at).to.be.null;",
-              "  pm.expect(d.end_at).to.be.null;",
-              "});",
-              "pm.test('rental sudah masuk Open Tab', () => {",
-              "  pm.expect(d.totals.rental).to.be.above(0);",
-              "  pm.expect(d.totals.balance_due).to.eql(d.totals.rental);",
-              "});"
+            "name": "02 GET /stations (ambil ST01)",
+            "request": {
+                "method": "GET",
+                "url": "{{base_url}}/stations"
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "const d = pm.response.json();",
+                            "const st01 = d.data.find(s => s.code === 'ST01');",
+                            "pm.collectionVariables.set('station_id', st01.id);",
+                            "pm.collectionVariables.set('station_type_id', st01.console_type);",
+                            "pm.test('200 + ST01 ketemu', () => {",
+                            "  pm.response.to.have.status(200);",
+                            "  pm.expect(st01).to.not.be.undefined;",
+                            "});",
+                            "pm.test('ST01 kosong di awal', () => pm.expect(st01.session).to.be.null);",
+                            "pm.test('ambang offline dikirim server', () => {",
+                            "  pm.expect(d.meta.offline_threshold_seconds).to.be.a('number');",
+                            "});"
+                        ]
+                    }
+                }
             ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "04 Bayar rental (timer mulai)",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Idempotency-Key", "value": "{{idem}}" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"method\": \"CASH\",\n  \"amount\": 20000\n}"
         },
-        "url": "{{base_url}}/sessions/{{session_id}}/payments"
-      },
-      "event": [
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "const s = pm.response.json().data.session;",
-              "pm.test('201 dan sesi jadi ACTIVE', () => {",
-              "  pm.response.to.have.status(201);",
-              "  pm.expect(s.status).to.eql('ACTIVE');",
-              "});",
-              "pm.test('end_at terisi dan tagihan nol', () => {",
-              "  pm.expect(s.end_at).to.not.be.null;",
-              "  pm.expect(s.totals.balance_due).to.eql(0);",
-              "});"
+            "name": "02b GET /packages?station_id (hanya tipe konsol ST01)",
+            "request": {
+                "method": "GET",
+                "url": "{{base_url}}/packages?station_id={{station_id}}"
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "const d = pm.response.json();",
+                            "const satuJam = d.data.find(p => p.duration_minutes === 60);",
+                            "pm.collectionVariables.set('package_id', satuJam.id);",
+                            "pm.collectionVariables.set('package_price', satuJam.price);",
+                            "pm.test('200 + paket 1 jam ketemu', () => {",
+                            "  pm.response.to.have.status(200);",
+                            "  pm.expect(satuJam).to.not.be.undefined;",
+                            "});",
+                            "// DEC-019 — paket milik satu tipe konsol. Daftar ini harus seragam.",
+                            "pm.test('semua paket setipe dengan ST01', () => {",
+                            "  const tipe = pm.collectionVariables.get('station_type_id');",
+                            "  d.data.forEach(p => pm.expect(p.console_type).to.eql(tipe));",
+                            "});"
+                        ]
+                    }
+                }
             ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "05 Order F&B (masuk Open Tab)",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Idempotency-Key", "value": "{{idem}}" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"items\": [ { \"product_id\": \"{{product_id}}\", \"qty\": 2 } ],\n  \"note\": \"tanpa gula\"\n}"
         },
-        "url": "{{base_url}}/sessions/{{session_id}}/fnb/orders"
-      },
-      "event": [
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "const d = pm.response.json().data;",
-              "pm.collectionVariables.set('fnb_order_id', d.order.id);",
-              "pm.test('201 PENDING', () => {",
-              "  pm.response.to.have.status(201);",
-              "  pm.expect(d.order.status).to.eql('PENDING');",
-              "});",
-              "pm.test('F&B menambah balance_due', () => {",
-              "  pm.expect(d.session.totals.fnb).to.eql(d.order.total);",
-              "  pm.expect(d.session.totals.balance_due).to.eql(d.order.total);",
-              "});"
+            "name": "02c GET /fnb/products (ambil Teh Manis)",
+            "request": {
+                "method": "GET",
+                "url": "{{base_url}}/fnb/products"
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "const teh = pm.response.json().data.find(p => p.name === 'Teh Manis');",
+                            "pm.collectionVariables.set('product_id', teh.id);",
+                            "pm.test('200 + menu terbaca', () => {",
+                            "  pm.response.to.have.status(200);",
+                            "  pm.expect(teh).to.not.be.undefined;",
+                            "});"
+                        ]
+                    }
+                }
             ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "06 F&B -> PROCESSING",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": { "mode": "raw", "raw": "{ \"status\": \"PROCESSING\" }" },
-        "url": "{{base_url}}/fnb/orders/{{fnb_order_id}}/status"
-      }
-    },
-    {
-      "name": "07 F&B -> READY",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": { "mode": "raw", "raw": "{ \"status\": \"READY\" }" },
-        "url": "{{base_url}}/fnb/orders/{{fnb_order_id}}/status"
-      }
-    },
-    {
-      "name": "08 F&B -> DELIVERED",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": { "mode": "raw", "raw": "{ \"status\": \"DELIVERED\" }" },
-        "url": "{{base_url}}/fnb/orders/{{fnb_order_id}}/status"
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('sampai DELIVERED', () => {",
-              "  pm.response.to.have.status(200);",
-              "  pm.expect(pm.response.json().data.order.status).to.eql('DELIVERED');",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "09 Extend 30 menit",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Idempotency-Key", "value": "{{idem}}" }
-        ],
-        "body": { "mode": "raw", "raw": "{ \"duration_minutes\": 30 }" },
-        "url": "{{base_url}}/sessions/{{session_id}}/extend"
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "const d = pm.response.json().data;",
-              "pm.test('200 dan harga setengah tarif per jam', () => {",
-              "  pm.response.to.have.status(200);",
-              "  pm.expect(d.extend.price).to.eql(Math.ceil(d.session.hourly_rate / 2));",
-              "});",
-              "pm.test('end_at baru = end_at lama + 30 menit (DEC-007)', () => {",
-              "  const lama = new Date(d.extend.previous_end_at).getTime();",
-              "  const baru = new Date(d.extend.new_end_at).getTime();",
-              "  pm.expect(baru - lama).to.eql(30 * 60 * 1000);",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "10 Extend 45 menit (harus DITOLAK)",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Idempotency-Key", "value": "{{idem}}" }
-        ],
-        "body": { "mode": "raw", "raw": "{ \"duration_minutes\": 45 }" },
-        "url": "{{base_url}}/sessions/{{session_id}}/extend"
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('422 EXTEND_DURATION_INVALID', () => {",
-              "  pm.response.to.have.status(422);",
-              "  pm.expect(pm.response.json().error.code).to.eql('EXTEND_DURATION_INVALID');",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "11 Reconcile status (jalankan setelah end_at lewat \u2014 TV harus mati)",
-      "request": { "method": "GET", "url": "{{base_url}}/sessions/{{session_id}}" },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "// Jalankan `php artisan sessions:reconcile` dulu, atau biarkan",
-              "// `schedule:work` berjalan dan tunggu satu menit.",
-              "const d = pm.response.json().data;",
-              "pm.test('EXPIRED berarti berhenti \u2014 tidak bisa extend lagi (DEC-033)', () => {",
-              "  if (d.status === 'EXPIRED') {",
-              "    pm.expect(d.extendable).to.be.false;",
-              "    pm.expect(d.ended_at).to.be.null;   // belum checkout",
-              "  }",
-              "});"
-            ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "12 Checkout",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Idempotency-Key", "value": "{{idem}}" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"use_credit\": false,\n  \"payments\": [ { \"method\": \"CASH\", \"amount\": 20000 } ]\n}"
         },
-        "url": "{{base_url}}/sessions/{{session_id}}/checkout"
-      },
-      "event": [
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "// `amount` harus PERSIS sama dengan balance_due — V1 tidak mencatat",
-              "// kembalian (API.md §7). Ambil angkanya dari GET /sessions/{id} dulu.",
-              "const d = pm.response.json().data;",
-              "pm.test('200 COMPLETED', () => {",
-              "  pm.response.to.have.status(200);",
-              "  pm.expect(d.session.status).to.eql('COMPLETED');",
-              "});",
-              "pm.test('struk membawa dua durasi (API.md §7)', () => {",
-              "  pm.expect(d.receipt.actual_duration_minutes).to.be.a('number');",
-              "  pm.expect(d.receipt.billable_duration_minutes).to.be.a('number');",
-              "});",
-              "pm.test('tagihan lunas', () => {",
-              "  pm.expect(d.receipt.totals.balance_due).to.eql(0);",
-              "});"
+            "name": "03 Start session Prepaid di ST01",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Idempotency-Key",
+                        "value": "{{idem}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"station_id\": \"{{station_id}}\",\n  \"package_id\": \"{{package_id}}\",\n  \"mode\": \"PREPAID\"\n}"
+                },
+                "url": "{{base_url}}/sessions"
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "const d = pm.response.json().data;",
+                            "pm.collectionVariables.set('session_id', d.id);",
+                            "pm.test('201 PENDING_PAYMENT', () => {",
+                            "  pm.response.to.have.status(201);",
+                            "  pm.expect(d.status).to.eql('PENDING_PAYMENT');",
+                            "});",
+                            "pm.test('timer belum jalan', () => {",
+                            "  pm.expect(d.started_at).to.be.null;",
+                            "  pm.expect(d.end_at).to.be.null;",
+                            "});",
+                            "pm.test('rental sudah masuk Open Tab', () => {",
+                            "  pm.expect(d.totals.rental).to.be.above(0);",
+                            "  pm.expect(d.totals.balance_due).to.eql(d.totals.rental);",
+                            "});"
+                        ]
+                    }
+                }
             ]
-          }
-        }
-      ]
-    },
-    {
-      "name": "13 Checkout ulang (harus DITOLAK)",
-      "request": {
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Idempotency-Key", "value": "{{idem}}" }
-        ],
-        "body": { "mode": "raw", "raw": "{ \"payments\": [] }" },
-        "url": "{{base_url}}/sessions/{{session_id}}/checkout"
-      },
-      "event": [
+        },
         {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('409 SESSION_STATUS_INVALID', () => {",
-              "  pm.response.to.have.status(409);",
-              "  pm.expect(pm.response.json().error.code).to.eql('SESSION_STATUS_INVALID');",
-              "});"
+            "name": "04 Bayar rental (timer mulai)",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Idempotency-Key",
+                        "value": "{{idem}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"method\": \"CASH\",\n  \"amount\": 20000\n}"
+                },
+                "url": "{{base_url}}/sessions/{{session_id}}/payments"
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "const s = pm.response.json().data.session;",
+                            "pm.test('201 dan sesi jadi ACTIVE', () => {",
+                            "  pm.response.to.have.status(201);",
+                            "  pm.expect(s.status).to.eql('ACTIVE');",
+                            "});",
+                            "pm.test('end_at terisi dan tagihan nol', () => {",
+                            "  pm.expect(s.end_at).to.not.be.null;",
+                            "  pm.expect(s.totals.balance_due).to.eql(0);",
+                            "});"
+                        ]
+                    }
+                }
             ]
-          }
+        },
+        {
+            "name": "05 Order F&B (masuk Open Tab)",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Idempotency-Key",
+                        "value": "{{idem}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"items\": [ { \"product_id\": \"{{product_id}}\", \"qty\": 2 } ],\n  \"note\": \"tanpa gula\"\n}"
+                },
+                "url": "{{base_url}}/sessions/{{session_id}}/fnb/orders"
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "const d = pm.response.json().data;",
+                            "pm.collectionVariables.set('fnb_order_id', d.order.id);",
+                            "pm.test('201 PENDING', () => {",
+                            "  pm.response.to.have.status(201);",
+                            "  pm.expect(d.order.status).to.eql('PENDING');",
+                            "});",
+                            "pm.test('F&B menambah balance_due', () => {",
+                            "  pm.expect(d.session.totals.fnb).to.eql(d.order.total);",
+                            "  pm.expect(d.session.totals.balance_due).to.eql(d.order.total);",
+                            "});"
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "06 F&B -> PROCESSING",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{ \"status\": \"PROCESSING\" }"
+                },
+                "url": "{{base_url}}/fnb/orders/{{fnb_order_id}}/status"
+            }
+        },
+        {
+            "name": "07 F&B -> READY",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{ \"status\": \"READY\" }"
+                },
+                "url": "{{base_url}}/fnb/orders/{{fnb_order_id}}/status"
+            }
+        },
+        {
+            "name": "08 F&B -> DELIVERED",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{ \"status\": \"DELIVERED\" }"
+                },
+                "url": "{{base_url}}/fnb/orders/{{fnb_order_id}}/status"
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('sampai DELIVERED', () => {",
+                            "  pm.response.to.have.status(200);",
+                            "  pm.expect(pm.response.json().data.order.status).to.eql('DELIVERED');",
+                            "});"
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "09 Extend 30 menit",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Idempotency-Key",
+                        "value": "{{idem}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{ \"duration_minutes\": 30 }"
+                },
+                "url": "{{base_url}}/sessions/{{session_id}}/extend"
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "const d = pm.response.json().data;",
+                            "pm.test('200 dan harga setengah tarif per jam', () => {",
+                            "  pm.response.to.have.status(200);",
+                            "  pm.expect(d.extend.price).to.eql(Math.ceil(d.session.hourly_rate / 2));",
+                            "});",
+                            "pm.test('end_at baru = end_at lama + 30 menit (DEC-007)', () => {",
+                            "  const lama = new Date(d.extend.previous_end_at).getTime();",
+                            "  const baru = new Date(d.extend.new_end_at).getTime();",
+                            "  pm.expect(baru - lama).to.eql(30 * 60 * 1000);",
+                            "});"
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "10 Extend 45 menit (harus DITOLAK)",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Idempotency-Key",
+                        "value": "{{idem}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{ \"duration_minutes\": 45 }"
+                },
+                "url": "{{base_url}}/sessions/{{session_id}}/extend"
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('422 EXTEND_DURATION_INVALID', () => {",
+                            "  pm.response.to.have.status(422);",
+                            "  pm.expect(pm.response.json().error.code).to.eql('EXTEND_DURATION_INVALID');",
+                            "});"
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "11 Reconcile status (jalankan setelah end_at lewat — TV harus mati)",
+            "request": {
+                "method": "GET",
+                "url": "{{base_url}}/sessions/{{session_id}}"
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "// Jalankan `php artisan sessions:reconcile` dulu, atau biarkan",
+                            "// `schedule:work` berjalan dan tunggu satu menit.",
+                            "const d = pm.response.json().data;",
+                            "pm.test('EXPIRED berarti berhenti — tidak bisa extend lagi (DEC-033)', () => {",
+                            "  if (d.status === 'EXPIRED') {",
+                            "    pm.expect(d.extendable).to.be.false;",
+                            "    pm.expect(d.ended_at).to.be.null;   // belum checkout",
+                            "  }",
+                            "});"
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "12 Checkout",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Idempotency-Key",
+                        "value": "{{idem}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"use_credit\": false,\n  \"payments\": [ { \"method\": \"CASH\", \"amount\": 20000 } ]\n}"
+                },
+                "url": "{{base_url}}/sessions/{{session_id}}/checkout"
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "// `amount` harus PERSIS sama dengan balance_due — V1 tidak mencatat",
+                            "// kembalian (API.md §7). Ambil angkanya dari GET /sessions/{id} dulu.",
+                            "const d = pm.response.json().data;",
+                            "pm.test('200 COMPLETED', () => {",
+                            "  pm.response.to.have.status(200);",
+                            "  pm.expect(d.session.status).to.eql('COMPLETED');",
+                            "});",
+                            "pm.test('struk membawa dua durasi (API.md §7)', () => {",
+                            "  pm.expect(d.receipt.actual_duration_minutes).to.be.a('number');",
+                            "  pm.expect(d.receipt.billable_duration_minutes).to.be.a('number');",
+                            "});",
+                            "pm.test('tagihan lunas', () => {",
+                            "  pm.expect(d.receipt.totals.balance_due).to.eql(0);",
+                            "});"
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "name": "13 Checkout ulang (harus DITOLAK)",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    },
+                    {
+                        "key": "Idempotency-Key",
+                        "value": "{{idem}}"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{ \"payments\": [] }"
+                },
+                "url": "{{base_url}}/sessions/{{session_id}}/checkout"
+            },
+            "event": [
+                {
+                    "listen": "test",
+                    "script": {
+                        "type": "text/javascript",
+                        "exec": [
+                            "pm.test('409 SESSION_STATUS_INVALID', () => {",
+                            "  pm.response.to.have.status(409);",
+                            "  pm.expect(pm.response.json().error.code).to.eql('SESSION_STATUS_INVALID');",
+                            "});"
+                        ]
+                    }
+                }
+            ]
         }
-      ]
-    }
-  ]
+    ]
 }

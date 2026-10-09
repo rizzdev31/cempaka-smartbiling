@@ -34,6 +34,12 @@ final class ErrorCode
     public const PAYMENT_REFERENCE_REQUIRED = 'PAYMENT_REFERENCE_REQUIRED';
     public const CHECKOUT_INSUFFICIENT_PAYMENT = 'CHECKOUT_INSUFFICIENT_PAYMENT';
     public const FNB_STATUS_TRANSITION_INVALID = 'FNB_STATUS_TRANSITION_INVALID';
+    /**
+     * Sesi yang sudah menerima uang tidak boleh dibatalkan — V1 tidak punya
+     * mekanisme refund (API.md §7), jadi uangnya akan kehilangan jejak.
+     */
+    public const SESSION_HAS_PAYMENT = 'SESSION_HAS_PAYMENT';
+
     /** Shift — API.md §10. */
     public const SHIFT_ALREADY_OPEN = 'SHIFT_ALREADY_OPEN';
     public const SHIFT_NOT_OPEN = 'SHIFT_NOT_OPEN';

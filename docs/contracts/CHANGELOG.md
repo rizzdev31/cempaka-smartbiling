@@ -389,6 +389,40 @@ tidak menyimpan bukti bahwa struknya terkirim.
 
 ---
 
+## v1 · DRAFT 12 — 2026-10-09
+
+Tiga endpoint terakhir Tahap 0. Tidak ada yang breaking — semuanya tambahan.
+
+**ADDED — API** · operator app
+- `GET /stations` — sumber data dashboard. Station, sesi aktifnya, dan status
+  TV dalam satu panggilan. `meta.offline_threshold_seconds` ikut dikirim supaya
+  ambang ONLINE/OFFLINE tidak dituliskan ulang di client.
+- `GET /packages` — menerima filter `station_id`, `station_type_id`, dan
+  `only_active`. Setiap paket membawa `station_type_id` + `console_type`.
+- `POST /sessions/{id}/cancel` — batal dari `PENDING_PAYMENT`. Station langsung
+  kosong dan bisa segera dipakai sesi baru.
+- Error code baru: `SESSION_HAS_PAYMENT` (409). Daftar error code jadi 28.
+
+**Yang perlu diketahui Flutter**
+- **Layar Start Session wajib memakai `GET /packages?station_id=...`**, bukan
+  daftar paket penuh. Tanpa filter itu, operator bisa memilih paket PS4 untuk
+  station PS5 dan baru ditolak server setelah menekan tombol (DEC-019).
+- `station.session` adalah **ringkasan**, bukan objek `session` penuh. Detailnya
+  dari `GET /sessions/{id}`. Yang ada di ringkasan cukup untuk menggambar kartu:
+  status, mode, `started_at`, `end_at`, `customer_label`, `balance_due`.
+- `station.session.end_at` bisa `null` untuk dua alasan berbeda:
+  `PENDING_PAYMENT` (timer belum mulai) dan Postpaid (tidak ada batas waktu,
+  DEC-034). Bedakan lewat `status`.
+- Tombol batal hanya untuk sesi `PENDING_PAYMENT`. Sesi berjalan diselesaikan
+  lewat checkout — server menolaknya dengan `SESSION_STATUS_INVALID`, bukan
+  dengan pesan tentang uang.
+
+**Tahap 0 selesai.** Seluruh golden path sekarang bisa dijalankan dari luar
+tanpa menyentuh database: 38 pemeriksaan lewat HTTP, semua id diambil dari
+`GET /stations`, `GET /packages`, dan `GET /fnb/products`.
+
+---
+
 ## v1 · DRAFT <n> — YYYY-MM-DD
 
 **<JENIS> — API|REALTIME** · terdampak: Flutter | Kotlin | Admin | semua
