@@ -1119,6 +1119,47 @@ TV baru berhenti ketika menerima `session.updated` berstatus `COMPLETED`.
 
 ---
 
+## DEC-035 — Struk dikirim lewat tautan `wa.me`, bukan WhatsApp Business API
+**Tanggal:** 9 Okt 2026 · **Status:** APPROVED · **Menjawab:** OD-023 · **Melengkapi:** DEC-031
+
+Diputuskan user: **"pakai yang gratis saja."**
+
+Operator menekan tombol di tablet, WhatsApp terbuka dengan pesan sudah terisi,
+operator menekan kirim. Tidak ada biaya bulanan, tidak perlu verifikasi bisnis,
+dan tidak ada nomor perusahaan yang harus didaftarkan.
+
+**Konsekuensi yang perlu diterima:** pengirimannya **manual**. Tidak ada
+pengiriman otomatis, tidak ada bukti terkirim yang tercatat di sistem, dan
+operator harus punya WhatsApp di tablet itu. Kalau nanti dibutuhkan pengiriman
+otomatis atau jejak terkirim, pindah ke WhatsApp Business API adalah keputusan
+baru — bukan perbaikan.
+
+### Pekerjaan backend-nya hampir nol — kecuali satu hal
+
+Tautan `wa.me` dibentuk Flutter dari data yang sudah ada di response checkout
+(`receipt`). Server tidak mengirim apa pun dan tidak perlu tahu soal WhatsApp.
+
+Yang tetap perlu server: **bentuk nomornya**. Operator mengetik nomor seperti
+yang diucapkan customer — `0812-3456-7890`. Tautan `wa.me` menolak bentuk itu;
+ia butuh `6281234567890`. Objek `customer` karena itu membawa field baru
+`phone_wa` berisi nomor yang sudah siap pakai, `null` kalau nomornya kosong
+atau terlalu pendek untuk masuk akal.
+
+Dikerjakan di server dan bukan di Flutter karena Admin Web (Tahap 3B) akan
+butuh aturan yang sama. Satu tempat yang tahu caranya, bukan dua yang bisa
+berbeda.
+
+`phone` yang tersimpan **tidak diubah** — tetap seperti yang diketik operator.
+Nomor yang sudah "dirapikan" membuat pencarian gagal ketika operator mengetik
+ulang persis seperti yang dia ketik dulu.
+
+### Batasnya
+
+Hanya member yang punya nomor telepon (DEC-031), jadi walk-in tidak bisa
+dikirimi struk. Itu bukan batasan teknis — memang tidak ada nomornya.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -1142,7 +1183,7 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | ~~OD-020~~ | ~~Sisa waktu saat pindah tipe konsol~~ | **DIPUTUSKAN → DEC-025** (dikonversi senilai rupiah ke menit di tarif konsol baru, member saja) | — |
 | ~~OD-021~~ | ~~Toleransi pembulatan overstay~~ | **TIDAK BERLAKU LAGI → DEC-033** mencabut penagihan overstay sepenuhnya, jadi pertanyaannya kehilangan objek | — |
 | ~~OD-022~~ | ~~Biaya & wewenang daftar member~~ | **DIPUTUSKAN → DEC-027** (operator boleh) + **DEC-029** (Rp 10.000, sementara) | — |
-| **OD-023** | Cara mengirim struk ke WA: buka `wa.me` dari tablet (gratis, operator menekan kirim) atau WhatsApp Business API (berbayar, otomatis, butuh verifikasi bisnis)? | Muncul dari DEC-031. Yang pertama bisa dikerjakan Flutter tanpa backend sama sekali; yang kedua butuh kerja backend + biaya bulanan | Tahap 3 |
+| ~~OD-023~~ | ~~Cara mengirim struk ke WA~~ | **DIPUTUSKAN → DEC-035** (tautan `wa.me`, gratis, operator menekan kirim sendiri) | — |
 | **OD-016** | Apakah **maintenance perlu data pendukung** — teknisi, nomor tiket, estimasi selesai? | Desain contoh menampilkannya, tapi tidak ada entity-nya di PRD §22. Sekarang kartu maintenance hanya menampilkan "Sedang diperbaiki" — tidak memalsukan data yang tidak ada | Tahap 3B (Admin) |
 | ~~OD-014~~ | ~~Bolehkah operator mendaftarkan member baru?~~ | **DIPUTUSKAN → DEC-027** (boleh) | — |
 | **OD-013** | Ringkasan shift: `rental`/`fnb` dihitung saat item **dibuat** (nilai transaksi) atau saat **dibayar** (uang masuk)? | Keduanya sudah dibedakan di UI, tapi mana yang jadi dasar laporan belum diputuskan. Mempengaruhi laporan harian dan formula profit (OD-009). `cash`/`qris`/`total` tidak terpengaruh — itu selalu uang masuk | Tahap 3B (reporting) |

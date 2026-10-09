@@ -238,6 +238,8 @@ Error: `401 INVALID_CREDENTIALS`, `403 USER_INACTIVE`, `429 TOO_MANY_ATTEMPTS`
             "membership": { "tier": "SILVER", "is_active": true } } }
 ```
 
+`phone_wa` adalah `phone` yang sudah diubah ke bentuk yang diterima tautan `wa.me` — `0812-3456-7890` jadi `6281234567890` (DEC-035). `null` kalau nomornya kosong atau terlalu pendek. Dipakai saat mengirim struk ke member; `phone` sendiri tetap apa adanya supaya pencarian operator tidak gagal.
+
 `membership` boleh `null`. `credit_balance` adalah saldo member dalam rupiah
 (DEC-026) — dikirim di sini supaya operator melihatnya **sebelum** checkout dan
 bisa memutuskan mencentang "pakai saldo"; kalau baru muncul setelah checkout,
@@ -247,7 +249,8 @@ keputusannya sudah lewat. Non-member selalu `0`.
 { "data": { "id": "uuid", "name": "Budi", "phone": "08...",
             "membership": { "tier": "SILVER", "is_active": true,
                             "joined_at": "...Z" },
-            "credit_balance": 6666 } }
+            "credit_balance": 6666,
+            "phone_wa": "6281234567890" } }
 ```
 
 `POST /customers` butuh `Idempotency-Key`. Field: `name` (wajib), `phone`

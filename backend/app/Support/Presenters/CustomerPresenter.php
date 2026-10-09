@@ -3,6 +3,7 @@
 namespace App\Support\Presenters;
 
 use App\Models\Customer;
+use App\Support\Phone;
 
 /** Objek `customer` — API.md §6. */
 class CustomerPresenter
@@ -15,6 +16,15 @@ class CustomerPresenter
             'id' => $customer->id,
             'name' => $customer->name,
             'phone' => $customer->phone,
+            /*
+             * Nomor siap pakai untuk tautan `wa.me` — DEC-035, dipakai saat
+             * mengirim struk ke member. `null` kalau nomornya kosong atau
+             * terlalu pendek untuk masuk akal.
+             *
+             * Dikirim terpisah dan tidak menggantikan `phone`, karena yang
+             * ditampilkan ke operator harus bentuk yang dia ketik sendiri.
+             */
+            'phone_wa' => Phone::toWhatsApp($customer->phone),
             'membership' => $customer->membership === null ? null : [
                 'tier' => $customer->membership->tier,
                 'is_active' => (bool) $customer->membership->is_active,

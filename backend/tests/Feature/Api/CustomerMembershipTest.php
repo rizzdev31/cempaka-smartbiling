@@ -33,7 +33,9 @@ class CustomerMembershipTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.name', 'Siti')
             ->assertJsonPath('data.membership', null)
-            ->assertJsonPath('data.credit_balance', 0);
+            ->assertJsonPath('data.credit_balance', 0)
+            // DEC-035 — nomor siap pakai untuk tautan wa.me saat mengirim struk.
+            ->assertJsonPath('data.phone_wa', '6281234567890');
 
         $this->assertDatabaseHas('audit_logs', [
             'action' => AuditAction::CUSTOMER_CREATED,

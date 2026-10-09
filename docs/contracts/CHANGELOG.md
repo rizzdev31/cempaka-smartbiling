@@ -355,6 +355,40 @@ Dulu kerugian terbatas pada durasi paket; sekarang tidak terbatas. **OD-002**
 
 ---
 
+## v1 · DRAFT 11 — 2026-10-09
+
+Satu field baru. Tidak ada yang berubah bentuk — aman untuk client lama.
+
+**ADDED — API** · operator app · **DEC-035**
+- `customer.phone_wa` — nomor yang sudah siap dipakai tautan `wa.me`.
+  `0812-3456-7890` → `6281234567890`. `null` kalau nomornya kosong atau
+  terlalu pendek untuk masuk akal.
+- `customer.phone` **tidak berubah** — tetap seperti yang diketik operator,
+  supaya pencarian tidak gagal saat dia mengetik ulang bentuk yang sama.
+
+**Yang perlu diketahui Flutter**
+
+Pengiriman struk ke WhatsApp memakai tautan `wa.me`, **bukan** WhatsApp
+Business API (DEC-035). Backend **tidak mengirim apa pun** — Flutter yang
+membuka tautannya, operator yang menekan kirim.
+
+```
+https://wa.me/{phone_wa}?text={pesan struk yang sudah di-encode}
+```
+
+Isi pesannya disusun Flutter dari objek `receipt` di response checkout; semua
+datanya sudah ada di sana — nomor struk, dua durasi, baris item, totals,
+payments, operator.
+
+Tombolnya **hanya muncul kalau `phone_wa` tidak null**. Walk-in tidak punya
+nomor, jadi tidak bisa dikirimi struk — itu memang konsekuensi DEC-031, bukan
+kekurangan.
+
+Konsekuensi yang perlu diketahui operator: pengirimannya manual, dan sistem
+tidak menyimpan bukti bahwa struknya terkirim.
+
+---
+
 ## v1 · DRAFT <n> — YYYY-MM-DD
 
 **<JENIS> — API|REALTIME** · terdampak: Flutter | Kotlin | Admin | semua

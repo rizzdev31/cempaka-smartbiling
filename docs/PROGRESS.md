@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
-| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **208 test LULUS** (58 unit + 150 feature, 761 assertion). Shift + customer + membership selesai; **DEC-033** (waktu habis = berhenti) dan **DEC-034** (Postpaid tanpa batas waktu) (8 Okt). Berikutnya: `GET /stations` + `GET /packages` |
+| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **214 test LULUS** (64 unit + 150 feature, 774 assertion). Shift + customer + membership selesai; **DEC-033** (waktu habis = berhenti) dan **DEC-034** (Postpaid tanpa batas waktu) (8 Okt). Berikutnya: `GET /stations` + `GET /packages` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -2077,3 +2077,34 @@ harus angka yang benar saat itu juga, bukan angka yang kebetulan tersimpan.
 
 **Next step**
 - `GET /stations` + `GET /packages`.
+
+---
+
+### 2026-10-09 — [Backend] DEC-035: struk ke WhatsApp lewat tautan `wa.me`
+
+User memilih yang gratis. Operator menekan tombol di tablet, WhatsApp terbuka
+dengan pesan sudah terisi, operator menekan kirim.
+
+**Pekerjaan backend-nya hampir nol — kecuali satu hal.** Tautan dibentuk Flutter
+dari objek `receipt` yang sudah lengkap. Yang tetap perlu server adalah bentuk
+nomornya: operator mengetik `0812-3456-7890`, tautan `wa.me` butuh
+`6281234567890`.
+
+**Dikerjakan**
+- `App\Support\Phone::toWhatsApp()` + 6 unit test
+- `customer.phone_wa` di response — `null` kalau nomor kosong atau terlalu pendek
+- `phone` yang tersimpan tidak diubah: nomor yang sudah "dirapikan" membuat
+  pencarian gagal saat operator mengetik ulang bentuk yang sama
+
+**Kenapa di server, bukan di Flutter:** Admin Web (Tahap 3B) akan butuh aturan
+yang sama. Satu tempat yang tahu caranya, bukan dua yang bisa berbeda.
+
+**Konsekuensi yang perlu diketahui pemilik:** pengirimannya manual, dan sistem
+tidak menyimpan bukti bahwa struknya terkirim. Kalau nanti butuh otomatis atau
+butuh jejak terkirim, pindah ke WhatsApp Business API adalah keputusan baru —
+bukan perbaikan.
+
+**Tests** — 214 lulus, 774 assertion.
+
+**Next step** — tiga endpoint terakhir Tahap 0: `GET /stations`, `GET /packages`,
+`POST /sessions/{id}/cancel`.
