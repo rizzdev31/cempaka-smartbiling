@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
-| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **233 test LULUS** (64 unit + 169 feature, 838 assertion) dan **golden path 38/38 lewat HTTP tanpa menyentuh database**. Shift + customer + membership selesai; **DEC-033** (waktu habis = berhenti) dan **DEC-034** (Postpaid tanpa batas waktu) (8 Okt). Endpoint `/devices/*` selesai (10 Okt) — Tahap 2 terbuka |
+| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **262 test LULUS** (64 unit + 198 feature, 918 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 28 endpoint. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
