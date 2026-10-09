@@ -2165,3 +2165,46 @@ sudah ada.
 - Keputusan **OD-002** (Postpaid kabur) sebelum sistem dipakai untuk uang nyata.
 - Tarif dan menu asli menggantikan data uji di seeder.
 - Setelah itu: Tahap 2 (`/devices/*`) atau Tahap 1 menyambung Flutter ke API.
+
+---
+
+### 2026-10-10 — [Backend] Tarif asli masuk; dua hal yang belum bisa ditangani
+
+User mengirim catatan harga dari lapangan. Empat hal diklarifikasi lewat
+tanya-jawab sebelum apa pun dimasukkan ke sistem — semuanya menyangkut uang.
+
+**Masuk ke seeder (DEC-036)**
+
+| Tipe | Per jam | 3 jam + 1 jam gratis |
+|---|---|---|
+| PS4 | 10.000 | 35.000 (240 menit) |
+| PS3 | 8.000 | 30.000 (240 menit) |
+
+Nama tipe konsol berubah dari karangan (`PS5 VIP` / `PS4 Slim`) jadi `PS4` dan
+`PS3`. Biaya member 10.000 di catatan **cocok** dengan DEC-029 yang sudah ada.
+
+**Konsekuensi yang dikunci test, bukan ditemukan belakangan**
+
+Paket "3 jam gratis 1 jam" = 240 menit, jadi tarif per jamnya **di bawah**
+tarif normal (PS3 7.500 vs 8.000). Harga extend memakai angka itu, jadi extend
+di paket promo lebih murah daripada extend biasa. Ada unit test khusus yang
+mengunci angkanya supaya kalau terasa janggal di laporan, jelas ini akibat yang
+sudah diketahui.
+
+**Dua hal dari catatan yang BELUM bisa dimasukkan**
+
+1. **Paket 3 jam PS3 20.000 / PS4 25.000** — user menegaskan ini harga **jam
+   sepi**. Harga berdasarkan waktu belum ada sama sekali → **OD-025**.
+2. **Paket "free 2 minuman"** — sistem tidak punya konsep paket yang berisi
+   F&B, jadi minumannya tetap akan tertagih. User memilih penanganan
+   **otomatis** (sistem tahu jatahnya) → **DEC-037**, belum dibuat. Durasinya
+   juga belum disebut → **OD-026**.
+
+**Masih asumsi:** pembagian station per tipe (ST01–03 PS4, ST04–06 PS3).
+Catatan tidak menyebut berapa unit masing-masing. Ditandai di berkas seeder.
+
+**Tests** — 234 lulus. Tambahan: tarif asli dikunci di `SchemaAndSeedTest`,
+plus test tarif paket bonus waktu.
+
+**Next step** — tidak berubah: keputusan **OD-002** sebelum dipakai untuk uang
+nyata. Setelah itu DEC-037 (paket berisi F&B) kalau paket minuman mau dijual.

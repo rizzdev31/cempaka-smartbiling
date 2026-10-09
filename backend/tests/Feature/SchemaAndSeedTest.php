@@ -89,17 +89,21 @@ class SchemaAndSeedTest extends TestCase
     {
         $this->seed();
 
-        $vip = StationType::query()->where('name', 'PS5 VIP')->sole();
-        $slim = StationType::query()->where('name', 'PS4 Slim')->sole();
+        $ps4 = StationType::query()->where('name', 'PS4')->sole();
+        $ps3 = StationType::query()->where('name', 'PS3')->sole();
 
-        $vipHourly = Package::query()->where('station_type_id', $vip->id)
+        $ps4Hourly = Package::query()->where('station_type_id', $ps4->id)
             ->where('name', '1 Jam')->sole();
-        $slimHourly = Package::query()->where('station_type_id', $slim->id)
+        $ps3Hourly = Package::query()->where('station_type_id', $ps3->id)
             ->where('name', '1 Jam')->sole();
 
         // Inti DEC-019: paket bernama sama boleh berbeda harga per tipe konsol.
-        $this->assertNotSame($vipHourly->price, $slimHourly->price);
-        $this->assertGreaterThan($slimHourly->price, $vipHourly->price);
+        $this->assertNotSame($ps4Hourly->price, $ps3Hourly->price);
+        $this->assertGreaterThan($ps3Hourly->price, $ps4Hourly->price);
+
+        // Tarif asli dari catatan user (DEC-036).
+        $this->assertSame(10000, (int) $ps4Hourly->price);
+        $this->assertSame(8000, (int) $ps3Hourly->price);
     }
 
     public function test_paket_dengan_nama_sama_boleh_ada_di_tipe_konsol_berbeda(): void
@@ -108,6 +112,31 @@ class SchemaAndSeedTest extends TestCase
 
         // Unique constraint-nya (station_type_id, name) — bukan name saja.
         $this->assertSame(2, Package::query()->where('name', '1 Jam')->count());
+    }
+
+    public function test_paket_bonus_waktu_menurunkan_tarif_per_jamnya(): void
+    {
+        $this->seed();
+
+        /*
+         * "3 jam gratis 1 jam" disimpan sebagai paket 240 menit (DEC-036).
+         * Konsekuensinya tarif per jam paket ini di BAWAH tarif normal, dan
+         * harga extend memakai angka itu — extend di paket promo jadi lebih
+         * murah daripada extend biasa.
+         *
+         * Diuji supaya kalau suatu hari angkanya terasa salah di laporan,
+         * jelas bahwa ini akibat yang sudah diketahui, bukan bug.
+         */
+        $ps3 = StationType::query()->where('name', 'PS3')->sole();
+
+        $normal = Package::query()->where('station_type_id', $ps3->id)
+            ->where('name', '1 Jam')->sole();
+        $promo = Package::query()->where('station_type_id', $ps3->id)
+            ->where('name', '3 Jam + 1 Jam Gratis')->sole();
+
+        $this->assertSame(240, (int) $promo->duration_minutes);
+        $this->assertSame(8000, $normal->hourlyRate());
+        $this->assertSame(7500, $promo->hourlyRate());
     }
 
     public function test_station_kosong_tidak_punya_session_berjalan(): void

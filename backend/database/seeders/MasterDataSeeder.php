@@ -17,15 +17,22 @@ use Illuminate\Database\Seeder;
  * sebenarnya diatur owner dari aplikasi kasir (DEC-019/020).
  */
 /*
- * PERINGATAN — ANGKA DI BAWAH ADALAH DATA UJI, BUKAN TARIF ASLI.
+ * TARIF ASLI — dari catatan user, dikonfirmasi 10 Okt 2026 (DEC-036).
  *
- * Dikonfirmasi user 8 Okt 2026: "belum final, masih uji coba ini."
- * Nama tipe konsol, harga paket, dan pembagian station per tipe semuanya
- * karangan untuk keperluan pengujian.
+ * Yang SUDAH pasti: nama tipe konsol (PS3, PS4), tarif per jam, dan paket
+ * "3 jam gratis 1 jam".
  *
- * JANGAN dipakai untuk transaksi uang nyata sebelum diganti tarif sebenarnya
- * (DEC-002 butir 4). Yang mengubahnya nanti adalah owner lewat aplikasi
- * (DEC-019/020), bukan seeder ini.
+ * Yang BELUM masuk dan sengaja dikosongkan:
+ *
+ * - Paket "free 2 minuman" (PS3 40.000, PS4 50.000). Durasinya belum diketahui,
+ *   dan sistem belum bisa membundel F&B ke dalam paket (DEC-037, belum dibuat).
+ * - Paket 3 jam PS3 20.000 / PS4 25.000. Itu harga JAM SEPI, dan harga
+ *   berdasarkan waktu belum ada (OD-025).
+ * - Pembagian station per tipe (ST01-03 PS3, ST04-06 PS4) masih ASUMSI —
+ *   catatan user tidak menyebutkan berapa unit masing-masing.
+ *
+ * Yang mengubah tarif nantinya adalah owner lewat aplikasi (DEC-019/020),
+ * bukan seeder ini.
  */
 class MasterDataSeeder extends Seeder
 {
@@ -37,20 +44,27 @@ class MasterDataSeeder extends Seeder
          * Sekaligus menyiapkan uji DEC-021: swap antar tipe harus ditolak.
          */
         $types = [
-            'PS5 VIP' => [
+            'PS4' => [
                 'sort_order' => 1,
                 'packages' => [
-                    ['name' => '1 Jam', 'duration_minutes' => 60, 'price' => 25000],
-                    ['name' => '2 Jam', 'duration_minutes' => 120, 'price' => 45000],
-                    ['name' => '3 Jam', 'duration_minutes' => 180, 'price' => 65000],
+                    // Tarif per jam. Dipakai juga sebagai sumber tarif untuk
+                    // Postpaid, yang tidak punya durasi (DEC-034).
+                    ['name' => '1 Jam', 'duration_minutes' => 60, 'price' => 10000],
+                    /*
+                     * "3 jam gratis 1 jam" — durasinya 4 jam penuh, jadi
+                     * disimpan 240 menit. Konsekuensinya tarif per jam paket
+                     * ini 8.750, di bawah tarif normal 10.000, dan harga
+                     * extend ikut memakai angka itu (DEC-036).
+                     */
+                    ['name' => '3 Jam + 1 Jam Gratis', 'duration_minutes' => 240, 'price' => 35000],
                 ],
             ],
-            'PS4 Slim' => [
+            'PS3' => [
                 'sort_order' => 2,
                 'packages' => [
-                    ['name' => '1 Jam', 'duration_minutes' => 60, 'price' => 15000],
-                    ['name' => '2 Jam', 'duration_minutes' => 120, 'price' => 28000],
-                    ['name' => '3 Jam', 'duration_minutes' => 180, 'price' => 40000],
+                    ['name' => '1 Jam', 'duration_minutes' => 60, 'price' => 8000],
+                    // Tarif per jam paket ini 7.500, di bawah normal 8.000.
+                    ['name' => '3 Jam + 1 Jam Gratis', 'duration_minutes' => 240, 'price' => 30000],
                 ],
             ],
         ];
@@ -74,13 +88,15 @@ class MasterDataSeeder extends Seeder
         }
 
         // PRD §10: ST01–ST06 pada deployment awal, dapat ditambah.
+        // Pembagian ini masih ASUMSI — catatan user tidak menyebutkan berapa
+        // unit PS3 dan berapa PS4 yang sebenarnya ada di lokasi.
         $stations = [
-            'ST01' => 'PS5 VIP',
-            'ST02' => 'PS5 VIP',
-            'ST03' => 'PS5 VIP',
-            'ST04' => 'PS4 Slim',
-            'ST05' => 'PS4 Slim',
-            'ST06' => 'PS4 Slim',
+            'ST01' => 'PS4',
+            'ST02' => 'PS4',
+            'ST03' => 'PS4',
+            'ST04' => 'PS3',
+            'ST05' => 'PS3',
+            'ST06' => 'PS3',
         ];
 
         $i = 0;

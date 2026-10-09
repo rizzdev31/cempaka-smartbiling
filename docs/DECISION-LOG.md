@@ -1160,6 +1160,77 @@ dikirimi struk. Itu bukan batasan teknis — memang tidak ada nomornya.
 
 ---
 
+## DEC-036 — Tarif asli: PS3 dan PS4
+**Tanggal:** 10 Okt 2026 · **Status:** APPROVED (sebagian) · **Override:** data uji seeder 8 Okt
+
+Dari catatan user, dikonfirmasi lewat tanya-jawab 10 Okt.
+
+| Tipe | Per jam | 3 jam + 1 jam gratis |
+|---|---|---|
+| **PS4** | 10.000 | 35.000 (240 menit) |
+| **PS3** | 8.000 | 30.000 (240 menit) |
+
+Catatan asli menulis "paketan 3 jam : 25k (ps3)" di bawah judul PS4 —
+dikonfirmasi user sebagai **salah ketik**, yang benar PS4.
+
+Biaya member 10.000 di catatan **cocok** dengan DEC-029 yang sudah terpasang.
+
+### Konsekuensi yang sudah diketahui, bukan bug
+
+Paket "3 jam gratis 1 jam" disimpan sebagai paket **240 menit**, karena itu
+durasi yang benar-benar didapat customer. Akibatnya tarif per jam paket itu
+**di bawah** tarif normal:
+
+```
+PS3  30.000 / 4 jam = 7.500/jam   (normal 8.000)
+PS4  35.000 / 4 jam = 8.750/jam   (normal 10.000)
+```
+
+Harga extend dihitung dari tarif per jam paket (DEC-007), jadi **extend di
+paket promo lebih murah daripada extend biasa**. Itu akibat wajar dari cara
+paket promo bekerja, bukan kesalahan hitung. Ada unit test khusus yang
+mengunci angkanya supaya kalau suatu hari terasa janggal di laporan, jelas
+bahwa ini sudah diketahui sejak awal.
+
+### Yang BELUM masuk, dan kenapa
+
+| Dari catatan | Kenapa belum |
+|---|---|
+| Paket 3 jam PS3 20.000 / PS4 25.000 | User menegaskan ini **harga jam sepi**. Harga berdasarkan waktu belum ada → **OD-025** |
+| Paket "free 2 minuman" PS3 40.000 / PS4 50.000 | Harga paket (bukan per jam) sudah dipastikan, tapi **durasinya belum diketahui**, dan sistem belum bisa membundel F&B → **DEC-037** + **OD-026** |
+
+### Yang masih asumsi
+
+Pembagian station per tipe — sekarang ST01–ST03 PS4, ST04–ST06 PS3. Catatan
+user tidak menyebut berapa unit masing-masing. Ditandai di berkas seeder.
+
+---
+
+## DEC-037 — Paket berisi F&B: jatahnya diketahui sistem, bukan ditandai operator
+**Tanggal:** 10 Okt 2026 · **Status:** APPROVED · **Belum dibuat** · **Melengkapi:** DEC-036
+
+Diputuskan user: paket yang sudah termasuk minuman ditangani **otomatis** —
+paket menyimpan daftar F&B yang sudah termasuk, dua minuman pertama tidak
+ditagih, yang ketiga bayar.
+
+Dua pilihan lain ditolak, dan alasannya perlu diingat:
+
+- **Operator menandai "gratis" sendiri** — cepat dibuat, tapi bergantung pada
+  kejujuran dan ketelitian operator. Itu celah kebocoran kas yang persis sama
+  jenisnya dengan diskon tanpa kendali (DEC-028).
+- **Di luar sistem** — stok F&B jadi tidak akurat dan laporan HPP ikut salah,
+  padahal HPP sudah disiapkan kolomnya sejak awal.
+
+**Yang dibutuhkan saat dibuat:** tabel penghubung paket ↔ produk F&B beserta
+jumlah jatahnya, dan logika di `FnbService` yang menghitung berapa yang sudah
+dipakai sebelum menagih. Jatah yang tidak terpakai **hangus** — belum
+diputuskan sebaliknya.
+
+**Belum dikerjakan.** Tidak memblokir Tahap 0; dibutuhkan sebelum paket
+"free 2 minuman" bisa dijual lewat aplikasi.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -1167,6 +1238,8 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | ID | Pertanyaan | Kenapa penting | Blokir tahap |
 |---|---|---|---|
 | ~~OD-001~~ | ~~Overstay: EXPIRED tapi customer masih bermain~~ | **DIPUTUSKAN → DEC-023** (timer jalan terus, kelebihan ditagih di checkout) + **DEC-024** (sisa waktu hangus kecuali member). Perilaku lock/overlay TV saat EXPIRED tetap di OD-004 | — |
+| **OD-025** | **Harga berdasarkan waktu** — jam pagi, happy hour, jam malam. User: "nanti ada aplikasi minta... jadi kita custom harganya kalau lagi sepi." Paket 3 jam PS3 20.000 / PS4 25.000 di catatan adalah harga jam sepi, jadi sudah ada contoh nyatanya | Muncul dari DEC-036. Butuh jadwal tarif per tipe konsol, dan keputusan apa yang terjadi kalau sesi melewati pergantian jadwal | Tahap 3B |
+| **OD-026** | **Durasi paket "free 2 minuman"** (PS3 40.000, PS4 50.000). Harganya sudah pasti, jamnya belum disebut | Muncul dari DEC-036. Tanpa durasi, paketnya tidak bisa dimasukkan ke sistem sama sekali | Saat paket F&B dibuat |
 | **OD-002 🔴** | **Jadi lebih mendesak sejak DEC-034** — Postpaid tidak lagi punya batas waktu, jadi kerugian kalau customer kabur tidak terbatas. Deposit? batas maksimum? catat identitas? — deposit? batas maksimum open tab? catat identitas? | PRD §12 memperbolehkan Postpaid tapi tidak punya mitigasi kerugian. | Tahap 1 |
 | ~~OD-003~~ | ~~Extend pricing & extend setelah EXPIRED~~ | **DIPUTUSKAN → DEC-007** | — |
 | ~~OD-004~~ | ~~Perilaku warning di TV~~ | **DIPUTUSKAN → DEC-030** (overlay kecil di kanan atas). Bunyi & bisa-ditutup belum, default: tanpa suara, tidak bisa ditutup | — |
