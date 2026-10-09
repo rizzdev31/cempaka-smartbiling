@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /** ST01..ST06+ — PRD §10. */
-#[Fillable(['code', 'name', 'station_type_id', 'status', 'sort_order'])]
+#[Fillable(['code', 'name', 'station_type_id', 'status', 'enrollment_code', 'sort_order'])]
 class Station extends Model
 {
     use HasUuidKey;
@@ -19,6 +19,23 @@ class Station extends Model
     protected function casts(): array
     {
         return ['status' => StationStatus::class];
+    }
+
+    /**
+     * Kode pendaftaran TV (API.md §9). Huruf ambigu dibuang: 0/O dan 1/I/L
+     * mudah salah baca, dan kode ini dibacakan teknisi ke layar TV lewat
+     * remote — salah satu karakter berarti mengulang dari awal.
+     */
+    public static function generateEnrollmentCode(): string
+    {
+        $alfabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+        $kode = '';
+
+        for ($i = 0; $i < 6; $i++) {
+            $kode .= $alfabet[random_int(0, strlen($alfabet) - 1)];
+        }
+
+        return $kode;
     }
 
     public function stationType(): BelongsTo

@@ -572,7 +572,9 @@ Error: `409 FNB_STATUS_TRANSITION_INVALID`
 Memakai `X-Device-Token`, **bukan** `Authorization`. Tidak punya akses apa pun selain tiga endpoint ini (PRD §6).
 
 ### `POST /devices/register`
-Dipanggil sekali saat provisioning. Butuh kode pendaftaran yang dibuat Admin.
+Dipanggil sekali saat provisioning. **Tanpa auth** — TV belum punya token. Yang menjaganya kode pendaftaran milik station, plus rate limit 5/menit/IP: kode enam huruf bisa ditebak kalau boleh dicoba terus-menerus.
+
+Kodenya tinggal di kolom `stations.enrollment_code` dan menentukan TV ini milik station yang mana. `Idempotency-Key` wajib.
 
 ```json
 { "enrollment_code": "ABC123", "device_uid": "<android_id>",
@@ -580,7 +582,15 @@ Dipanggil sekali saat provisioning. Butuh kode pendaftaran yang dibuat Admin.
 ```
 → `201` `{ "data": { "device_token": "...", "station": { "code": "ST01" } } }`
 
-Token unik per device dan **dapat dicabut** (PRD §10, §24).
+Token unik per device dan **dapat dicabut** (PRD §10, §24). Yang disimpan server hanya **hash**-nya; token mentah dikembalikan sekali ini saja. TV yang kehilangan token mendaftar ulang, bukan menanyakan yang lama.
+
+Aturan pendaftaran ulang:
+
+| Keadaan | Hasil |
+|---|---|
+| `device_uid` sama | Token baru diterbitkan, token lama **langsung mati**. Ini kejadian normal saat APK dipasang ulang |
+| Station sudah dipegang `device_uid` lain | `409 STATION_HAS_DEVICE`. Tidak diambil alih diam-diam — teknisi yang salah membacakan kode akan mematikan TV yang sedang jalan tanpa ada yang sadar |
+| Kode tidak dikenal | `422 ENROLLMENT_CODE_INVALID` |
 
 ### `POST /devices/heartbeat`
 
@@ -614,10 +624,19 @@ Endpoint **reconcile** untuk Kotlin setelah reboot atau reconnect (PRD §16, T11
 ```
 
 - `session: null` → station kosong, TV tampilkan layar idle.
-- `display.mode` ∈ `IDLE` | `TIMER` | `LOCKED` — **`LOCKED` belum dipakai di v1**, menunggu OD-001 & OD-004.
+- `display.mode` ∈ `IDLE` | `TIMER` | `LOCKED`. **`LOCKED` sekarang dipakai** — OD-001 dan OD-004 sudah diputuskan (DEC-033 dan DEC-030):
+
+| Keadaan sesi | mode |
+|---|---|
+| tidak ada sesi, atau `PENDING_PAYMENT` | `IDLE` |
+| `ACTIVE` / `WARNING` | `TIMER` |
+| `EXPIRED` / `CHECKOUT` | `LOCKED` |
+
+  `LOCKED` berarti station ini **tidak boleh dimainkan**. Bentuk visualnya — benar-benar padam, standby, atau layar "waktu habis, silakan ke kasir" — masih sisa OD-004 dan urusan Tahap 2. Server hanya menyatakan keadaannya.
+- `session.end_at` bisa `null` untuk Postpaid (DEC-034): tidak ada batas waktu, TV menghitung **maju** dari `started_at`.
 - Tidak ada `remaining_seconds`. TV hitung dari `end_at` + offset.
 
-### `GET /devices` *(operator/admin, pakai Bearer)*
+### `GET /devices` *(operator/admin, pakai Bearer, permission `device.read`)*
 Untuk screen Device di Flutter dan dashboard Admin.
 
 ```json
@@ -712,6 +731,8 @@ Aturan lain:
 | `SHIFT_NOT_OPEN` | 409 | shift sudah ditutup |
 | `CUSTOMER_ALREADY_MEMBER` | 409 | customer sudah punya membership |
 | `SESSION_HAS_PAYMENT` | 409 | sesi sudah menerima uang, tidak bisa dibatalkan (V1 tanpa refund) |
+| `ENROLLMENT_CODE_INVALID` | 422 | kode pendaftaran TV tidak dikenal |
+| `STATION_HAS_DEVICE` | 409 | station sudah dipegang TV lain |
 | `SESSION_STATUS_INVALID` | 409 | aksi tidak sah pada status ini |
 | `SESSION_NOT_ORDERABLE` | 409 | order F&B ke session tidak aktif (ghost order) |
 | `EXTEND_DURATION_INVALID` | 422 | bukan kelipatan 30 menit |

@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
-| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **233 test LULUS** (64 unit + 169 feature, 838 assertion) dan **golden path 38/38 lewat HTTP tanpa menyentuh database**. Shift + customer + membership selesai; **DEC-033** (waktu habis = berhenti) dan **DEC-034** (Postpaid tanpa batas waktu) (8 Okt). Berikutnya: `GET /stations` + `GET /packages` |
+| **backend** | **Tahap 0 jalan** (DEC-022). Laravel 13.35.0 + Sanctum; fondasi + idempotency; schema 17 entity + seeder; auth + RBAC; mesin state + billing engine + extend + payment; **F&B + swap + checkout + Reverb 8 event + scheduler** (8 Okt). **233 test LULUS** (64 unit + 169 feature, 838 assertion) dan **golden path 38/38 lewat HTTP tanpa menyentuh database**. Shift + customer + membership selesai; **DEC-033** (waktu habis = berhenti) dan **DEC-034** (Postpaid tanpa batas waktu) (8 Okt). Endpoint `/devices/*` selesai (10 Okt) — Tahap 2 terbuka |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -2342,4 +2342,76 @@ untuk tahu masalahnya di client atau di server.
 **Checklist Tahap 0: selesai seluruhnya.**
 
 **Next step** — keputusan **OD-002** sebelum dipakai untuk uang nyata, lalu
+DEC-037 (paket berisi F&B) kalau paket minuman mau dijual.
+
+---
+
+### 2026-10-10 — [Backend] Endpoint `/devices/*` — Tahap 2 terbuka
+
+User memilih tetap di backend. Dipilih `/devices/*` karena itu yang paling
+membuka jalan: tanpanya Tahap 2 tidak bisa dimulai sama sekali (TV tidak bisa
+mendaftar), event `device.heartbeat` tidak punya pemicu, dan **TV belum bisa
+subscribe ke channel-nya** — celah yang dicatat 9 Okt.
+
+**Empat endpoint**
+- `POST /devices/register` — tanpa auth, dijaga kode pendaftaran + rate limit
+- `POST /devices/heartbeat` — `X-Device-Token`, 2/menit/device
+- `GET /devices/me/state` — endpoint reconcile
+- `GET /devices` — Bearer, untuk layar Status TV
+
+Endpoint 24 → 28. Semua endpoint di kontrak kini ada kecuali `/bookings`
+(Tahap 3).
+
+**Dua keputusan teknis yang perlu diingat**
+
+**DEC-038** — kode pendaftaran tinggal di `stations.enrollment_code`, bukan
+tabel tersendiri. Tabel tersendiri memungkinkan kode sekali pakai, tapi selama
+Tahap 2 teknisi mendaftarkan ulang TV berkali-kali, dan kode sekali pakai tanpa
+UI Admin akan buntu setelah percobaan pertama. Konsekuensinya kode berumur
+panjang → **OD-027**.
+
+**DEC-039** — `display.mode: LOCKED` akhirnya dipakai. Penahannya (OD-001 &
+OD-004) sudah diputuskan. `IDLE` dan `LOCKED` sengaja dipisah: keduanya
+"tidak bisa main", tapi `IDLE` berarti belum disewa, `LOCKED` berarti waktunya
+habis dan customer perlu ke kasir.
+
+**Keamanan yang ditegakkan**
+- Token disimpan sebagai **hash**; mentahnya dikembalikan sekali saja.
+- Mendaftar ulang TV yang sama **mematikan token lama**.
+- Station yang sudah dipegang TV lain **ditolak**, bukan diambil alih —
+  teknisi yang salah membacakan kode akan mematikan TV yang sedang jalan.
+- TV tidak bisa menyentuh satu pun endpoint operator (diuji eksplisit).
+- TV hanya boleh channel station-nya sendiri; `private-operator` tertutup
+  untuk device.
+
+**Guard `device`**
+
+Dibuat lewat `Auth::viaRequest`, jadi guard Laravel sungguhan — bukan jalur
+autentikasi buatan sendiri. Akibatnya `auth:device` dan otorisasi channel
+memakai mesin yang sama dengan user, dan tidak ada jalur kedua yang harus
+diingat saat menambah endpoint.
+
+`POST /broadcasting/auth` sekarang menerima **dua guard**: `auth:sanctum,device`.
+
+**Dibuktikan jalan, bukan diasumsikan**
+
+TV didaftarkan lewat API sungguhan, menyambung ke Reverb lewat WebSocket,
+diotorisasi dengan `X-Device-Token`, lalu menerima event:
+
+```
+Otorisasi channel private-station.ST01 berhasil.
+Berhasil subscribe ke private-station.ST01.
+
+EVENT #1: session.extended
+EVENT #2: session.updated   (status COMPLETED)
+```
+
+`realtime:listen` ditambahi opsi `--device-token` supaya bisa meniru TV Agent.
+Teman yang memegang Kotlin bisa memakainya untuk membandingkan: kalau event
+muncul di sana tapi tidak di APK, masalahnya di APK.
+
+**Tests** — 262 lulus, 918 assertion. `DeviceTest` 21 test, lulus di percobaan
+pertama.
+
+**Next step** — keputusan **OD-002** sebelum uang nyata. Sisa backend:
 DEC-037 (paket berisi F&B) kalau paket minuman mau dijual.

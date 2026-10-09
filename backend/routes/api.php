@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\PackageController;
 use App\Http\Controllers\Api\V1\FnbController;
 use App\Http\Controllers\Api\V1\HealthController;
@@ -106,6 +107,10 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
      * operator menawarkan membership saat checkout, dan sebelum DEC-027 dia
      * tidak punya tombolnya.
      */
+    // Layar Status TV di Flutter. Read-only untuk operator.
+    Route::get('/devices', [DeviceController::class, 'index'])
+        ->middleware('can:device.read');
+
     Route::get('/customers', [CustomerController::class, 'index'])
         ->middleware('can:customer.read');
 
@@ -131,4 +136,26 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
 
     Route::post('/sessions/{session}/cancel', [SessionCancelController::class, 'store'])
         ->middleware(['can:session.cancel', 'idempotency']);
+});
+
+/*
+ * TV Agent — API.md §9.
+ *
+ * Pendaftaran TANPA auth: TV belum punya token saat memanggilnya. Yang
+ * menjaganya kode pendaftaran milik station, plus rate limit — kalau tidak,
+ * kode enam huruf bisa ditebak dengan mencoba terus-menerus.
+ */
+Route::post('/devices/register', [DeviceController::class, 'register'])
+    ->middleware(['throttle:device-register', 'idempotency']);
+
+/*
+ * Guard `device` membaca header X-Device-Token. TV tidak punya akses apa pun
+ * di luar dua endpoint ini (PRD §6) — tidak ada session, payment, maupun
+ * master data.
+ */
+Route::middleware('auth:device')->group(function () {
+    Route::post('/devices/heartbeat', [DeviceController::class, 'heartbeat'])
+        ->middleware('throttle:device-heartbeat');
+
+    Route::get('/devices/me/state', [DeviceController::class, 'meState']);
 });

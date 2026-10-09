@@ -37,6 +37,9 @@ trait MakesBillingWorld
             'name' => 'Station 1',
             'station_type_id' => $type->id,
             'status' => StationStatus::ACTIVE,
+            // Kode pendaftaran TV (API.md §9). Acak supaya dua station dalam
+            // satu test tidak pernah bertabrakan kodenya.
+            'enrollment_code' => Station::generateEnrollmentCode(),
         ]);
     }
 

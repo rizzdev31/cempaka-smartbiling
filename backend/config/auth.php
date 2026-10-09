@@ -42,6 +42,19 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        /*
+         * TV Agent — API.md §9. Memakai header `X-Device-Token`, BUKAN
+         * `Authorization`, dan tidak punya akses apa pun selain endpoint
+         * device (PRD §6).
+         *
+         * Tanpa `provider`: device dicari langsung dari hash tokennya,
+         * tidak lewat user provider mana pun. Driver-nya didaftarkan di
+         * AuthServiceProvider.
+         */
+        'device' => [
+            'driver' => 'device-token',
+        ],
     ],
 
     /*

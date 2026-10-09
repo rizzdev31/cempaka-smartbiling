@@ -459,6 +459,67 @@ semuanya menumpuk diam-diam di tabel `jobs`. Tidak ada error yang terlihat.
 
 ---
 
+## v1 · DRAFT 14 — 2026-10-10
+
+Empat endpoint TV Agent. Semuanya tambahan — tidak ada yang breaking.
+
+**ADDED — API** · Kotlin TV Agent
+- `POST /devices/register` — tanpa auth, dijaga kode pendaftaran milik station
+  (`stations.enrollment_code`, DEC-038) + rate limit 5/menit/IP.
+  `Idempotency-Key` wajib. Token mentah dikembalikan **sekali ini saja**.
+- `POST /devices/heartbeat` — `X-Device-Token`, 2/menit/device.
+- `GET /devices/me/state` — `X-Device-Token`. Endpoint reconcile.
+- `GET /devices` — Bearer, permission `device.read`. Untuk layar Status TV.
+- Error code baru: `ENROLLMENT_CODE_INVALID` (422), `STATION_HAS_DEVICE` (409).
+  Daftar error code jadi 30.
+
+**CHANGED — API** · Kotlin TV Agent · **DEC-039**
+- `display.mode: LOCKED` **sekarang dipakai**. Catatan "belum dipakai di v1,
+  menunggu OD-001 & OD-004" dicabut — keduanya sudah diputuskan.
+
+| Keadaan sesi | mode |
+|---|---|
+| tidak ada sesi, atau `PENDING_PAYMENT` | `IDLE` |
+| `ACTIVE` / `WARNING` | `TIMER` |
+| `EXPIRED` / `CHECKOUT` | `LOCKED` |
+
+`IDLE` dan `LOCKED` sengaja dipisah. Keduanya sama-sama "tidak bisa main", tapi
+artinya berbeda bagi customer yang duduk di depannya: `IDLE` berarti belum ada
+yang menyewa, `LOCKED` berarti waktunya habis dan dia perlu ke kasir.
+
+**IMPLEMENTED — REALTIME** · Kotlin TV Agent
+- **TV sekarang bisa subscribe `private-station.{code}`.** DRAFT 9 menyatakan
+  belum bisa karena guard device belum ada; sekarang `POST /broadcasting/auth`
+  menerima **dua guard** — Bearer (Flutter) dan `X-Device-Token` (TV).
+- TV hanya boleh channel station yang dipetakan ke dirinya. Token TV lain
+  ditolak, dan `private-operator` tetap tertutup untuk device — channel itu
+  membawa nominal pembayaran dan seluruh Open Tab.
+- Throttle heartbeat 1 broadcast/device/30 detik (§7) aktif.
+
+**Sudah dibuktikan jalan, bukan diasumsikan:** TV didaftarkan lewat API
+sungguhan, menyambung ke Reverb lewat WebSocket, diotorisasi dengan
+`X-Device-Token`, lalu menerima `session.extended` dan `session.updated` di
+`private-station.ST01`.
+
+```bash
+php artisan realtime:listen --device-token=<token> --channel=station.ST01
+```
+
+Perintah itu meniru TV Agent dan bisa dipakai teman yang memegang Kotlin untuk
+membandingkan: kalau event muncul di sana tapi tidak di APK, masalahnya di APK.
+
+**Yang perlu diketahui Kotlin TV Agent**
+- Alur provisioning: Admin memberi kode station → `POST /devices/register` →
+  simpan `device_token` secara persisten. Mendaftar ulang **mematikan token
+  lama**.
+- `known_session_id` + `known_end_at` di heartbeat dibandingkan server;
+  `state_match: false` berarti pakai `state` dari response. Itu reconcile murah
+  yang justru paling dibutuhkan saat WebSocket putus.
+- Server **tidak pernah** mengirim sisa detik. Hitung dari `end_at` + offset,
+  dan `end_at: null` berarti hitung **maju** dari `started_at` (DEC-034).
+
+---
+
 ## v1 · DRAFT <n> — YYYY-MM-DD
 
 **<JENIS> — API|REALTIME** · terdampak: Flutter | Kotlin | Admin | semua

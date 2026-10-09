@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Models\Concerns\HasUuidKey;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
@@ -16,8 +18,14 @@ use Illuminate\Support\Carbon;
     'last_seen_at', 'uptime_seconds', 'registered_at',
 ])]
 #[Hidden(['token_hash'])]
-class Device extends Model
+class Device extends Model implements Authenticatable
 {
+    /*
+     * Authenticatable supaya Device bisa jadi hasil guard `device` —
+     * dengan begitu `auth:device` dan otorisasi channel `private-station.*`
+     * memakai mesin yang sama dengan user, bukan jalur buatan sendiri.
+     */
+    use AuthenticatableTrait;
     use HasUuidKey;
 
     /**
@@ -54,5 +62,45 @@ class Device extends Model
     public function isRevoked(): bool
     {
         return $this->revoked_at !== null;
+    }
+
+    /**
+     * Membuat token baru dan menyimpan HASH-nya.
+     *
+     * Token aslinya dikembalikan sekali ini saja — tidak pernah bisa dibaca
+     * ulang dari database. Kalau TV kehilangan tokennya, jalannya mendaftar
+     * ulang, bukan menanyakan yang lama.
+     *
+     * @return string Token mentah, HANYA kali ini.
+     */
+    public function issueToken(): string
+    {
+        $plain = bin2hex(random_bytes(32));
+
+        $this->token_hash = hash('sha256', $plain);
+        $this->revoked_at = null;
+        $this->save();
+
+        return $plain;
+    }
+
+    /**
+     * Mencari device dari token mentah di header `X-Device-Token`.
+     *
+     * Mencocokkan hash, bukan tokennya — kalau database terbaca, isinya tidak
+     * bisa dipakai menyamar jadi TV mana pun.
+     */
+    public static function fromToken(?string $plain): ?self
+    {
+        if ($plain === null || $plain === '') {
+            return null;
+        }
+
+        $device = self::query()
+            ->whereNull('revoked_at')
+            ->where('token_hash', hash('sha256', $plain))
+            ->first();
+
+        return $device;
     }
 }

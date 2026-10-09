@@ -28,6 +28,7 @@ class RealtimeListen extends Command
         {--username=operator1}
         {--password=password}
         {--channel=operator : Nama channel tanpa awalan private-}
+        {--device-token= : Pakai X-Device-Token, bukan login. Untuk meniru TV Agent}
         {--seconds=30 : Berapa lama mendengarkan}';
 
     protected $description = 'Menyambung ke Reverb sebagai client dan mencetak event yang diterima';
@@ -155,6 +156,30 @@ class RealtimeListen extends Command
     private function authorizeChannel(string $socketId, string $channel): ?string
     {
         $base = rtrim((string) $this->option('api'), '/');
+        $deviceToken = $this->option('device-token');
+
+        /*
+         * Dua jalur, sesuai dua guard yang diterima `POST /broadcasting/auth`:
+         * Flutter memakai Bearer token, Kotlin TV Agent memakai
+         * `X-Device-Token`. Keduanya bisa ditiru dari sini supaya otorisasi
+         * channel TV benar-benar teruji, bukan cuma diasumsikan.
+         */
+        if ($deviceToken !== null) {
+            $this->line('Memakai X-Device-Token (meniru TV Agent).');
+
+            $auth = $this->postJson("{$base}/broadcasting/auth", [
+                'socket_id' => $socketId,
+                'channel_name' => $channel,
+            ], null, $deviceToken);
+
+            if (! isset($auth['auth'])) {
+                $this->error('Otorisasi channel ditolak: '.json_encode($auth));
+
+                return null;
+            }
+
+            return $auth['auth'];
+        }
 
         $login = $this->postJson("{$base}/api/v1/auth/login", [
             'username' => $this->option('username'),
@@ -312,12 +337,16 @@ class RealtimeListen extends Command
         return $opcode === 0x1 ? $payload : null;
     }
 
-    private function postJson(string $url, array $body, ?string $token = null): array
+    private function postJson(string $url, array $body, ?string $token = null, ?string $deviceToken = null): array
     {
         $headers = ['Content-Type: application/json', 'Accept: application/json'];
 
         if ($token !== null) {
             $headers[] = "Authorization: Bearer {$token}";
+        }
+
+        if ($deviceToken !== null) {
+            $headers[] = "X-Device-Token: {$deviceToken}";
         }
 
         $ch = curl_init($url);

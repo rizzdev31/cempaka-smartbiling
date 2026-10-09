@@ -1231,6 +1231,62 @@ diputuskan sebaliknya.
 
 ---
 
+## DEC-038 — Kode pendaftaran TV tinggal di station, bukan tabel tersendiri
+**Tanggal:** 10 Okt 2026 · **Status:** APPROVED (keputusan teknis) · **Melengkapi:** `API.md` §9, PRD §10
+
+Kontrak menyebut `POST /devices/register` "butuh kode pendaftaran yang dibuat
+Admin", tapi tidak menetapkan di mana kode itu tinggal. Ditaruh di kolom
+`stations.enrollment_code`.
+
+**Alasannya:** kode itulah yang menentukan TV ini milik station yang mana —
+response register mengembalikan `station: { code }`, jadi pemetaannya memang
+berasal dari kodenya.
+
+**Alternatif yang ditolak:** tabel `device_enrollments` tersendiri, yang
+memungkinkan kode sekali pakai dan kedaluwarsa. Lebih aman, tapi selama Tahap 2
+teknisi akan mendaftarkan ulang TV berkali-kali saat uji coba — dan kode sekali
+pakai tanpa UI Admin (Tahap 3B) akan buntu setelah percobaan pertama.
+
+**Yang mengikat di backend:**
+- Kode dibuat seeder, enam karakter, tanpa huruf ambigu (`0/O`, `1/I/L`) karena
+  teknisi membacakannya ke layar TV lewat remote.
+- Seeder hanya membuat kode kalau **belum ada**. Kalau ikut di-update setiap
+  seed, TV yang sudah terdaftar kehilangan acuannya.
+- Mendaftarkan ulang TV yang **sama** boleh (token baru, yang lama mati).
+  Station yang sudah dipegang TV **lain** ditolak `409 STATION_HAS_DEVICE`.
+
+**Konsekuensi yang perlu diterima → OD-027.** Kode ini **berumur panjang** dan
+tidak kedaluwarsa. Siapa pun yang melihatnya dan berada di WiFi yang sama bisa
+mendaftarkan TV ke station itu — tapi hanya kalau station itu belum dipegang TV
+lain, dan token yang didapat cuma bisa heartbeat serta membaca state station
+tersebut. Risikonya kecil di jaringan lokal; perlu ditinjau ulang saat pindah
+VPS (Tahap 3A).
+
+---
+
+## DEC-039 — `display.mode: LOCKED` akhirnya dipakai
+**Tanggal:** 10 Okt 2026 · **Status:** APPROVED · **Menutup:** catatan "LOCKED belum dipakai" di `API.md` §9 · **Turunan:** DEC-030, DEC-033
+
+Kontrak menandai `LOCKED` sebagai "belum dipakai di v1, menunggu OD-001 &
+OD-004". Keduanya sudah diputuskan — DEC-033 (waktu habis berarti berhenti, TV
+mati/standby) dan DEC-030 (warning overlay) — jadi penahannya sudah hilang.
+
+| Keadaan sesi | `display.mode` |
+|---|---|
+| tidak ada sesi, atau `PENDING_PAYMENT` | `IDLE` |
+| `ACTIVE` / `WARNING` | `TIMER` |
+| `EXPIRED` / `CHECKOUT` | `LOCKED` |
+
+`LOCKED` berarti **station ini tidak boleh dimainkan**. Server berhenti di
+situ: bentuk visualnya — padam, standby, atau layar "waktu habis, silakan ke
+kasir" — adalah sisa OD-004 dan urusan Tahap 2.
+
+Dipisahkan dari `IDLE` dengan sengaja. Keduanya sama-sama "tidak bisa main",
+tapi artinya berbeda bagi customer yang duduk di depannya: `IDLE` berarti belum
+ada yang menyewa, `LOCKED` berarti waktunya sudah habis dan dia perlu ke kasir.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -1240,6 +1296,7 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | ~~OD-001~~ | ~~Overstay: EXPIRED tapi customer masih bermain~~ | **DIPUTUSKAN → DEC-023** (timer jalan terus, kelebihan ditagih di checkout) + **DEC-024** (sisa waktu hangus kecuali member). Perilaku lock/overlay TV saat EXPIRED tetap di OD-004 | — |
 | **OD-025** | **Harga berdasarkan waktu** — jam pagi, happy hour, jam malam. User: "nanti ada aplikasi minta... jadi kita custom harganya kalau lagi sepi." Paket 3 jam PS3 20.000 / PS4 25.000 di catatan adalah harga jam sepi, jadi sudah ada contoh nyatanya | Muncul dari DEC-036. Butuh jadwal tarif per tipe konsol, dan keputusan apa yang terjadi kalau sesi melewati pergantian jadwal | Tahap 3B |
 | **OD-026** | **Durasi paket "free 2 minuman"** (PS3 40.000, PS4 50.000). Harganya sudah pasti, jamnya belum disebut | Muncul dari DEC-036. Tanpa durasi, paketnya tidak bisa dimasukkan ke sistem sama sekali | Saat paket F&B dibuat |
+| **OD-027** | Kode pendaftaran TV **tidak kedaluwarsa dan bisa dipakai berulang** (DEC-038). Perlu sekali pakai + masa berlaku, atau cukup begini? | Risikonya kecil di WiFi lokal: butuh akses jaringan, station harus belum dipegang TV lain, dan tokennya cuma bisa heartbeat. Perlu ditinjau ulang saat pindah VPS | Tahap 3A |
 | **OD-002 🔴** | **Jadi lebih mendesak sejak DEC-034** — Postpaid tidak lagi punya batas waktu, jadi kerugian kalau customer kabur tidak terbatas. Deposit? batas maksimum? catat identitas? — deposit? batas maksimum open tab? catat identitas? | PRD §12 memperbolehkan Postpaid tapi tidak punya mitigasi kerugian. | Tahap 1 |
 | ~~OD-003~~ | ~~Extend pricing & extend setelah EXPIRED~~ | **DIPUTUSKAN → DEC-007** | — |
 | ~~OD-004~~ | ~~Perilaku warning di TV~~ | **DIPUTUSKAN → DEC-030** (overlay kecil di kanan atas). Bunyi & bisa-ditutup belum, default: tanpa suara, tidak bisa ditutup | — |

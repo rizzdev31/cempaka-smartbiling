@@ -101,7 +101,7 @@ class MasterDataSeeder extends Seeder
 
         $i = 0;
         foreach ($stations as $code => $typeName) {
-            Station::query()->updateOrCreate(
+            $station = Station::query()->updateOrCreate(
                 ['code' => $code],
                 [
                     'name' => 'Station '.ltrim(substr($code, 2), '0'),
@@ -110,6 +110,16 @@ class MasterDataSeeder extends Seeder
                     'sort_order' => ++$i,
                 ],
             );
+
+            /*
+             * Kode pendaftaran TV (API.md §9). Dibuat HANYA kalau belum ada —
+             * kalau ikut di-update setiap seed, TV yang sudah terdaftar akan
+             * kehilangan acuannya dan teknisi harus mendaftar ulang semuanya
+             * setiap kali seeder dijalankan.
+             */
+            if ($station->enrollment_code === null) {
+                $station->forceFill(['enrollment_code' => Station::generateEnrollmentCode()])->save();
+            }
         }
 
         /*

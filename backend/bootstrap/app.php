@@ -37,7 +37,13 @@ return Application::configure(basePath: dirname(__DIR__))
      */
     ->withBroadcasting(
         __DIR__.'/../routes/channels.php',
-        ['middleware' => ['auth:sanctum']],
+        /*
+         * Dua guard: Flutter memakai Bearer token (sanctum), Kotlin TV Agent
+         * memakai header X-Device-Token (device). Keduanya menuju endpoint
+         * yang sama supaya tidak ada jalur otorisasi channel kedua yang harus
+         * dijaga terpisah.
+         */
+        ['middleware' => ['auth:sanctum,device']],
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // ServerTime dipasang GLOBAL dan paling luar, bukan di grup 'api'.

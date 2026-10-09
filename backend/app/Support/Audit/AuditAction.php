@@ -38,6 +38,9 @@ final class AuditAction
     public const CUSTOMER_CREATED = 'customer.created';
     public const MEMBERSHIP_CREATED = 'customer.membership.created';
 
+    /** Provisioning TV (API.md §9). Token baru diterbitkan di sini. */
+    public const DEVICE_REGISTERED = 'device.registered';
+
     /** DEC-026 — saldo member. Wajib diaudit: ini uang customer. */
     public const CREDIT_EARNED = 'customer.credit.earned';
     public const CREDIT_USED = 'customer.credit.used';
