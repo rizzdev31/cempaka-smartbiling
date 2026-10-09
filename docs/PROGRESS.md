@@ -50,17 +50,22 @@ Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat 
 - [x] Session state machine + test per transisi — 8 Okt, `SessionStatus::allowedNext()` + 12 test
 - [x] Billing engine: Prepaid / Postpaid / Open Tab / `session_items` — 8 Okt, `SessionTotals` + `SessionService`
 - [x] Rounding durasi Postpaid per DEC-009 + unit test (35→30, 63→60, 70→90, 95→90) — 8 Okt
-- [x] Extend blok 30 menit + grace 10 menit per DEC-007 + test penolakan di menit ke-11 — 8 Okt
+- [x] Extend blok 30 menit per DEC-007 — 8 Okt. ~~Grace 10 menit~~ **dicabut DEC-033**: extend hanya boleh sebelum waktu habis
 - [x] Payment manual cash + QRIS statis + audit — 8 Okt (checkout belum)
 - [x] ~~Overstay DEC-023~~ — **dicabut DEC-033**: waktu habis berarti berhenti, TV mati, tidak ada penagihan kelebihan sama sekali
 - [x] F&B order endpoint → 8 Okt, 4 endpoint + antrian dapur
 - [x] Extend + approval operator → 8 Okt (operator = approver, PRD §14)
 - [x] Station Swap atomic → 8 Okt, jaminan R07 diuji terpisah
-- [x] Checkout → satu final transaction → 8 Okt, termasuk overstay + saldo member
+- [x] Checkout → satu final transaction → 8 Okt, termasuk saldo member (DEC-026)
 - [x] Reverb lokal + semua event PRD §23 → 8 Okt, 8 event (`device.heartbeat` menunggu Tahap 2)
 - [x] Scheduler reconciliation `session.expired` → 8 Okt, `sessions:reconcile` tiap menit
 - [x] `audit_logs` terisi untuk aksi sensitif → 8 Okt, 14 aksi termasuk saldo member
-- [x] Golden path ST01 lulus → 8 Okt. 33/33 lewat HTTP (`php artisan serve` + curl), plus `GoldenPathTest` otomatis. Koleksi Postman tersedia di `docs/postman/`
+- [x] Shift kasir: `open` / `close` / `current` → 8 Okt. Sebelumnya `shift_id` selalu NULL
+- [x] Customer + membership: cari, daftar, jadikan member (DEC-027/029) → 8 Okt
+- [ ] **Master data read-only: `GET /stations`, `GET /packages`** → belum ada
+- [ ] **`POST /sessions/{id}/cancel`** → belum ada. Ada di kontrak §7, batal dari `PENDING_PAYMENT`
+- [ ] Throttle broadcast (REALTIME.md §7): debounce `session.updated` 500 ms
+- [x] Golden path ST01 lulus → 8 Okt. 33/33 lewat HTTP (`php artisan serve` + curl), plus `GoldenPathTest` otomatis. Koleksi Postman di `docs/postman/`. **Catatan:** `station_id`/`package_id` masih diambil dari database karena `GET /stations` belum ada, jadi exit criteria ROADMAP "tanpa sentuh DB manual" belum terpenuhi penuh
 
 ### Checklist Tahap 1 (Flutter)
 
