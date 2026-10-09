@@ -1,7 +1,7 @@
 {
     "info": {
         "name": "Cempaka Smart Billing — Tahap 0 Golden Path",
-        "description": "Golden Path ST01 sesuai CLAUDE.md §8: start -> timer -> F&B -> extend -> warning -> checkout -> completed.\n\nJalankan berurutan lewat Collection Runner. Semua id diambil dari API — station, paket, dan menu dibaca lewat GET, lalu disimpan sendiri ke variabel. TIDAK ADA yang perlu disalin dari database.\n\nSebelum menjalankan:\n1. php artisan migrate:fresh --seed\n2. php artisan serve --host 0.0.0.0\n3. php artisan schedule:work di terminal lain (untuk langkah WARNING/EXPIRED)\n4. php artisan reverb:start kalau ingin melihat event\n\nIsi variabel base_url sesuai IP laptop. Jangan hardcode IP di tempat lain (DEC-002).",
+        "description": "Golden Path ST01 sesuai CLAUDE.md §8: start -> timer -> F&B -> extend -> warning -> checkout -> completed.\n\nJalankan berurutan lewat Collection Runner. Semua id diambil dari API — station, paket, dan menu dibaca lewat GET, lalu disimpan sendiri ke variabel. TIDAK ADA yang perlu disalin dari database.\n\nSebelum menjalankan:\n1. php artisan migrate:fresh --seed\n2. php artisan serve --host 0.0.0.0\n3. php artisan schedule:work di terminal lain (untuk langkah WARNING/EXPIRED)\n4. php artisan reverb:start di terminal lain\n5. php artisan queue:work di terminal lain -- TANPA INI event realtime menumpuk diam-diam di tabel jobs dan tidak pernah terkirim\n\nIsi variabel base_url sesuai IP laptop. Jangan hardcode IP di tempat lain (DEC-002).",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "variable": [

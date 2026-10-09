@@ -2208,3 +2208,63 @@ plus test tarif paket bonus waktu.
 
 **Next step** — tidak berubah: keputusan **OD-002** sebelum dipakai untuk uang
 nyata. Setelah itu DEC-037 (paket berisi F&B) kalau paket minuman mau dijual.
+
+---
+
+### 2026-10-10 — [Backend] Audit Tahap 0: satu bug realtime yang tidak tertangkap test
+
+User minta diperiksa ulang apakah Tahap 0 benar-benar selesai. Diaudit butir
+per butir terhadap scope ROADMAP, bukan dari ingatan. **Hasilnya: satu bug
+nyata ditemukan.**
+
+**Reverb tidak pernah benar-benar dijalankan sampai hari ini**
+
+Seluruh test memakai `BROADCAST_CONNECTION=null`, jadi 234 test bisa hijau
+tanpa satu event pun benar-benar terkirim. Saat dicoba sungguhan dengan
+`reverb:start` + `queue:work`, hasilnya:
+
+```
+App\Events\SessionStarted .. FAIL
+cURL error 7: Failed to connect to 0.0.0.0 port 8080
+```
+
+**Penyebabnya saya sendiri.** Laravel punya DUA variabel host yang berbeda:
+
+| Variabel | Artinya | Nilai benar |
+|---|---|---|
+| `REVERB_SERVER_HOST` | alamat yang **didengarkan** Reverb | `0.0.0.0` |
+| `REVERB_HOST` | alamat yang **dihubungi Laravel** saat mengirim event | `127.0.0.1` |
+
+Saat memulihkan konfigurasi Reverb 8 Okt, saya menulis `REVERB_HOST=0.0.0.0`.
+Itu bukan alamat tujuan yang sah. Setiap broadcast gagal dan masuk
+`failed_jobs` **tanpa tanda apa pun di sisi operator** — API tetap membalas
+201, sesi tetap dibuat, hanya tabletnya yang tidak pernah dapat kabar.
+
+Setelah diperbaiki, broadcast berhasil (`DONE`) dan Reverb menerimanya.
+
+**Temuan kedua: `queue:work` tidak pernah didokumentasikan**
+
+`queue.default = database`, jadi event broadcast masuk antrean. Tanpa worker,
+event menumpuk diam-diam di tabel `jobs` dan tidak pernah terkirim. README dan
+koleksi Postman hanya menyebut `serve`, `reverb:start`, dan `schedule:work` —
+`queue:work` tidak ada di mana pun.
+
+Desain antreannya sendiri **benar** dan tidak diubah: REALTIME.md §1 menyatakan
+realtime adalah optimasi, bukan sumber kebenaran, jadi Reverb yang mati tidak
+boleh membuat permintaan HTTP gagal. Yang salah dokumentasinya.
+
+README sekarang memuat keempat proses beserta akibat kalau tidak dijalankan,
+penjelasan dua host Reverb, dan satu perintah untuk memeriksa apakah realtime
+benar-benar jalan.
+
+**Sisa audit: bersih**
+
+Seluruh scope Tahap 0 di ROADMAP tercentang. Endpoint PRD §23 lengkap kecuali
+`/api/bookings` (Tahap 3) dan `/api/devices/heartbeat` (Tahap 2), keduanya
+memang di luar Tahap 0. Delapan event terdaftar, 19 aksi audit, 24 endpoint.
+
+**Yang masih belum terbukti:** sisi *subscribe* — apakah tablet dan TV benar-
+benar menerima event. Tidak bisa dibuktikan sekarang karena belum ada client
+yang menyambung; itu Tahap 1 dan 2.
+
+**Tests** — 234 lulus, 843 assertion.

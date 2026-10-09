@@ -36,7 +36,42 @@ php artisan reverb:start --host=0.0.0.0 --port=8080
 php artisan schedule:work
 ```
 
-`--host=0.0.0.0` **wajib** — default `127.0.0.1` tidak bisa diakses tablet/TV.
-`schedule:work` **wajib** — tanpa itu session tidak akan pernah jadi `EXPIRED`.
+```bash
+php artisan queue:work
+```
+
+Keempatnya jalan **bersamaan**, masing-masing di terminal sendiri.
+
+| Proses | Kalau tidak dijalankan |
+|---|---|
+| `serve --host=0.0.0.0` | Tablet dan TV tidak bisa menghubungi API sama sekali. Default `127.0.0.1` hanya bisa diakses laptop itu sendiri |
+| `reverb:start` | Tidak ada realtime. Tablet tetap jalan dari HTTP (REALTIME.md §1), tapi harus menunggu refresh |
+| `schedule:work` | Session **tidak akan pernah** jadi `WARNING` maupun `EXPIRED` |
+| `queue:work` | **Semua event realtime menumpuk diam-diam di tabel `jobs` dan tidak pernah terkirim.** Tidak ada error di layar operator — kelihatannya normal, padahal tablet tidak pernah dapat kabar |
+
+Yang terakhir paling mudah terlewat, karena gagalnya tidak terlihat.
+
+### Dua host Reverb yang berbeda
+
+Ini pernah membuat seluruh broadcast gagal diam-diam, jadi perlu ditulis:
+
+| Variabel | Artinya | Isi |
+|---|---|---|
+| `REVERB_SERVER_HOST` | alamat yang **didengarkan** Reverb | `0.0.0.0` supaya tablet & TV bisa menyambung |
+| `REVERB_HOST` | alamat yang **dihubungi Laravel** saat mengirim event | `127.0.0.1` |
+
+`REVERB_HOST=0.0.0.0` **salah** — itu bukan alamat tujuan yang sah, dan setiap
+broadcast masuk `failed_jobs` dengan `cURL error 7` tanpa tanda apa pun di sisi
+operator.
+
+### Memeriksa realtime benar-benar jalan
+
+```bash
+php artisan tinker --execute="echo DB::table('jobs')->count().' antre, '.DB::table('failed_jobs')->count().' gagal';"
+```
+
+Dua-duanya harus **0** setelah beberapa detik. `jobs` menumpuk berarti
+`queue:work` tidak jalan; `failed_jobs` bertambah berarti Reverb tidak bisa
+dihubungi.
 
 Detail persiapan lengkap: [`../docs/TEST-PLAN-SABTU.md`](../docs/TEST-PLAN-SABTU.md) Bagian 0.
