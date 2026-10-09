@@ -4,7 +4,7 @@ namespace App\Console\Commands;
 
 use App\Enums\SessionStatus;
 use App\Events\SessionExpired;
-use App\Events\SessionUpdated;
+use App\Support\Realtime\SessionUpdateBroadcaster;
 use App\Models\BillingSession;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -75,10 +75,7 @@ class ReconcileSessions extends Command
             if ($target === SessionStatus::EXPIRED) {
                 SessionExpired::dispatch($session);
             } else {
-                SessionUpdated::dispatch(
-                    $session->fresh(['station', 'customer', 'items', 'payments']),
-                    ['status'],
-                );
+                SessionUpdateBroadcaster::schedule($session, ['status']);
             }
 
             $this->line("{$session->code}: {$from->value} -> {$target->value}");

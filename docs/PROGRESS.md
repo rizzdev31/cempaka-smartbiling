@@ -64,7 +64,7 @@ Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat 
 - [x] Customer + membership: cari, daftar, jadikan member (DEC-027/029) → 8 Okt
 - [x] Master data read-only: `GET /stations`, `GET /packages` → 9 Okt. `/packages` menerima filter `station_id` (DEC-019)
 - [x] `POST /sessions/{id}/cancel` → 9 Okt. Batal dari `PENDING_PAYMENT`, station langsung kosong
-- [ ] Throttle broadcast (REALTIME.md §7): debounce `session.updated` 500 ms → **sengaja ditunda**, alasannya di entry 9 Okt
+- [x] Throttle broadcast (REALTIME.md §7): debounce `session.updated` 500 ms → 10 Okt, lewat job tertunda yang membaca ulang sesi saat berjalan
 - [x] Golden path ST01 lulus → 8 Okt. 33/33 lewat HTTP (`php artisan serve` + curl), plus `GoldenPathTest` otomatis. Koleksi Postman di `docs/postman/`. **9 Okt: exit criteria ROADMAP terpenuhi penuh** → 38 pemeriksaan lewat HTTP, semua id dari `GET /stations` / `GET /packages` / `GET /fnb/products`, tanpa menyentuh database sama sekali
 
 ### Checklist Tahap 1 (Flutter)
@@ -2268,3 +2268,78 @@ benar menerima event. Tidak bisa dibuktikan sekarang karena belum ada client
 yang menyambung; itu Tahap 1 dan 2.
 
 **Tests** — 234 lulus, 843 assertion.
+
+---
+
+### 2026-10-10 — [Backend] Throttle broadcast + sisi subscribe akhirnya terbukti
+
+Dua butir terakhir yang kemarin masih menggantung. Checklist Tahap 0 sekarang
+**tercentang seluruhnya**.
+
+## 1. Debounce `session.updated` — dikerjakan dengan benar, bukan yang mudah
+
+Kemarin ini ditunda dengan alasan: cara mudahnya (buang event yang datang
+dalam 500 ms terakhir) adalah **throttle**, dan bisa membuang event
+**terakhir** — tablet lalu menampilkan tagihan basi.
+
+Yang dipasang sekarang debounce sungguhan:
+
+- Perubahan pertama **menjadwalkan** satu job tertunda; perubahan berikutnya
+  dalam jendela yang sama tidak menambah job apa pun.
+- Job membawa **id**, bukan objek sesi. Saat berjalan ia **membaca ulang sesi
+  dari database** — jadi yang terkirim selalu keadaan terbaru. Tidak ada
+  perubahan yang bisa hilang.
+- Penanda dilepas **sebelum** broadcast dikirim. Kalau dilepas sesudahnya,
+  perubahan yang terjadi selama pengiriman dianggap masih dalam jendela dan
+  tidak dijadwalkan — persis kehilangan event terakhir yang ingin dihindari.
+- Penanda punya TTL 60 detik, supaya satu job yang tidak pernah jalan tidak
+  memblokir broadcast sesi itu selamanya.
+
+`SessionUpdated` jadi `ShouldBroadcastNow` dan **hanya boleh dipicu dari job
+itu**. Lima pemanggil langsung di service dan scheduler dialihkan ke
+`SessionUpdateBroadcaster::schedule()`.
+
+**Batas ketelitian:** queue database menyimpan waktu dalam detik, jadi jendela
+500 ms praktisnya 0–1 detik. Tidak mengubah sifatnya — tujuannya mengurangi
+jumlah broadcast saat ramai, bukan presisi waktu.
+
+7 test baru. Yang terpenting `test_broadcast_membawa_keadaan_terbaru_bukan_
+potret_lama`: menjadwalkan, lalu mengubah tagihan, baru menjalankan job — dan
+yang terkirim harus angka yang baru.
+
+## 2. Sisi subscribe akhirnya dibuktikan
+
+Kemarin tertulis "belum bisa diuji karena belum ada client". Sekarang ada:
+`php artisan realtime:listen`, client WebSocket sungguhan yang menempuh jalur
+persis sama dengan Flutter dan Kotlin nanti:
+
+```
+login -> handshake WebSocket -> POST /broadcasting/auth -> pusher:subscribe
+```
+
+Dijalankan dengan Reverb + serve + queue:work hidup, lalu sesi dibuat dan
+dibayar lewat curl. Hasilnya:
+
+```
+Tersambung. socket_id = 199399351.639203837
+Otorisasi channel private-operator berhasil.
+Berhasil subscribe ke private-operator.
+
+EVENT #1: session.started
+EVENT #2: payment.confirmed
+EVENT #3: session.updated
+```
+
+Tiga event asli diterima client. Ini sekaligus membuktikan debounce-nya jalan
+di jalur sungguhan, bukan hanya di test.
+
+Perintahnya ditulis dengan soket mentah, tanpa menambah dependensi, dan tetap
+berguna di lapangan: kalau operator bilang tabletnya tidak update, jalankan ini
+untuk tahu masalahnya di client atau di server.
+
+**Tests** — 241 lulus, 852 assertion.
+
+**Checklist Tahap 0: selesai seluruhnya.**
+
+**Next step** — keputusan **OD-002** sebelum dipakai untuk uang nyata, lalu
+DEC-037 (paket berisi F&B) kalau paket minuman mau dijual.

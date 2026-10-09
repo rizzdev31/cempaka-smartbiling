@@ -7,12 +7,12 @@ use App\Enums\SessionItemType;
 use App\Enums\SessionStatus;
 use App\Events\PaymentConfirmed;
 use App\Events\SessionStarted;
-use App\Events\SessionUpdated;
 use App\Exceptions\ApiException;
 use App\Models\BillingSession;
 use App\Models\Payment;
 use App\Models\User;
 use App\Support\Api\ErrorCode;
+use App\Support\Realtime\SessionUpdateBroadcaster;
 use App\Support\Audit\AuditAction;
 use App\Support\Audit\AuditLogger;
 use Illuminate\Support\Carbon;
@@ -119,7 +119,7 @@ class PaymentService
             }
 
             PaymentConfirmed::dispatch($session, $payment, $actor);
-            SessionUpdated::dispatch($session, ['totals', 'status']);
+            SessionUpdateBroadcaster::schedule($session, ['totals', 'status']);
 
             return $payment;
         });

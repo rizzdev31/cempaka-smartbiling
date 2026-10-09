@@ -74,4 +74,19 @@ Dua-duanya harus **0** setelah beberapa detik. `jobs` menumpuk berarti
 `queue:work` tidak jalan; `failed_jobs` bertambah berarti Reverb tidak bisa
 dihubungi.
 
+Untuk memastikan event benar-benar **sampai ke client**, bukan sekadar
+terkirim dari server:
+
+```bash
+php artisan realtime:listen --api=http://127.0.0.1:8000 --seconds=60
+```
+
+Perintah itu menyambung ke Reverb sebagai client sungguhan — menempuh jalur
+yang sama dengan Flutter dan Kotlin: login, handshake WebSocket, minta tanda
+tangan ke `POST /broadcasting/auth`, lalu subscribe. Setiap event yang masuk
+dicetak ke layar.
+
+Kalau operator bilang "tabletnya tidak update", jalankan ini di laptop: kalau
+event muncul di sini, masalahnya di client; kalau tidak, masalahnya di server.
+
 Detail persiapan lengkap: [`../docs/TEST-PLAN-SABTU.md`](../docs/TEST-PLAN-SABTU.md) Bagian 0.

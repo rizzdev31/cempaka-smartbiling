@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Enums\FnbOrderStatus;
 use App\Enums\SessionItemType;
 use App\Events\FnbOrderCreated;
-use App\Events\SessionUpdated;
+use App\Support\Realtime\SessionUpdateBroadcaster;
 use App\Exceptions\ApiException;
 use App\Models\BillingSession;
 use App\Models\FnbOrder;
@@ -98,10 +98,7 @@ class FnbService
         });
 
         FnbOrderCreated::dispatch($order);
-        SessionUpdated::dispatch(
-            $session->fresh(['station', 'customer', 'items', 'payments']),
-            ['items', 'totals'],
-        );
+        SessionUpdateBroadcaster::schedule($session, ['items', 'totals']);
 
         return $order;
     }

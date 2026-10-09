@@ -7,7 +7,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\SessionItemType;
 use App\Enums\SessionMode;
 use App\Enums\SessionStatus;
-use App\Events\SessionUpdated;
+use App\Support\Realtime\SessionUpdateBroadcaster;
 use App\Exceptions\ApiException;
 use App\Models\BillingSession;
 use App\Models\CustomerCredit;
@@ -116,10 +116,7 @@ class CheckoutService
             ];
         });
 
-        SessionUpdated::dispatch(
-            $result['session']->fresh(['station', 'customer', 'items', 'payments']),
-            ['status', 'totals'],
-        );
+        SessionUpdateBroadcaster::schedule($result['session'], ['status', 'totals']);
 
         return $result;
     }

@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Enums\SessionStatus;
-use App\Events\SessionUpdated;
+use App\Support\Realtime\SessionUpdateBroadcaster;
 use App\Exceptions\ApiException;
 use App\Models\BillingSession;
 use App\Models\User;
@@ -80,7 +80,7 @@ class CancelService
             return $session->fresh(['station', 'customer', 'items', 'payments']);
         });
 
-        SessionUpdated::dispatch($session, ['status']);
+        SessionUpdateBroadcaster::schedule($session, ['status']);
 
         return $session;
     }

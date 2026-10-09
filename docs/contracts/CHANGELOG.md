@@ -423,6 +423,42 @@ tanpa menyentuh database: 38 pemeriksaan lewat HTTP, semua id diambil dari
 
 ---
 
+## v1 · DRAFT 13 — 2026-10-10
+
+Tidak ada perubahan bentuk data. Yang berubah: dua hal di `REALTIME.md` yang
+sebelumnya hanya tertulis, sekarang benar-benar berjalan.
+
+**IMPLEMENTED — REALTIME** · semua client
+- **Debounce `session.updated` 500 ms per sesi** (§7) sekarang aktif. Perubahan
+  beruntun pada satu sesi menghasilkan **satu** event, bukan satu per perubahan.
+- Event itu membawa **keadaan terbaru**, bukan potret saat perubahan pertama.
+  Tidak ada perubahan yang hilang karena di-debounce.
+
+**Yang perlu diketahui Flutter**
+- Jumlah `session.updated` yang diterima akan **berkurang** saat ramai. Itu
+  disengaja. Karena payload-nya selalu objek `session` utuh (§5), satu event
+  sudah cukup — jangan menghitung event untuk melacak berapa kali sesuatu
+  berubah.
+- `changed[]` sekarang bisa berisi **gabungan** beberapa perubahan sekaligus,
+  mis. `["items","totals","status"]` dalam satu event. Tetap petunjuk UI saja.
+- Jedanya 0–1 detik pada praktiknya: queue database menyimpan waktu dalam
+  detik. Timer tidak terpengaruh — timer dihitung client dari `end_at`.
+
+**Yang perlu diketahui keduanya**
+- Sisi subscribe sudah **dibuktikan bekerja**, bukan hanya diasumsikan:
+  `php artisan realtime:listen` menyambung ke Reverb sebagai client sungguhan
+  lewat jalur yang sama dengan Flutter dan Kotlin — login, handshake WebSocket,
+  `POST /broadcasting/auth` dengan Bearer token, lalu subscribe — dan menerima
+  `session.started`, `payment.confirmed`, serta `session.updated`.
+- Pakai perintah itu untuk memastikan masalah ada di client atau di server
+  sebelum menebak.
+
+**Catatan operasional yang mengikat siapa pun yang menjalankan server:**
+tanpa `php artisan queue:work`, **tidak ada satu pun event yang terkirim** —
+semuanya menumpuk diam-diam di tabel `jobs`. Tidak ada error yang terlihat.
+
+---
+
 ## v1 · DRAFT <n> — YYYY-MM-DD
 
 **<JENIS> — API|REALTIME** · terdampak: Flutter | Kotlin | Admin | semua
