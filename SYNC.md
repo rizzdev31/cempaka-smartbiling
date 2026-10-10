@@ -6,14 +6,18 @@
 
 **Terakhir diperbarui:** 10 Oktober 2026 · **Kontrak:** `v1 DRAFT 15`
 
+> **Perubahan batas kerja (10 Okt):** user mencabut aturan "backend saja".
+> Claude sekarang juga menyentuh `operator-app/` dan `tv-agent/`.
+> **Koordinasikan sebelum mengedit file yang sama.**
+
 ---
 
 ## Keadaan sekarang
 
 | Bagian | Status |
 |---|---|
-| **Backend (Laravel)** | Tahap 0 **SELESAI**. 31 endpoint, 9 event realtime, 280 test lulus |
-| **Operator app (Flutter)** | Layar sudah jadi, tapi **masih memakai data palsu** — belum menyambung ke API |
+| **Backend (Laravel)** | Tahap 0 **SELESAI**. 32 endpoint, 9 event realtime, 281 test lulus |
+| **Operator app (Flutter)** | Layar sudah jadi. Klien API **sudah ada** (`lib/data/api/`), tapi aplikasi **masih memakai data palsu** — belum dialihkan dan belum ada login |
 | **TV Agent (Kotlin)** | Kiosk + timer jalan, tapi **belum menyambung ke Laravel** — masih menerima perintah langsung dari tablet |
 
 ---
@@ -22,8 +26,9 @@
 
 | # | Pekerjaan | Kenapa mendesak |
 |---|---|---|
-| 1 | **`ApiBillingRepository`** menggantikan `FakeBillingRepository` | Tanpa ini aplikasi tidak pernah menyentuh server. Semua di bawah ini sia-sia |
-| 2 | Login / auth (simpan token Sanctum) | Semua endpoint selain `/health` butuh token |
+| ✅ | **`ApiBillingRepository`** — sudah ditulis di `lib/data/api/`, 20 method, `flutter analyze` bersih | — |
+| 1 | **Layar login** + simpan token | Tanpa token, semua endpoint selain `/health` ditolak |
+| 2 | **Alihkan `main.dart`** dari `FakeBillingRepository` ke `ApiBillingRepository` | Satu baris, tapi sampai itu dilakukan aplikasi tetap memakai data palsu |
 | 3 | Klien Reverb + reconnect | Tablet tidak tahu apa pun yang terjadi di tablet/TV lain |
 | 4 | Dengarkan `master.updated` → muat ulang `GET /packages` | Harga yang diubah owner tidak akan terlihat |
 
@@ -120,4 +125,5 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 | Tanggal | Isi |
 |---|---|
+| 10 Okt 2026 | Klien API Flutter ditulis. `GET /shifts` ditambahkan; struk sekarang membawa objek payment utuh |
 | 10 Okt 2026 | Dibuat. Tahap 0 selesai, endpoint harga + `master.updated` ditambahkan |
