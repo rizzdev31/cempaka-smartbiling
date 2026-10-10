@@ -13,6 +13,31 @@ class ResponseEnvelopeTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_health_menyebut_identitasnya_untuk_penemuan_otomatis(): void
+    {
+        /*
+         * Client yang memindai jaringan memakai `app` untuk memastikan
+         * alamat yang ditemukan benar-benar server billing — bukan layanan
+         * lain yang kebetulan hidup di port 8000.
+         *
+         * Nilainya TIDAK boleh berubah tanpa mengubah client juga.
+         */
+        $this->getJson('/api/v1/health')
+            ->assertOk()
+            ->assertJsonPath('data.app', 'cempaka-smart-billing');
+    }
+
+    public function test_health_tidak_mengklaim_broadcast_berhasil(): void
+    {
+        /*
+         * Hanya melaporkan driver yang dikonfigurasi. Mengatakan "ok" akan
+         * menyembunyikan kegagalan yang paling sulit disadari: event
+         * menumpuk diam di tabel jobs karena queue:work tidak jalan.
+         */
+        $this->getJson('/api/v1/health')
+            ->assertOk()
+            ->assertJsonPath('data.broadcast', config('broadcasting.default'));
+    }
     public function test_health_mengembalikan_bentuk_data_dan_meta(): void
     {
         $response = $this->getJson('/api/v1/health');
@@ -21,7 +46,7 @@ class ResponseEnvelopeTest extends TestCase
             ->assertJsonPath('data.status', 'ok')
             ->assertJsonPath('data.database', 'ok')
             ->assertJsonStructure([
-                'data' => ['status', 'version', 'database', 'broadcast'],
+                'data' => ['app', 'instance', 'status', 'version', 'database', 'broadcast'],
                 'meta' => ['server_time'],
             ]);
     }
