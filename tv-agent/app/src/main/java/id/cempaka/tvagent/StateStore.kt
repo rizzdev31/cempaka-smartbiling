@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * `commit()` sinkron pada perubahan penting — kalau TV mati listrik sedetik
  * setelah sesi dimulai, `end_at` harus sudah ada di disk.
  */
-class StateStore(context: Context) : TokenHolder, AgentStateHolder {
+class StateStore(context: Context) : TokenHolder, AgentStateHolder, ServerAddressStore {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -27,6 +27,22 @@ class StateStore(context: Context) : TokenHolder, AgentStateHolder {
 
     /** State terkini. Satu sumber untuk UI dan server HTTP. */
     val state: StateFlow<AgentState> = _state.asStateFlow()
+
+    // ── Alamat server ─────────────────────────────────────────────────
+
+    /**
+     * Alamat Laravel terakhir yang terbukti benar — DEC-041.
+     *
+     * `commit()` sinkron, bukan `apply()`: TV sering kehilangan listrik tanpa
+     * peringatan, dan kalau alamat ini hilang, TV harus memindai ulang
+     * jaringan saat boot — justru di saat paling sibuk.
+     */
+    override val apiBaseUrl: String?
+        get() = prefs.getString(KEY_API_BASE, null)
+
+    override fun rememberApiBaseUrl(baseUrl: String) {
+        prefs.edit().putString(KEY_API_BASE, baseUrl).commit()
+    }
 
     // ── Pairing ───────────────────────────────────────────────────────
 
@@ -136,6 +152,7 @@ class StateStore(context: Context) : TokenHolder, AgentStateHolder {
 
     private companion object {
         const val PREFS = "cempaka_tv_agent"
+        const val KEY_API_BASE = "api_base_url"
         const val KEY_TOKEN = "device_token"
         const val KEY_UID = "device_uid"
         const val KEY_MODE = "mode"

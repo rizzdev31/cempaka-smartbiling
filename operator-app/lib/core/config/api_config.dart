@@ -121,12 +121,18 @@ class ApiConfig extends ChangeNotifier {
       v = v.substring(0, v.length - 1);
     }
     // Kalau hanya host tanpa port, pakai 8000 (default artisan serve).
-    final uri = Uri.tryParse(v);
-    if (uri != null && !uri.hasPort) {
+    if (!_hasExplicitPort(v)) {
       v = '$v:8000';
     }
     return v;
   }
+
+  /// `Uri.hasPort` tidak bisa dipakai di sini: Dart menganggap `:80` pada
+  /// `http://` dan `:443` pada `https://` sebagai port default lalu
+  /// menyembunyikannya, jadi `hasPort` bernilai `false`. Akibatnya
+  /// `192.168.0.50:80` akan diubah menjadi `192.168.0.50:80:8000`.
+  static bool _hasExplicitPort(String url) =>
+      RegExp(r'^https?://[^/:]+:\d+').hasMatch(url);
 
   /// Validasi untuk settings screen. `null` = valid.
   static String? validateBaseUrl(String raw) {

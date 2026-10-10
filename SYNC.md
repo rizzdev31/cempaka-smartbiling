@@ -4,7 +4,7 @@
 > setiap ada perubahan backend. Kalau tidak ada nama Anda di bagian
 > "Perlu dikerjakan", tidak ada yang perlu Anda lakukan.
 
-**Terakhir diperbarui:** 10 Oktober 2026 · **Kontrak:** `v1 DRAFT 15`
+**Terakhir diperbarui:** 10 Oktober 2026 · **Kontrak:** `v1 DRAFT 16`
 
 > **Perubahan batas kerja (10 Okt):** user mencabut aturan "backend saja".
 > Claude sekarang juga menyentuh `operator-app/` dan `tv-agent/`.
@@ -16,9 +16,9 @@
 
 | Bagian | Status |
 |---|---|
-| **Backend (Laravel)** | Tahap 0 **SELESAI**. 32 endpoint, 9 event realtime, 281 test lulus |
-| **Operator app (Flutter)** | Layar sudah jadi. Klien API **sudah ada** (`lib/data/api/`), tapi aplikasi **masih memakai data palsu** — belum dialihkan dan belum ada login |
-| **TV Agent (Kotlin)** | Kiosk + timer jalan, tapi **belum menyambung ke Laravel** — masih menerima perintah langsung dari tablet |
+| **Backend (Laravel)** | Tahap 0 **SELESAI**. 32 endpoint, 9 event realtime, 283 test lulus |
+| **Operator app (Flutter)** | Layar sudah jadi. Klien API **sudah ada** (`lib/data/api/`) dan alamat server sudah bisa ditemukan otomatis, tapi aplikasi **masih memakai data palsu** — belum dialihkan dan belum ada login |
+| **TV Agent (Kotlin)** | Kiosk + timer jalan, dan sudah bisa **menemukan** server, tapi **belum bicara** dengan Laravel — masih menerima perintah langsung dari tablet |
 
 ---
 
@@ -27,10 +27,16 @@
 | # | Pekerjaan | Kenapa mendesak |
 |---|---|---|
 | ✅ | **`ApiBillingRepository`** — sudah ditulis di `lib/data/api/`, 20 method, `flutter analyze` bersih | — |
+| ✅ | **Penemuan server otomatis** — `server_discovery.dart` + tombol **Cari otomatis** di Pengaturan | — |
 | 1 | **Layar login** + simpan token | Tanpa token, semua endpoint selain `/health` ditolak |
 | 2 | **Alihkan `main.dart`** dari `FakeBillingRepository` ke `ApiBillingRepository` | Satu baris, tapi sampai itu dilakukan aplikasi tetap memakai data palsu |
-| 3 | Klien Reverb + reconnect | Tablet tidak tahu apa pun yang terjadi di tablet/TV lain |
-| 4 | Dengarkan `master.updated` → muat ulang `GET /packages` | Harga yang diubah owner tidak akan terlihat |
+| 3 | Panggil `ServerConnector().connect()` saat `main()` | Kodenya sudah ada tapi **belum dipanggil otomatis** — sekarang baru jalan kalau tombolnya ditekan |
+| 4 | Klien Reverb + reconnect | Tablet tidak tahu apa pun yang terjadi di tablet/TV lain |
+| 5 | Dengarkan `master.updated` → muat ulang `GET /packages` | Harga yang diubah owner tidak akan terlihat |
+
+> ⚠️ Kalau nomor 3 dikerjakan: `connect()` bisa mengembalikan
+> `addressChanged == true`. Saat itu koneksi WebSocket yang sudah terbuka
+> **harus dibangun ulang** — ia tidak akan error sendiri, hanya diam.
 
 ### Yang berubah dan akan mematahkan asumsi lama
 
@@ -45,7 +51,7 @@ paling penting:
 | `items[0]` selalu rental | Postpaid **tidak punya** baris rental sampai checkout |
 | Operator tidak boleh daftarkan member | **Boleh** — tombolnya harus muncul |
 
-Detail lengkap: `docs/contracts/CHANGELOG.md` DRAFT 6 s/d 15.
+Detail lengkap: `docs/contracts/CHANGELOG.md` DRAFT 6 s/d 16.
 
 ---
 
@@ -53,10 +59,16 @@ Detail lengkap: `docs/contracts/CHANGELOG.md` DRAFT 6 s/d 15.
 
 | # | Pekerjaan |
 |---|---|
-| 1 | `POST /devices/register` pakai kode station, simpan `device_token` permanen |
-| 2 | `POST /devices/heartbeat` tiap 30 detik, kirim `known_session_id` + `known_end_at` |
-| 3 | `GET /devices/me/state` saat boot & reconnect |
-| 4 | Subscribe `private-station.{code}` lewat `X-Device-Token` |
+| ✅ | **Penemuan server otomatis** — `ServerDiscovery.kt` + `ServerConnector.kt` |
+| 1 | Panggil `ServerConnector(store).connect()` saat boot, sebelum request pertama |
+| 2 | `POST /devices/register` pakai kode station, simpan `device_token` permanen |
+| 3 | `POST /devices/heartbeat` tiap 30 detik, kirim `known_session_id` + `known_end_at` |
+| 4 | `GET /devices/me/state` saat boot & reconnect |
+| 5 | Subscribe `private-station.{code}` lewat `X-Device-Token` |
+
+`ServerConnector` sudah ada dan sudah diuji, tapi **belum dipanggil dari
+`AgentService`** — alamatnya tersimpan di `StateStore.apiBaseUrl`, siap
+dipakai klien API yang akan ditulis.
 
 ### Aturan yang mengikat tampilan TV
 
@@ -72,6 +84,33 @@ Detail lengkap: `docs/contracts/CHANGELOG.md` DRAFT 6 s/d 15.
 
 > ⚠️ **Instruksi ini pernah berbalik.** DRAFT 6 menyuruh TV **tidak** mati saat
 > waktu habis; DRAFT 9 membalikkannya. Yang berlaku sekarang: **TV mati**.
+
+---
+
+## Alamat server tidak perlu diketik lagi — DEC-041
+
+Tablet dan TV sekarang bisa menemukan Laravel sendiri:
+
+```
+1. ketuk alamat yang tersimpan        (±600 ms)
+2. kalau diam → pindai x.y.z.1–254    (254 alamat, 32 paralel, ±2–5 detik)
+3. terima hanya kalau /api/v1/health menjawab app = "cempaka-smart-billing"
+4. simpan; kalau ketemu lebih dari satu, manusia yang memilih
+```
+
+Gunanya: IP laptop datang dari DHCP, jadi menyambung ulang WiFi bisa
+mengganti alamatnya dan memutus **semua** perangkat sekaligus.
+
+| Yang sering ditanyakan | Jawaban |
+|---|---|
+| Kalau server mati, alamatnya dihapus? | **Tidak.** Server pindah dan server mati tidak bisa dibedakan dari client; menghapusnya berarti setiap perangkat lupa alamat saat laptop dimatikan sebentar |
+| Port berapa yang dipindai? | **Hanya 8000.** Port 80 justru paling sering dijawab router dan printer |
+| Masih perlu DHCP reservation? | Tidak wajib, tapi tetap dianjurkan — keduanya boleh dipakai bersamaan |
+
+> ⛔ **Untuk backend:** `HealthController::APP_ID` (`cempaka-smart-billing`)
+> sekarang **kontrak**. Mengubahnya membuat setiap tablet dan TV berhenti
+> mengenali servernya. `/health` juga harus tetap tanpa auth — pemindaian
+> terjadi sebelum ada token apa pun.
 
 ---
 
@@ -125,5 +164,6 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 | Tanggal | Isi |
 |---|---|
+| 10 Okt 2026 | Penemuan server otomatis (DEC-041) di Flutter **dan** Kotlin. `/health` menyebut identitasnya; `APP_ID` jadi kontrak |
 | 10 Okt 2026 | Klien API Flutter ditulis. `GET /shifts` ditambahkan; struk sekarang membawa objek payment utuh |
 | 10 Okt 2026 | Dibuat. Tahap 0 selesai, endpoint harga + `master.updated` ditambahkan |

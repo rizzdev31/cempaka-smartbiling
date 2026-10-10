@@ -31,3 +31,18 @@ interface AgentStateHolder {
 
     fun dropSession()
 }
+
+/**
+ * Alamat server Laravel yang terakhir diketahui benar — DEC-041.
+ *
+ * Dipisah dari [StateStore] dengan alasan yang sama seperti dua interface di
+ * atas: aturan "coba yang diingat dulu, baru memindai" adalah bagian yang
+ * paling mudah salah, dan harus bisa diuji tanpa perangkat.
+ */
+interface ServerAddressStore {
+
+    /** `http://192.168.100.11:8000`, atau `null` kalau belum pernah tahu. */
+    val apiBaseUrl: String?
+
+    fun rememberApiBaseUrl(baseUrl: String)
+}

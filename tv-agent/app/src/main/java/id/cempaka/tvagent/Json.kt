@@ -51,6 +51,15 @@ class JsonBody(private val obj: org.json.JSONObject?) {
         return o.optString(key).takeIf { it.isNotBlank() }
     }
 
+    /**
+     * Objek bersarang, mis. amplop `{ "data": { ... } }` dari Laravel.
+     * `null` kalau kuncinya tidak ada atau isinya bukan objek.
+     */
+    fun child(key: String): JsonBody? {
+        val nested = obj?.optJSONObject(key) ?: return null
+        return JsonBody(nested)
+    }
+
     fun long(key: String): Long? {
         val o = obj ?: return null
         if (!o.has(key) || o.isNull(key)) return null

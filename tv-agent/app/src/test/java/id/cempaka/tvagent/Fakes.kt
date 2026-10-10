@@ -10,11 +10,18 @@ package id.cempaka.tvagent
  */
 class FakeStore(
     initial: AgentState = AgentState.UNPAIRED,
-) : TokenHolder, AgentStateHolder {
+) : TokenHolder, AgentStateHolder, ServerAddressStore {
 
     var state: AgentState = initial
     var token: String? = null
     var dropCount: Int = 0
+    var savedBaseUrl: String? = null
+
+    override val apiBaseUrl: String? get() = savedBaseUrl
+
+    override fun rememberApiBaseUrl(baseUrl: String) {
+        savedBaseUrl = baseUrl
+    }
 
     override val currentToken: String? get() = token
 

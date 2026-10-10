@@ -1360,6 +1360,74 @@ Keduanya bukan harga, jadi perlu keputusan tersendiri soal siapa yang boleh —
 
 ---
 
+## DEC-041 — Client menemukan server sendiri: ingat alamat terakhir, lalu pindai subnet
+**Tanggal:** 10 Okt 2026 · **Status:** APPROVED · **Menutup:** OD-011 Bagian A
+
+User bertanya: *"bisa gak waktu teman saya udah ada apinya lalu ini langsung
+bisa otomatis konek?"* Jawabannya saat itu **tidak** — alamat server harus
+diketik sekali di setiap tablet dan TV, dan IP laptop dari DHCP bisa berganti
+setiap kali menyambung ulang WiFi. Satu pergantian IP memutus seluruh
+perangkat sekaligus, biasanya di jam operasional, dan tidak ada gejala yang
+menunjuk ke penyebabnya.
+
+**Keputusan:** client mencoba alamat yang diingat dulu; kalau diam, ia
+memindai subnet-nya sendiri mencari `GET /api/v1/health` yang menjawab dengan
+`app` yang cocok, lalu menyimpan temuannya.
+
+### Urutannya dan alasan tiap langkah
+
+| Langkah | Kenapa begitu |
+|---|---|
+| 1. Ketuk alamat tersimpan | Satu request, ±600 ms. Memindai setiap kali buka aplikasi berarti menunggu 2–5 detik setiap hari demi masalah yang muncul sebulan sekali |
+| 2. Kalau diam, pindai `x.y.z.1`–`.254` | 254 alamat, 32 paralel, timeout 600 ms |
+| 3. Cocokkan `app == "cempaka-smart-billing"` | **Ini pengamanannya.** Tanpanya, printer atau router yang kebetulan menjawab di port 8000 akan diterima sebagai server billing |
+| 4. Lebih dari satu temuan → manusia memilih | Dua server hidup biasanya laptop cadangan yang lupa dimatikan. Menebak berarti transaksi masuk ke database yang keliru, dan itu baru ketahuan saat laporan tidak cocok |
+| 5. Tidak ketemu → **alamat lama dipertahankan** | Server pindah dan server mati tidak bisa dibedakan dari sisi client. Kalau alamatnya dihapus, mematikan laptop sebentar membuat setiap perangkat lupa alamatnya |
+
+### Yang mengikat backend
+
+`HealthController::APP_ID` = `cempaka-smart-billing` adalah **kontrak**.
+Mengubah nilainya membuat setiap tablet dan TV berhenti mengenali servernya
+sendiri. Nilai itu sudah ditandai "JANGAN diubah" di kodenya.
+
+`/health` juga harus tetap **tanpa auth** — pemindaian terjadi sebelum ada
+token apa pun.
+
+### Yang sengaja tidak dipakai
+
+- **mDNS/Bonjour** — lebih rapi secara teori, tapi butuh responder yang tidak
+  ada bawaannya di Windows, dan banyak AP murah men-drop multicast.
+- **Port 80** — tidak akan dipakai di LAN (Nginx baru muncul di Tahap 3A, di
+  VPS, dengan nama domain yang diketik manual), sementara ia justru port yang
+  paling sering dijawab router dan printer. Memindainya menggandakan waktu
+  sambil menambah kandidat palsu.
+- **IPv6** — subnet-nya terlalu besar untuk ditebak satu per satu.
+
+### Catatan terhadap alasan penundaan di OD-011
+
+Dua alasan OD-011 menunda ini masih benar, dan tetap tidak menghalangi:
+
+1. *"Tidak terpakai di Tahap 3A."* Benar — setelah pindah VPS alamatnya domain
+   tetap. Tapi Tahap 0–2 dipakai berbulan-bulan sebelum itu, dan kodenya tidak
+   mengganggu: alamat domain yang tersimpan akan selalu menjawab di langkah 1,
+   jadi pemindaian tidak pernah jalan.
+2. *"DHCP reservation menyelesaikan masalah yang sama tanpa kode."* Benar, dan
+   tetap dianjurkan. Bedanya reservation butuh akses router di setiap lokasi;
+   ini tidak. Keduanya boleh dipakai bersamaan.
+
+### Di mana kodenya
+
+| Bagian | File |
+|---|---|
+| Flutter | `operator-app/lib/data/api/server_discovery.dart`, `server_connector.dart`, tombol **Cari otomatis** di layar Pengaturan |
+| Kotlin | `tv-agent/.../ServerDiscovery.kt`, `ServerConnector.kt`, `ServerAddressStore` di `AgentPorts.kt` |
+
+Aturannya **sengaja identik** di dua client. Dua aturan berbeda untuk hal yang
+sama berarti tablet dan TV bisa memilih server yang berbeda di jaringan yang
+sama.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -1380,7 +1448,7 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | ~~OD-008~~ | ~~Rounding durasi~~ | **DIPUTUSKAN → DEC-009** | — |
 | **OD-009** | Formula profit/margin & target achievement | PRD §35 TBD. Belum blokir karena reporting di Tahap 3B. | Tahap 3B |
 | ~~OD-010~~ | ~~Struk dicetak atau di layar~~ | **DIPUTUSKAN → DEC-031** (layar + cetak opsional + kirim WA untuk member). Cara kirim WA-nya jadi OD-023 | — |
-| **OD-011** | Apakah Flutter perlu **penemuan IP server otomatis** (scan subnet), atau cukup DHCP reservation? | **Ditunda oleh user 2 Okt 2026 — tunggu hasil DHCP reservation di SESI 1.** Analisis ada di bawah tabel. | Tahap 1 (opsional) |
+| ~~**OD-011**~~ | Apakah Flutter perlu **penemuan IP server otomatis** (scan subnet), atau cukup DHCP reservation? | ✅ **DIPUTUSKAN 10 Okt 2026 — lihat DEC-041.** Scan subnet dikerjakan, di Flutter dan Kotlin. Bagian B (deteksi TV) tetap lewat heartbeat, tidak berubah. | — |
 | ~~OD-015~~ | ~~Tarif berbeda per tipe konsol?~~ | **DIPUTUSKAN → DEC-019** (ya, diatur dari aplikasi kasir) | — |
 | ~~OD-017~~ | ~~Siapa yang boleh mengubah tarif dari aplikasi kasir?~~ | **DIPUTUSKAN → DEC-020** (hanya owner) | — |
 | ~~OD-018~~ | ~~Swap ke tipe konsol berbeda?~~ | **DIPUTUSKAN → DEC-021** (tidak boleh) | — |
@@ -1403,12 +1471,15 @@ Yang masih menghalangi **Tahap 2**: OD-004 (perilaku warning) dan OD-005 (fakta 
 
 ## OD-011 — detail: penemuan IP otomatis & deteksi TV
 
-**Ditunda oleh user pada 2 Okt 2026.** Analisis sudah selesai, tinggal keputusan.
-**Pemicu peninjauan:** setelah DHCP reservation diuji di SESI 1 (Sabtu 3 Okt).
+> ✅ **BAGIAN A SUDAH DIPUTUSKAN 10 Okt 2026 → DEC-041.** Scan subnet
+> dikerjakan di Flutter dan Kotlin, dengan urutan yang persis seperti analisis
+> di bawah. Bagian B tidak berubah: deteksi TV tetap lewat heartbeat, bukan
+> scan. Analisis ini disimpan karena DEC-041 bersandar padanya.
 
 ### Bagian A — penemuan IP server otomatis
 
-Keadaan sekarang: manual lewat `--dart-define` + layar Pengaturan.
+Keadaan saat analisis ini ditulis: manual lewat `--dart-define` + layar
+Pengaturan.
 
 | Cara | Keandalan di C64 | Kerja server |
 |---|---|---|

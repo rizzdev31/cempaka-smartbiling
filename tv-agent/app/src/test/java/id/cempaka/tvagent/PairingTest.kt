@@ -141,7 +141,12 @@ class PairingTest {
         assertFalse(pairing.isTokenValid(null))
         assertFalse(pairing.isTokenValid(""))
         assertFalse(pairing.isTokenValid("salah"))
-        assertFalse(pairing.isTokenValid(token.dropLast(1) + "0"))
+        // Karakter terakhir diganti dengan yang PASTI berbeda. Menulis "0"
+        // mati membuat test ini gagal sekitar 1 dari 16 kali: token-nya hex
+        // acak, jadi kadang karakter terakhirnya memang sudah "0" dan token
+        // "salah" itu justru identik dengan yang benar.
+        val beda = if (token.last() == '0') '1' else '0'
+        assertFalse(pairing.isTokenValid(token.dropLast(1) + beda))
     }
 
     @Test

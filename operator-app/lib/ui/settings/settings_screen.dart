@@ -7,6 +7,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/time/server_time.dart';
 import '../../core/util/format.dart';
+import '../../data/api/server_connector.dart';
+import '../../data/api/server_discovery.dart';
 import '../widgets/confirm_dialog.dart';
 
 /// Pengaturan alamat server.
@@ -77,6 +79,87 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showSuccess(context, 'Alamat server disimpan.');
   }
 
+  /// Mencari server di jaringan — DEC-041.
+  ///
+  /// Tombol ini ada supaya teknisi tidak perlu tahu IP laptop sama sekali.
+  /// Mencari SEMUA, bukan berhenti di temuan pertama: kalau ada dua server
+  /// hidup (biasanya laptop cadangan yang lupa dimatikan), memilih sendiri
+  /// salah satunya berarti transaksi masuk ke database yang keliru — dan itu
+  /// baru ketahuan saat laporan tidak cocok.
+  Future<void> _discover() async {
+    final connector = ServerConnector(config: ApiConfig.instance);
+
+    try {
+      final found = await connector.scan();
+      if (!mounted) return;
+
+      if (found.isEmpty) {
+        showWarning(
+          context,
+          'Tidak ada server billing di jaringan ini. Pastikan laptop server '
+          'hidup, "php artisan serve --host=0.0.0.0" jalan, dan tablet '
+          'tersambung ke WiFi yang sama.',
+        );
+        return;
+      }
+
+      final chosen =
+          found.length == 1 ? found.first : await _pickServer(found);
+      if (chosen == null || !mounted) return;
+
+      await connector.remember(chosen);
+      if (!mounted) return;
+
+      final cfg = ApiConfig.instance;
+      setState(() {
+        _baseUrl.text = cfg.baseUrl;
+        _wsHost.text = cfg.wsHost;
+        _wsPort.text = cfg.wsPort.toString();
+        _baseUrlError = null;
+        // Sudah disimpan oleh `remember` — tidak ada yang perlu disimpan lagi.
+        _dirty = false;
+      });
+      showSuccess(context, 'Tersambung ke ${chosen.instance}.');
+    } finally {
+      connector.close();
+    }
+  }
+
+  Future<DiscoveredServer?> _pickServer(List<DiscoveredServer> servers) {
+    return showDialog<DiscoveredServer>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ada lebih dari satu server'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Pilih yang dipakai hari ini. Salah pilih berarti transaksi '
+              'tercatat di laptop yang salah.',
+              style: AppTypography.bodySm
+                  .copyWith(color: AppColors.onSurfaceVariant),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            for (final s in servers)
+              ListTile(
+                leading: const Icon(Icons.dns_outlined),
+                title: Text(s.instance),
+                subtitle: Text(s.baseUrl, style: AppTypography.moneySm),
+                onTap: () => Navigator.of(context).pop(s),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Batal'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _reset() async {
     final ok = await showConfirmDialog(
       context,
@@ -124,10 +207,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Text('Server', style: AppTypography.headlineSm),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    'Alamat Laravel di jaringan lokal. Contoh: '
-                    '192.168.0.50:8000',
+                    'Alamat Laravel di jaringan lokal. Kalau tidak tahu '
+                    'IP-nya, tekan "Cari otomatis".',
                     style: AppTypography.bodySm
                         .copyWith(color: AppColors.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+
+                  AsyncButton(
+                    label: 'Cari otomatis',
+                    icon: Icons.radar,
+                    outlined: true,
+                    expand: true,
+                    onPressed: _discover,
                   ),
                   const SizedBox(height: AppSpacing.md),
 

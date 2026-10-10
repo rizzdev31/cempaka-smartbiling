@@ -15,15 +15,14 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Milestone terdekat** | **SESI TV sedang berjalan.** APK sudah terpasang di TV (`192.168.0.100`); tertahan di jaringan — laptop/tablet harus pindah ke SSID yang sama |
 | **Repo** | monorepo private, `github.com/rizzdev31/cempaka-smartbiling` (DEC-010) |
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
-| **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
-| **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
+| **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); klien API + penemuan server otomatis (DEC-041) sudah ada tapi **aplikasi masih memakai data palsu**; **225 test lulus** |
+| **tv-agent** | kiosk + timer + kontrol HTTP lokal + penemuan server otomatis (DEC-041); **47 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti**, dan agent **belum bicara ke Laravel** |
 | **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **280 test LULUS** (64 unit + 216 feature, 967 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 31 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
 | ID | Pertanyaan | Ditunda sejak | Pemicu peninjauan |
 |---|---|---|---|
-| **OD-011** | Perlukah penemuan IP server otomatis (scan subnet) di Flutter? | 2 Okt 2026 | **Setelah DHCP reservation diuji di SESI 1.** Kalau IP laptop tetap stabil → tidak perlu. Kalau masih sering berubah → pasang scan subnet (± 100 baris) |
 | **OD-019** | Owner ubah tarif lewat **login owner** di tablet, atau **PIN** di atas sesi operator? | 7 Okt 2026 | Saat layar pengaturan tarif dikerjakan. Backend sama (token owner) — ini soal cara login di Flutter |
 | **OD-002** | Mitigasi Postpaid/Open Tab kabur tanpa bayar — deposit? batas maksimum? catat identitas? | 2 Okt 2026 | User menunda 8 Okt: "tanyakan nanti lagi, saya konfirmasi dulu" |
 
@@ -31,6 +30,8 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **OD-022** | Daftar member di kasir: biayanya berapa, siapa yang boleh mendaftarkan (bentrok OD-014), saldo berlaku berapa lama, bisa diuangkan? | 8 Okt 2026 | Saat checkout dikerjakan. Muncul dari DEC-024 |
 
 > Sudah diputuskan 7 Okt 2026: OD-012 → **DEC-018** (per-instance) · OD-015 → **DEC-019** (tarif per tipe konsol, diatur dari aplikasi kasir) · OD-017 → **DEC-020** (hanya owner yang boleh ubah tarif) · OD-018 → **DEC-021** (swap hanya dalam tipe konsol yang sama).
+>
+> Sudah diputuskan 10 Okt 2026: OD-011 Bagian A → **DEC-041** (pindai subnet + ingat alamat terakhir; dikerjakan di Flutter dan Kotlin). Bagian B tidak berubah — deteksi TV tetap lewat heartbeat, bukan scan.
 
 Analisis lengkap ada di `DECISION-LOG.md` → OD-011 (termasuk deteksi TV lewat heartbeat) dan OD-012.
 
@@ -2522,3 +2523,100 @@ punya endpoint ubah. Keduanya bukan harga, jadi perlu keputusan siapa yang
 boleh → **OD-028**.
 
 **Tests** — 280 lulus, 967 assertion. `MasterDataUpdateTest` 18 test.
+
+---
+
+### 2026-10-10 — [Flutter + Kotlin] Tablet & TV menemukan server sendiri (DEC-041)
+
+User bertanya: *"bisa gak waktu teman saya udah ada apinya lalu ini langsung
+bisa otomatis konek?"* Jawabannya saat itu **tidak**, dan alasannya lebih
+buruk dari sekadar "harus diketik sekali": IP laptop datang dari DHCP, jadi
+menyambung ulang WiFi bisa menggantinya dan **memutus seluruh tablet dan TV
+sekaligus** — biasanya di jam operasional, tanpa gejala yang menunjuk ke
+penyebabnya. Perangkat hanya berhenti memuat data.
+
+User memilih **"pindai otomatis + ingat yang terakhir"**. Dikerjakan di
+Flutter dan Kotlin, menutup **OD-011** Bagian A.
+
+**Urutannya**
+
+```
+1. ketuk alamat tersimpan            (±600 ms, satu request)
+2. kalau diam → pindai x.y.z.1–254   (32 paralel, ±2–5 detik)
+3. terima HANYA kalau /api/v1/health menjawab app = "cempaka-smart-billing"
+4. simpan; lebih dari satu temuan → manusia memilih
+```
+
+**Empat keputusan yang menentukan apakah ini berguna atau berbahaya**
+
+| Keputusan | Kalau dibuat terbalik |
+|---|---|
+| Cocokkan `app`, bukan sekadar "ada yang menjawab 200" | Printer, router, atau dashboard lain di port 8000 diterima sebagai server billing. Tidak ada gejala — layar hanya diam |
+| Coba alamat tersimpan **dulu** | Menunggu 2–5 detik setiap buka aplikasi, demi masalah yang muncul sebulan sekali |
+| Tidak ketemu → alamat lama **dipertahankan** | Mematikan laptop sebentar membuat setiap perangkat lupa alamatnya dan harus diisi ulang manual |
+| Lebih dari satu temuan → **jangan tebak** | Laptop cadangan yang lupa dimatikan menerima transaksi. Baru ketahuan saat laporan tidak cocok |
+
+**Yang sengaja tidak dipakai** — mDNS (butuh responder yang tidak ada bawaannya
+di Windows, dan AP murah men-drop multicast), port 80 (tidak dipakai di LAN,
+tapi justru paling sering dijawab router dan printer), IPv6 (subnet terlalu
+besar untuk ditebak).
+
+**Files changed**
+
+| | |
+|---|---|
+| Flutter | `lib/data/api/server_discovery.dart` (baru), `server_connector.dart` (baru), `lib/core/config/api_config.dart`, `lib/ui/settings/settings_screen.dart` |
+| Kotlin | `ServerDiscovery.kt` (baru), `ServerConnector.kt` (baru), `AgentPorts.kt`, `StateStore.kt`, `Json.kt`, `app/build.gradle.kts`, `gradle/libs.versions.toml` |
+| Docs | `DECISION-LOG.md` (DEC-041, OD-011 ditutup), `contracts/API.md` §5, `contracts/CHANGELOG.md` DRAFT 16, `SYNC.md` |
+
+**DB changes** — tidak ada. Backend tidak berubah sama sekali di entry ini.
+
+**API/Events** — tidak ada endpoint baru. Tapi `GET /health` resmi menjadi
+**kontrak**: `data.app` = `cempaka-smart-billing` tidak boleh diubah, dan
+`/health` harus tetap tanpa auth. Dicatat sebagai DRAFT 16.
+
+> Catatan untuk entry sebelumnya: field `app`/`instance` pada `/health`
+> sendiri sudah ditambahkan di commit `fc4f509` (283 test backend lulus),
+> tapi belum tercatat di `API.md`. Sekarang sudah.
+
+**Tests** — Flutter **225 lulus** (+23: 16 discovery/connector, 7
+`normalizeBaseUrl`). Kotlin **47 lulus** (+16).
+
+**Dua bug nyata yang ketangkap saat menulis test**
+
+1. **`ApiConfig.normalizeBaseUrl` merusak alamat berport 80/443.**
+   `Uri.hasPort` bernilai `false` untuk port default skemanya, jadi
+   `http://192.168.0.50:80` dianggap belum punya port dan diubah menjadi
+   `192.168.0.50:80:8000` — alamat yang tidak bisa dihubungi, dengan pesan
+   error yang tidak menjelaskan apa pun. Bug ini **sudah ada sebelumnya** dan
+   bisa dipicu operator yang mengetik tangan; ketemu karena scanner sempat
+   mencoba port 80. Diperbaiki + 7 test.
+2. **`PairingTest` flaky ±1 dari 16 kali.** `token.dropLast(1) + "0"`
+   menghasilkan token yang **identik** dengan aslinya kalau karakter terakhir
+   token hex acak itu memang sudah `0`. Diperbaiki supaya karakternya pasti
+   berbeda.
+
+**Manual test**
+
+1. Jalankan `php artisan serve --host=0.0.0.0 --port=8000`.
+2. Di tablet, buka **Pengaturan**, kosongkan alamat atau isi yang salah.
+3. Tekan **Cari otomatis** → nama rental muncul, alamat terisi sendiri.
+4. Ubah IP laptop (sambung ulang WiFi), tekan lagi → alamat baru ketemu.
+5. Matikan server, tekan lagi → peringatan muncul, alamat lama **tetap ada**.
+
+**Known issues**
+
+- `ServerConnector` **belum dipanggil otomatis** di kedua client. Di Flutter
+  baru jalan kalau tombol **Cari otomatis** ditekan; di Kotlin kelasnya ada
+  tapi `AgentService` belum memakainya. Memanggilnya butuh keputusan UX
+  (apa yang ditampilkan selama 2–5 detik memindai) dan di Flutter bergantung
+  pada layar login yang belum ada.
+- Saat alamat berganti, koneksi WebSocket yang sudah terbuka **tidak** akan
+  error sendiri — ia hanya diam. `ConnectResult.addressChanged` disediakan
+  untuk itu, tapi belum ada klien Reverb yang membacanya.
+- Pemindaian hanya menjangkau subnet `/24` perangkat sendiri. Jaringan dengan
+  netmask lain tidak tercakup; sejauh ini semua lokasi memakai `/24`.
+
+**Next step** — layar login Flutter + simpan token, lalu alihkan `main.dart`
+dari `FakeBillingRepository` ke `ApiBillingRepository`. Setelah itu
+`ServerConnector().connect()` bisa dipanggil di `main()` sekaligus.

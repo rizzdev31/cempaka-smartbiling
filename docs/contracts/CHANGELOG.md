@@ -568,6 +568,48 @@ depan dan harga itu tidak boleh bergerak setelah dia duduk.
 
 ---
 
+## v1 · DRAFT 16 — 2026-10-10
+
+`GET /health` sekarang menyebut identitasnya, dan nilai itu menjadi kontrak.
+Dasar penemuan server otomatis — **DEC-041**, menutup **OD-011** Bagian A.
+
+**ADDED — API** · semua client
+- `data.app` — penanda tetap `"cempaka-smart-billing"`.
+- `data.instance` — nama rental dari `APP_NAME`.
+
+**CHANGED — API** · semua client
+- `data.broadcast` dulu `"ok"` / `"not_configured"`, sekarang **nama driver**
+  (`reverb`, `log`, `null`). Nilai `"ok"` dihapus karena bohong: ia tetap
+  muncul walau setiap event gagal terkirim. Yang paling sering terjadi adalah
+  `queue:work` tidak jalan — event menumpuk diam di tabel `jobs` dan API
+  tetap menjawab 201. Siapa pun yang membaca field ini sebagai "realtime
+  jalan" harus berhenti; cara memeriksa yang benar ada di `backend/README.md`.
+
+### ⛔ Yang mengikat backend selamanya
+
+`app` **tidak boleh diubah**. Tablet dan TV memakainya untuk memastikan alamat
+hasil pemindaian benar-benar server billing. Mengubah nilainya membuat setiap
+perangkat berhenti mengenali servernya sendiri, dan gejalanya hanya "tidak
+ketemu" — tidak ada yang menunjuk ke penyebabnya.
+
+`/health` juga harus tetap **tanpa auth**: pemindaian terjadi sebelum login.
+
+### Yang sudah dikerjakan client
+
+Keduanya memakai aturan yang **sengaja identik** — aturan berbeda untuk hal
+yang sama berarti tablet dan TV bisa memilih server berbeda di jaringan sama.
+
+| Client | File |
+|---|---|
+| Flutter | `lib/data/api/server_discovery.dart`, `server_connector.dart` |
+| Kotlin | `ServerDiscovery.kt`, `ServerConnector.kt` |
+
+Urutannya: alamat tersimpan → pindai `x.y.z.1`–`.254` port 8000 → cocokkan
+`app` → simpan. Tidak ketemu berarti alamat lama **dipertahankan**, bukan
+dihapus.
+
+---
+
 ## v1 · DRAFT <n> — YYYY-MM-DD
 
 **<JENIS> — API|REALTIME** · terdampak: Flutter | Kotlin | Admin | semua

@@ -75,4 +75,10 @@ dependencies {
     implementation(libs.nanohttpd)
 
     testImplementation(libs.junit)
+
+    // `org.json` tersedia di Android runtime, tapi TIDAK di JVM unit test —
+    // di sana kelasnya hanya stub yang melempar exception. Dependensi ini
+    // khusus test, supaya aturan penemuan server (DEC-041) dan `Json.kt`
+    // bisa diuji tanpa emulator.
+    testImplementation(libs.json)
 }

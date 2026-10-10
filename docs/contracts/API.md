@@ -163,19 +163,33 @@ Error: `401 INVALID_CREDENTIALS`, `403 USER_INACTIVE`, `429 TOO_MANY_ATTEMPTS`
 ## 5. Health
 
 ### `GET /health`
-**Tanpa auth.** Dipakai untuk tes jaringan dari tablet & TV (`TEST-PLAN-SABTU.md` N2/N3).
+**Tanpa auth.** Dipakai untuk tes jaringan dari tablet & TV
+(`TEST-PLAN-SABTU.md` N2/N3), dan sebagai dasar **penemuan server otomatis**
+(DEC-041).
+
+`Authorization` tidak boleh diwajibkan di sini: pemindaian jaringan terjadi
+sebelum ada token apa pun.
 
 ```json
 {
   "data": {
+    "app": "cempaka-smart-billing",
+    "instance": "Amor Gaming Space",
     "status": "ok",
     "version": "0.1.0",
     "database": "ok",
-    "broadcast": "ok"
+    "broadcast": "reverb"
   },
   "meta": { "server_time": "2026-10-02T07:15:00Z" }
 }
 ```
+
+| Field | Arti |
+|---|---|
+| `app` | **Penanda tetap `cempaka-smart-billing`.** Client memakainya untuk memastikan alamat yang ditemukan benar-benar server billing, bukan printer atau router yang kebetulan hidup di port 8000. **Nilainya kontrak — jangan diubah** (DEC-041) |
+| `instance` | Nama rental dari `APP_NAME`. Ditampilkan saat teknisi harus memilih di antara beberapa server, supaya yang dibaca nama dan bukan deretan IP |
+| `database` | `ok` \| `error` |
+| `broadcast` | Driver yang **dikonfigurasi** (`reverb`, `log`, `null`), **bukan** klaim bahwa event-nya sampai. Mengatakan `ok` akan menyembunyikan kegagalan yang paling sulit disadari: event menumpuk diam di tabel `jobs` karena `queue:work` tidak jalan. Cara memeriksa yang sebenarnya ada di `backend/README.md` |
 
 ---
 
