@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\StationStatus;
+use App\Models\BillingSession;
 use App\Models\Customer;
 use App\Models\Membership;
 use App\Models\Package;
@@ -127,6 +128,35 @@ class MasterDataSeeder extends Seeder
          * dan jalur "walk-in". Tanpa satu member pun, jalur pertama tidak bisa
          * dicoba sama sekali.
          */
+        /*
+         * Membuang tipe konsol yang sudah tidak ada di daftar di atas.
+         *
+         * Dibutuhkan karena seeder memakai updateOrCreate: saat nama tipe
+         * berubah — seperti PS5 VIP/PS4 Slim jadi PS4/PS3 pada DEC-036 — yang
+         * lama tidak ikut terhapus dan `GET /packages` mengembalikan campuran
+         * paket lama dan baru. Operator lalu melihat paket yang tidak pernah
+         * dijual.
+         *
+         * Hanya yang BENAR-BENAR tidak terpakai yang dibuang: tidak punya
+         * station, dan tidak ada sesi yang memakai paketnya. Dengan begitu
+         * tipe yang nanti dibuat owner lewat aplikasi (DEC-019/020) tidak
+         * ikut hilang setiap kali seeder dijalankan.
+         */
+        StationType::query()
+            ->whereNotIn('name', array_keys($types))
+            ->whereDoesntHave('stations')
+            ->get()
+            ->each(function (StationType $tipe) {
+                $paketIds = Package::query()->where('station_type_id', $tipe->id)->pluck('id');
+
+                if (BillingSession::query()->whereIn('package_id', $paketIds)->exists()) {
+                    return;
+                }
+
+                // Paketnya ikut terhapus lewat cascade pada foreign key.
+                $tipe->delete();
+            });
+
         $customer = Customer::query()->updateOrCreate(
             ['phone' => '081200000001'],
             ['name' => 'Budi Member'],

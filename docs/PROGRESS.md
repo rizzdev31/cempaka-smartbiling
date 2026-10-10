@@ -2415,3 +2415,48 @@ pertama.
 
 **Next step** — keputusan **OD-002** sebelum uang nyata. Sisa backend:
 DEC-037 (paket berisi F&B) kalau paket minuman mau dijual.
+
+---
+
+### 2026-10-10 — [Backend] Menyiapkan server untuk tablet; data lama ditemukan kotor
+
+User minta Laravel dikonfigurasikan supaya aplikasi operator bisa menarik
+datanya.
+
+**Temuan: tipe konsol lama masih ada di database**
+
+Seeder memakai `updateOrCreate`. Saat nama tipe berubah pada DEC-036 — `PS5
+VIP`/`PS4 Slim` jadi `PS4`/`PS3` — yang lama **tidak ikut terhapus**.
+`GET /packages` mengembalikan 10 paket, 6 di antaranya karangan lama yang tidak
+pernah dijual. Operator akan melihatnya di layar Start Session.
+
+Diperiksa dulu sebelum dihapus: kedua tipe lama tidak dipakai station mana pun,
+dan tidak ada sesi yang memakai paketnya. Aman dibuang.
+
+Seeder sekarang membuang tipe konsol yang tidak ada lagi di daftarnya — tapi
+**hanya yang benar-benar tidak terpakai** (tanpa station, tanpa sesi yang
+memakai paketnya). Dengan begitu tipe yang nanti dibuat owner lewat aplikasi
+(DEC-019/020) tidak ikut hilang setiap kali seeder dijalankan.
+
+Hasil sekarang: 2 tipe konsol, 4 paket, semuanya tarif asli.
+
+**Server terbukti bisa dihubungi dari jaringan**
+
+`php artisan serve --host=0.0.0.0` lalu diuji lewat IP LAN laptop
+(`192.168.100.11:8000`): login, `GET /stations`, dan
+`GET /packages?station_id=` semuanya menjawab benar. Windows Firewall tidak
+memblokir.
+
+**Yang menghalangi, dan bukan di sisi Laravel**
+
+`operator-app/` **belum punya klien API sama sekali**. Yang ada hanya
+`fake_billing_repository.dart`; `ApiBillingRepository` yang disebut di
+checklist Tahap 1 belum dibuat, dan tidak ada satu pun panggilan HTTP ke API di
+`lib/` (satu-satunya pemakaian `package:http` adalah `tv_agent_client.dart`,
+untuk kontrol TV langsung).
+
+Artinya: berapa pun benarnya konfigurasi server, aplikasi operator tetap
+menampilkan data palsu sampai repository itu ditulis. Itu pekerjaan Flutter,
+milik rekan tim — dijelaskan ke user, tidak dikerjakan sendiri.
+
+**Tests** — 262 lulus.
