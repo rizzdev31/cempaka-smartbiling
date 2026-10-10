@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); **202 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal; **31 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti** |
-| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **262 test LULUS** (64 unit + 198 feature, 918 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 28 endpoint. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
+| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **280 test LULUS** (64 unit + 216 feature, 967 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 31 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -2460,3 +2460,65 @@ menampilkan data palsu sampai repository itu ditulis. Itu pekerjaan Flutter,
 milik rekan tim — dijelaskan ke user, tidak dikerjakan sendiri.
 
 **Tests** — 262 lulus.
+
+---
+
+### 2026-10-10 — [Backend] Sinkronisasi master data: ubah harga, semua ikut ter-update
+
+User minta: *"ketika saya update harga atau apapun itu, yang lain ikut
+ter-update."* Ternyata **dua** hal yang belum ada, bukan satu.
+
+**1. Tidak ada cara mengubah harga lewat API sama sekali**
+
+`Permission::PRICING_MANAGE` sudah ada sejak DEC-020 tapi **tidak dipakai
+endpoint mana pun** — harga hanya bisa diubah lewat seeder atau SQL langsung.
+Izinnya ada, pintunya tidak.
+
+**2. Tidak ada cara memberi tahu client**
+
+Delapan event yang ada semuanya tentang sesi. Tidak ada satu pun untuk master
+data, jadi owner yang menaikkan harga di satu tablet tidak punya cara memberi
+tahu tablet lain.
+
+**Dikerjakan (DEC-040)**
+
+| Endpoint | Siapa |
+|---|---|
+| `POST /packages` · `PATCH /packages/{id}` | owner saja |
+| `PATCH /fnb/products/{id}` | `fnb.manage`, **kecuali `price` butuh owner** |
+
+Plus event ke-9: `master.updated`, hanya ke `private-operator`.
+
+**Dua keputusan yang perlu diingat**
+
+**Menu dipisah per field.** "Mie Goreng habis" adalah kejadian harian. Kalau
+seluruh endpoint dikunci owner, operator menunggu owner hanya untuk mematikan
+satu menu — di lapangan itu berarti menu habis tetap muncul di tablet sampai
+ada yang mengangkat telepon.
+
+**Payload `master.updated` ringan, bukan objek penuh.** Master data dibaca
+sebagai daftar; mengirim satu paket memaksa client menyisipkannya ke daftar
+yang sudah dipegang dan mengurus sendiri urutan, penyaringan, serta paket yang
+baru dibuat atau dinonaktifkan. Memuat ulang daftarnya jauh lebih sulit salah.
+
+**Yang paling penting, dan dijaga dua test**
+
+Mengubah harga **tidak** mengubah tagihan sesi yang sedang berjalan. Harga dan
+tarif per jam dibekukan ke baris sesi saat dibuat — termasuk untuk menghitung
+extend. Customer sudah disebutkan harganya di depan; harga itu tidak boleh
+bergerak setelah dia duduk.
+
+`test_harga_naik_tidak_mengubah_tagihan_sesi_berjalan` dan
+`test_harga_extend_juga_memakai_tarif_yang_dibekukan` menjaganya.
+
+Sesi berikutnya memakai harga baru — itu memang gunanya mengubah harga.
+
+**Jejak** — setiap perubahan masuk `audit_logs` dengan nilai sebelum dan
+sesudah (PRD §24). "Kenapa tagihan Senin beda dengan hari ini" hanya bisa
+dijawab kalau harga lamanya tercatat.
+
+**Belum tercakup** — station (nama, status MAINTENANCE) dan tipe konsol belum
+punya endpoint ubah. Keduanya bukan harga, jadi perlu keputusan siapa yang
+boleh → **OD-028**.
+
+**Tests** — 280 lulus, 967 assertion. `MasterDataUpdateTest` 18 test.

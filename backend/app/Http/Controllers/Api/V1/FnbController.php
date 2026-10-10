@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\FnbOrderStatus;
 use App\Http\Requests\Api\V1\StoreFnbOrderRequest;
+use App\Http\Requests\Api\V1\UpdateFnbProductRequest;
 use App\Http\Requests\Api\V1\UpdateFnbStatusRequest;
 use App\Models\BillingSession;
 use App\Models\FnbOrder;
 use App\Models\FnbProduct;
 use App\Services\FnbService;
+use App\Services\MasterDataService;
 use App\Support\Api\ApiResponse;
 use App\Support\Presenters\FnbPresenter;
 use App\Support\Presenters\SessionPresenter;
@@ -18,7 +20,10 @@ use Illuminate\Http\Request;
 /** F&B — API.md §8. */
 class FnbController
 {
-    public function __construct(private readonly FnbService $fnb) {}
+    public function __construct(
+        private readonly FnbService $fnb,
+        private readonly MasterDataService $masterData,
+    ) {}
 
     public function products(): JsonResponse
     {
@@ -69,6 +74,20 @@ class FnbController
             // menampilkannya di kartu station tanpa perlu GET susulan.
             'session' => SessionPresenter::one($session->fresh(['station', 'customer', 'items', 'payments'])),
         ], 201);
+    }
+
+    /**
+     * `PATCH /fnb/products/{id}`.
+     *
+     * Mengubah **harga** butuh owner (DEC-020); menandai menu habis cukup
+     * operator. Pemeriksaannya per field di service — "Mie Goreng habis"
+     * adalah kejadian harian yang tidak boleh menunggu owner.
+     */
+    public function updateProduct(UpdateFnbProductRequest $request, FnbProduct $product): JsonResponse
+    {
+        return ApiResponse::data(FnbPresenter::product(
+            $this->masterData->updateFnbProduct($product, $request->validated(), $request->user()),
+        ));
     }
 
     public function updateStatus(UpdateFnbStatusRequest $request, FnbOrder $order): JsonResponse

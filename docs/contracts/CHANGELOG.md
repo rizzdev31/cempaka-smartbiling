@@ -520,6 +520,54 @@ membandingkan: kalau event muncul di sana tapi tidak di APK, masalahnya di APK.
 
 ---
 
+## v1 · DRAFT 15 — 2026-10-10
+
+Owner akhirnya bisa mengubah harga lewat API, dan perubahannya sampai ke semua
+tablet. Event **kesembilan** ditambahkan di luar delapan event PRD §23.
+
+**ADDED — API** · operator app · **DEC-040**
+- `POST /packages` · `PATCH /packages/{id}` — **owner saja** (`pricing.manage`).
+  `station_type_id` tidak bisa diubah: memindahkan paket ke tipe lain membuat
+  sesi lama seolah dijalankan di konsol berbeda, dan laporan per tipe konsol
+  jadi salah ke belakang. Kalau perlu, buat paket baru dan nonaktifkan yang lama.
+- `PATCH /fnb/products/{id}` — `fnb.manage`, **tapi field `price` butuh owner**.
+
+**ADDED — REALTIME** · operator app · **event ke-9**
+- `master.updated` di `private-operator`. Payload **ringan**, bukan objek penuh:
+
+```json
+{ "resource": "package", "action": "updated", "id": "uuid", "server_time": "...Z" }
+```
+
+`resource` ∈ `package` | `fnb_product` · `action` ∈ `created` | `updated`
+
+Tidak dikirim ke channel station — TV tidak pernah menampilkan harga.
+
+**Yang perlu dikerjakan Flutter**
+
+Dengarkan `master.updated`, lalu **muat ulang daftarnya** dengan
+`GET /packages` atau `GET /fnb/products`. Jangan mencoba menyisipkan satu
+paket ke daftar yang sudah dipegang — urutan, penyaringan, serta paket yang
+baru dibuat atau dinonaktifkan harus diurus sendiri, dan itu jauh lebih mudah
+salah daripada memuat ulang.
+
+**Yang WAJIB dipahami sebelum menjelaskan ini ke pemilik**
+
+Mengubah harga **tidak mengubah tagihan sesi yang sedang berjalan**. Harga
+dibekukan ke baris sesi saat dibuat — termasuk tarif untuk menghitung extend.
+
+| | |
+|---|---|
+| Sesi yang sudah jalan | tetap harga lama, sampai checkout |
+| Sesi berikutnya | harga baru |
+| Order F&B yang sudah dibuat | tetap harga lama |
+
+Kalau operator menaikkan harga lalu bertanya kenapa tagihan di layar tidak
+berubah, **itu jawabannya** — bukan bug. Customer sudah disebutkan harganya di
+depan dan harga itu tidak boleh bergerak setelah dia duduk.
+
+---
+
 ## v1 · DRAFT <n> — YYYY-MM-DD
 
 **<JENIS> — API|REALTIME** · terdampak: Flutter | Kotlin | Admin | semua

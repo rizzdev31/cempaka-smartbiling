@@ -38,6 +38,15 @@ final class AuditAction
     public const CUSTOMER_CREATED = 'customer.created';
     public const MEMBERSHIP_CREATED = 'customer.membership.created';
 
+    /*
+     * Perubahan master data. PRD §24 mewajibkan audit untuk ini, dan
+     * nilai sebelum/sesudah ikut disimpan: pertanyaan "kenapa tagihan hari
+     * Senin beda" hanya bisa dijawab kalau harga lamanya tercatat.
+     */
+    public const PACKAGE_CREATED = "package.created";
+    public const PACKAGE_UPDATED = "package.updated";
+    public const FNB_PRODUCT_UPDATED = "fnb.product.updated";
+
     /** Provisioning TV (API.md §9). Token baru diterbitkan di sini. */
     public const DEVICE_REGISTERED = 'device.registered';
 

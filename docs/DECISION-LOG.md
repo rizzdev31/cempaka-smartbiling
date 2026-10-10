@@ -1287,6 +1287,79 @@ ada yang menyewa, `LOCKED` berarti waktunya sudah habis dan dia perlu ke kasir.
 
 ---
 
+## DEC-040 — Perubahan master data disiarkan; harga sesi berjalan tetap beku
+**Tanggal:** 10 Okt 2026 · **Status:** APPROVED · **Melengkapi:** DEC-019, DEC-020 · **Menambah:** event ke-9 di luar PRD §23
+
+Diminta user: *"pokoknya semua backend bisa disinkronkan kapan saja kalau
+update... biar ketika saya update harga atau apapun itu, yang lain ikut
+ter-update."*
+
+Dua hal yang ternyata belum ada, keduanya dibangun:
+
+1. **Cara mengubah harga lewat API.** `Permission::PRICING_MANAGE` sudah ada
+   sejak DEC-020 tapi tidak dipakai endpoint mana pun — harga hanya bisa
+   diubah lewat seeder atau SQL.
+2. **Cara memberi tahu client.** Tanpa ini, owner yang menaikkan harga di satu
+   tablet tidak punya cara memberi tahu tablet lain; layar Start Session akan
+   terus menampilkan harga lama sampai ditutup dan dibuka kembali.
+
+### Endpoint baru
+
+| Endpoint | Siapa |
+|---|---|
+| `POST /packages` · `PATCH /packages/{id}` | **owner saja** (DEC-020) |
+| `PATCH /fnb/products/{id}` | `fnb.manage`, tapi field **`price` butuh owner** |
+
+Menu dipisah per field karena "Mie Goreng habis" adalah kejadian harian. Kalau
+seluruh endpoint dikunci untuk owner, operator menunggu owner hanya untuk
+mematikan satu menu — dan di lapangan itu berarti menu habis tetap muncul di
+tablet sampai ada yang mengangkat telepon.
+
+### Event `master.updated`
+
+Event **kesembilan**, di luar delapan event PRD §23. Hanya ke
+`private-operator`: TV tidak pernah menampilkan harga, layarnya cuma timer.
+
+Payload-nya **ringan** — menyebut apa yang berubah, bukan objeknya:
+
+```json
+{ "resource": "package", "action": "updated", "id": "uuid", "server_time": "...Z" }
+```
+
+Berbeda dengan `session.updated` yang membawa objek penuh. Alasannya: master
+data dibaca sebagai **daftar**. Mengirim satu paket memaksa client
+menyisipkannya ke daftar yang sudah dipegang, lalu mengurus sendiri urutan,
+penyaringan, serta paket yang baru dibuat atau dinonaktifkan. Memuat ulang
+daftarnya jauh lebih sulit salah, dan master data jarang berubah.
+
+### Yang TIDAK berubah, dan ini yang paling penting
+
+**Harga sesi yang sedang berjalan tetap beku.** Saat sesi dibuat, harga paket
+dan tarif per jamnya disalin ke baris sesi (`package_price`, `hourly_rate`).
+Menaikkan harga di tengah hari **tidak** mengubah tagihan siapa pun yang sudah
+bermain — termasuk harga extend-nya, karena rumus DEC-007 memakai tarif yang
+dibekukan itu.
+
+Itu disengaja sejak awal: customer sudah disebutkan harganya di depan, dan
+harga itu tidak boleh bergerak setelah dia duduk. Ada dua test khusus yang
+menjaganya.
+
+Sesi **berikutnya** memakai harga baru — itu memang gunanya mengubah harga.
+
+### Jejak
+
+Setiap perubahan masuk `audit_logs` dengan nilai **sebelum dan sesudah**
+(PRD §24). Pertanyaan "kenapa tagihan hari Senin beda dengan hari ini" hanya
+bisa dijawab kalau harga lamanya tercatat.
+
+### Yang belum tercakup
+
+Station (nama, status MAINTENANCE) dan tipe konsol belum punya endpoint ubah.
+Keduanya bukan harga, jadi perlu keputusan tersendiri soal siapa yang boleh —
+**OD-028**.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -1297,6 +1370,7 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | **OD-025** | **Harga berdasarkan waktu** — jam pagi, happy hour, jam malam. User: "nanti ada aplikasi minta... jadi kita custom harganya kalau lagi sepi." Paket 3 jam PS3 20.000 / PS4 25.000 di catatan adalah harga jam sepi, jadi sudah ada contoh nyatanya | Muncul dari DEC-036. Butuh jadwal tarif per tipe konsol, dan keputusan apa yang terjadi kalau sesi melewati pergantian jadwal | Tahap 3B |
 | **OD-026** | **Durasi paket "free 2 minuman"** (PS3 40.000, PS4 50.000). Harganya sudah pasti, jamnya belum disebut | Muncul dari DEC-036. Tanpa durasi, paketnya tidak bisa dimasukkan ke sistem sama sekali | Saat paket F&B dibuat |
 | **OD-027** | Kode pendaftaran TV **tidak kedaluwarsa dan bisa dipakai berulang** (DEC-038). Perlu sekali pakai + masa berlaku, atau cukup begini? | Risikonya kecil di WiFi lokal: butuh akses jaringan, station harus belum dipegang TV lain, dan tokennya cuma bisa heartbeat. Perlu ditinjau ulang saat pindah VPS | Tahap 3A |
+| **OD-028** | Siapa yang boleh mengubah **station** (nama, status MAINTENANCE) dan **tipe konsol**? Keduanya bukan harga, jadi aturan owner-only DEC-020 tidak otomatis berlaku | Muncul dari DEC-040. Menandai station rusak adalah kejadian operasional harian — kalau dikunci untuk owner, station rusak tetap tampil bisa dipakai | Tahap 3B |
 | **OD-002 🔴** | **Jadi lebih mendesak sejak DEC-034** — Postpaid tidak lagi punya batas waktu, jadi kerugian kalau customer kabur tidak terbatas. Deposit? batas maksimum? catat identitas? — deposit? batas maksimum open tab? catat identitas? | PRD §12 memperbolehkan Postpaid tapi tidak punya mitigasi kerugian. | Tahap 1 |
 | ~~OD-003~~ | ~~Extend pricing & extend setelah EXPIRED~~ | **DIPUTUSKAN → DEC-007** | — |
 | ~~OD-004~~ | ~~Perilaku warning di TV~~ | **DIPUTUSKAN → DEC-030** (overlay kecil di kanan atas). Bunyi & bisa-ditutup belum, default: tanpa suara, tidak bisa ditutup | — |

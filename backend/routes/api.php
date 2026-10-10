@@ -134,6 +134,29 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
     Route::get('/packages', [PackageController::class, 'index'])
         ->middleware('can:package.read');
 
+    /*
+     * Mengubah tarif — owner saja (DEC-020). Setiap perubahan memicu
+     * `master.updated` supaya tablet lain memuat ulang daftarnya sendiri;
+     * tanpa itu, owner yang menaikkan harga di satu tablet tidak punya cara
+     * memberi tahu yang lain.
+     *
+     * Harga sesi yang SEDANG BERJALAN tidak ikut berubah — harganya dibekukan
+     * ke baris sesi saat dibuat.
+     */
+    Route::post('/packages', [PackageController::class, 'store'])
+        ->middleware(['can:pricing.manage', 'idempotency']);
+
+    Route::patch('/packages/{package}', [PackageController::class, 'update'])
+        ->middleware('can:pricing.manage');
+
+    /*
+     * Menu: `can:fnb.manage` di route, lalu service menolak perubahan HARGA
+     * kalau pemanggilnya bukan owner. Dipisah begitu supaya operator bisa
+     * menandai menu habis sendiri tanpa menunggu owner.
+     */
+    Route::patch('/fnb/products/{product}', [FnbController::class, 'updateProduct'])
+        ->middleware('can:fnb.manage');
+
     Route::post('/sessions/{session}/cancel', [SessionCancelController::class, 'store'])
         ->middleware(['can:session.cancel', 'idempotency']);
 });

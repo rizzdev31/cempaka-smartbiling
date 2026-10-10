@@ -233,6 +233,31 @@ Error: `401 INVALID_CREDENTIALS`, `403 USER_INACTIVE`, `429 TOO_MANY_ATTEMPTS`
 }
 ```
 
+### `POST /packages` · `PATCH /packages/{id}` *(owner saja)*
+
+DEC-020 — hanya owner. `POST` butuh `Idempotency-Key`.
+
+```json
+{ "station_type_id": "uuid", "name": "3 Jam", "duration_minutes": 180, "price": 30000 }
+```
+
+`PATCH` menerima sebagian field saja: `name`, `duration_minutes`, `price`,
+`is_active`, `sort_order`. **`station_type_id` tidak bisa diubah** — memindahkan
+paket ke tipe konsol lain membuat sesi lama seolah dijalankan di konsol berbeda.
+
+> **Harga sesi yang SEDANG BERJALAN tidak ikut berubah.** Harga dan tarif per
+> jam dibekukan ke baris sesi saat dibuat, termasuk untuk menghitung extend
+> (DEC-007). Sesi berikutnya memakai harga baru. Setiap perubahan memicu
+> `master.updated` (REALTIME.md) supaya tablet lain memuat ulang daftarnya.
+
+### `PATCH /fnb/products/{id}`
+
+Field: `name`, `price`, `stock`, `is_available`. Butuh `fnb.manage` — **kecuali
+`price`, yang butuh owner** (DEC-020). Dipisah begitu supaya operator bisa
+menandai menu habis sendiri tanpa menunggu owner.
+
+---
+
 `hourly_rate` = `price ÷ (duration_minutes ÷ 60)`, **dihitung server**. Client memakai nilai ini untuk menampilkan estimasi harga extend — tapi harga final tetap dari server (DEC-007).
 
 Filter yang didukung:
