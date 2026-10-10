@@ -1,5 +1,8 @@
 # Cempaka Smart Billing
 
+> **Baru `git pull`?** Baca [`SYNC.md`](SYNC.md) — satu halaman berisi apa yang
+> berubah dan apa yang perlu Anda kerjakan.
+
 Sistem billing & operasional rental PlayStation — 6 station, operator tablet, Android TV agent, admin web.
 
 **Baseline dokumen aktif:** `docs/PRD-V2.md` + `docs/DECISION-LOG.md`

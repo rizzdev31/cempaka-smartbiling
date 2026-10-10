@@ -10,6 +10,7 @@
 
 | # | File | Kenapa |
 |---|------|--------|
+| 0 | `SYNC.md` | **apa yang berubah & siapa harus apa** — satu halaman, selalu diperbarui |
 | 1 | `CLAUDE.md` | aturan kerja (file ini) |
 | 2 | `docs/DECISION-LOG.md` | keputusan terbaru — **menang atas PRD** kalau bentrok |
 | 3 | `docs/ROADMAP.md` | tahap mana yang sedang dikerjakan |
