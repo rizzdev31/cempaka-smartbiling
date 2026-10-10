@@ -47,6 +47,28 @@ class ShiftController
     }
 
     /**
+     * `GET /shifts` — riwayat shift yang sudah ditutup, terbaru di atas.
+     *
+     * Dibutuhkan layar serah-terima: operator berikutnya perlu melihat kas
+     * akhir shift sebelumnya sebelum menghitung modal awalnya sendiri.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $limit = min(max((int) $request->integer('limit', 20), 1), 100);
+
+        $shifts = Shift::query()
+            ->with('operator')
+            ->whereNotNull('closed_at')
+            ->latest('closed_at')
+            ->limit($limit)
+            ->get();
+
+        return ApiResponse::collection(
+            $shifts->map(fn (Shift $shift) => ShiftPresenter::one($shift, $this->shifts->summary($shift)))->all(),
+        );
+    }
+
+    /**
      * `GET /shifts/current` — dipakai saat app dibuka ulang, bersama
      * `GET /auth/me`, untuk tahu apakah kasir masih di tengah shift.
      */

@@ -17,6 +17,7 @@ use App\Support\Audit\AuditAction;
 use App\Support\Audit\AuditLogger;
 use App\Support\Billing\CheckoutBilling;
 use App\Support\Billing\DocumentNumber;
+use App\Support\Presenters\SessionPresenter;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -326,10 +327,18 @@ class CheckoutService
                 'paid' => $totals->paid,
                 'balance_due' => $totals->balanceDue(),
             ],
-            'payments' => $session->payments->map(fn ($p) => [
-                'method' => $p->method->value,
-                'amount' => (int) $p->amount,
-            ])->all(),
+            /*
+             * Objek payment UTUH, bukan hanya method + amount.
+             *
+             * Struk adalah catatan permanen: "pembayaran mana yang melunasi
+             * tagihan ini" harus bisa dijawab berbulan-bulan kemudian, dan
+             * untuk itu butuh id, waktu konfirmasi, dan siapa yang menerima.
+             * Bentuknya dibuat sama persis dengan payment di tempat lain
+             * supaya client tidak perlu dua cara membacanya.
+             */
+            'payments' => $session->payments
+                ->map(fn ($p) => SessionPresenter::payment($p))
+                ->all(),
             'operator' => ['id' => $actor->id, 'name' => $actor->name],
         ];
     }

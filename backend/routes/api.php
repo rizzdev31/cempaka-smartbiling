@@ -94,6 +94,10 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
     Route::get('/shifts/current', [ShiftController::class, 'current'])
         ->middleware('can:shift.manage');
 
+    // Riwayat shift tertutup \u2014 dipakai layar serah-terima.
+    Route::get('/shifts', [ShiftController::class, 'index'])
+        ->middleware('can:shift.manage');
+
     Route::post('/shifts/open', [ShiftController::class, 'open'])
         ->middleware(['can:shift.manage', 'idempotency']);
 

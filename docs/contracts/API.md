@@ -516,7 +516,9 @@ Perilaku:
       "actual_duration_minutes": 63,
       "lines": [ { "name": "Paket 1 Jam", "qty": 1, "subtotal": 20000 } ],
       "totals": { "grand_total": 45000, "paid": 45000, "balance_due": 0 },
-      "payments": [ { "method": "CASH", "amount": 25000 } ],
+      "payments": [ { "id": "uuid", "method": "CASH", "amount": 25000,
+                      "status": "CONFIRMED", "reference": null,
+                      "confirmed_at": "...Z", "actor": { "id": "uuid", "name": "Budi" } } ],
       "operator": { "id": "uuid", "name": "Budi" }
     }
   }

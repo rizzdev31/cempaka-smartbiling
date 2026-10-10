@@ -210,6 +210,29 @@ class ShiftTest extends TestCase
             ->assertOk();
     }
 
+    public function test_riwayat_hanya_berisi_shift_yang_sudah_ditutup(): void
+    {
+        /*
+         * Dipakai layar serah-terima: operator berikutnya perlu melihat kas
+         * akhir shift sebelumnya sebelum menghitung modal awalnya sendiri.
+         * Shift yang masih berjalan tidak punya angka akhir, jadi tidak boleh
+         * ikut muncul.
+         */
+        $this->actingAs($this->operator(['name' => 'Budi']), 'sanctum');
+        $shiftId = $this->open()->json('data.id');
+
+        $this->getJson('/api/v1/shifts')->assertOk()->assertJsonCount(0, 'data');
+
+        $this->withHeaders($this->idempotent())
+            ->postJson("/api/v1/shifts/{$shiftId}/close", ['closing_cash' => 250000])
+            ->assertOk();
+
+        $this->getJson('/api/v1/shifts')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.closing_cash', 250000)
+            ->assertJsonPath('data.0.operator.name', 'Budi');
+    }
     public function test_buka_shift_tercatat_di_audit(): void
     {
         $this->actingAs($this->operator(['name' => 'Budi']), 'sanctum');
