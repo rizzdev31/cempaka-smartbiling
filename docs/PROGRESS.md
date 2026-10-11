@@ -17,8 +17,8 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); klien API + penemuan server otomatis (DEC-041) sudah ada tapi **aplikasi masih memakai data palsu**; **225 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal + penemuan server otomatis (DEC-041); **47 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti**, dan agent **belum bicara ke Laravel** |
-| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **381 test LULUS** (1.222 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
-| **Admin Web** | **BARU 11 Okt (DEC-042, DEC-043).** Login (guard session, Owner & Admin saja) + dashboard di `/admin`. Design system dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. **8 halaman** (dashboard, sesi, station, F&B, harga, customer, shift, audit), semuanya data nyata dan responsif sampai 375px. Masih **hanya membaca** — form ubah belum ada. Spec: `docs/UI-UX-SPEC-WEB.md` |
+| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **383 test LULUS** (1.225 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
+| **Admin Web** | **BARU 11 Okt (DEC-042, DEC-043).** Login (guard session, Owner & Admin saja) + dashboard di `/admin`. Design system dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. **8 halaman** (dashboard, sesi, station, F&B, harga, customer, shift, audit), semuanya data nyata dan **penuh layar** dari 375px sampai 2560px (diukur, 40 kombinasi). Masih **hanya membaca** — form ubah belum ada. Spec: `docs/UI-UX-SPEC-WEB.md` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -3012,3 +3012,63 @@ Tidak ada satu pun yang meluber mendatar di 375px (diukur
 
 **Next step** — form ubah harga (owner-only, endpoint sudah ada), atau
 OD-029 supaya rekonsiliasi laci berhenti berbohong.
+
+---
+
+### 2026-10-11 — [Admin Web] Tata letak penuh layar
+
+User: *"ubah tampilan dashboard agar menjadi full screen (penuh 100% dari
+ujung ke ujung layar) dan responsif… tidak tertahan di tengah atau
+terpotong sebagian."*
+
+**Yang menahannya**
+
+`max-w-[1240px] mx-auto` — pola "kartu melayang" dari referensi. Wajar untuk
+satu halaman contoh, salah untuk alat kerja: di monitor 1920px, **680px
+dibiarkan kosong** di kiri-kanan sementara tabel di tengah tetap harus
+digeser.
+
+**Yang menggantikannya**
+
+Bukan sekadar membuang pagarnya. Lebar tanpa batas saja akan merentangkan
+empat kartu metrik jadi masing-masing 450px di layar lebar.
+
+| Pengganti | Guna |
+|---|---|
+| Padding bertingkat `px-4 → sm:px-6 → lg:px-8 → 2xl:px-12` | ruang baca ikut membesar, bukan dipatok |
+| `grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]` | grid **menambah kolom**, bukan merentangkan kartu |
+| Header `sticky top-0` | tabel bisa 50 baris; tanpa ini, pindah halaman dari baris terbawah berarti menggulir balik ke puncak lebih dulu |
+| Nav dua tingkat | sebaris mulai `xl`, baris sendiri di bawahnya. Dipaksa sebaris di 1024px membuat merek, sembilan menu, dan blok akun berebut ruang — dan yang kalah selalu menunya |
+
+`<x-nav-link>` diekstrak karena nav sekarang dirender **dua kali**. Dua
+salinan akan melenceng pada perubahan pertama, dan yang melenceng adalah
+yang jarang dilihat.
+
+**Diukur, bukan dilihat**
+
+8 halaman × 5 lebar (375 · 768 · 1024 · 1440 · 2560) = **40 kombinasi**.
+Dua hal diperiksa di tiap kombinasi: tidak ada yang meluber mendatar
+(`scrollWidth` vs `clientWidth`), **dan** `<main>` benar-benar memakai
+≥90% lebar layar. Keduanya lolos semua.
+
+Pemeriksaan kedua itu yang penting — tanpanya, halaman yang masih terkunci
+di tengah tetap "lulus" karena memang tidak meluber.
+
+**Files changed** — `layouts/app.blade.php` (ditulis ulang),
+`components/nav-link.blade.php` (baru), grid di `dashboard` dan `stations`,
+`WebDesignTokensTest` (+`test_layout_penuh_tidak_dikunci_lebar_tetap`).
+
+**DB changes** — tidak ada. **API/Events** — tidak ada.
+
+**Tests** — **383 lulus** (+1), 1.225 assertion.
+
+Test barunya sempat gagal oleh **komentarnya sendiri**: kalimat yang
+menjelaskan kenapa `max-w-[1240px]` dibuang ikut terbaca sebagai kelas.
+Komentar Blade sekarang dibuang dulu sebelum diperiksa — kalau tidak,
+perbaikan yang terlihat paling mudah adalah menghapus penjelasannya.
+
+**Known issues** — halaman login sengaja TETAP di tengah; form selebar layar
+tidak membuatnya lebih mudah diisi.
+
+**Next step** — form ubah: harga, shift, status pesanan. Permintaan user
+berikutnya, dan endpoint-nya sebagian sudah ada.

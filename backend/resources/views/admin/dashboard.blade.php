@@ -33,7 +33,7 @@
 
 
     {{-- ── Kartu metrik ────────────────────────────────────────────── --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-4 mb-6 sm:mb-8">
 
         {{-- Satu kartu disorot, pola dari referensi. Yang disorot adalah
              angka yang paling sering dicari owner saat membuka halaman. --}}

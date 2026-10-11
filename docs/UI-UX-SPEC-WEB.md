@@ -201,20 +201,57 @@ sempit, jadi lolos dari siapa pun yang mengujinya di laptop.
 Alasan tidak memakai scroll mendatar: kolom paling kanan — Total, Status —
 justru yang dicari, dan di tabel yang digeser ia selalu di luar pandangan.
 
+### ⛔ Penuh layar — jangan pasang pagar lebar
+
+Admin Web memakai **seluruh lebar layar**. Tidak ada `max-w-*` di layout,
+dan `test_layout_penuh_tidak_dikunci_lebar_tetap` menolaknya kalau kembali.
+
+Versi pertama memakai `max-w-[1240px] mx-auto` — pola "kartu melayang" dari
+referensi. Wajar untuk satu halaman contoh, salah untuk alat kerja: di
+monitor 1920px, **680px dibiarkan kosong** sementara tabel di tengah tetap
+harus digeser.
+
+Yang menjaga keterbacaan tanpa pagar:
+
+| | |
+|---|---|
+| Padding bertingkat | `px-4` → `sm:px-6` → `lg:px-8` → `2xl:px-12` |
+| Grid **menambah kolom** | `grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]` — bukan merentangkan kartu |
+| Header `sticky top-0` | tabel bisa 50 baris; tanpa ini, pindah halaman dari baris terbawah berarti menggulir balik ke puncak |
+
+Halaman **login** adalah pengecualian: tetap di tengah dengan `max-w-sm`.
+Form selebar layar tidak membuatnya lebih mudah diisi.
+
 ### Breakpoint yang dipakai
 
 | Lebar | Perilaku |
 |---|---|
-| < 640 (`sm`) | satu kolom · nama rental disembunyikan · padding 12px · tabel bertumpuk |
+| < 640 (`sm`) | satu kolom · nama rental disembunyikan · padding 16px · tabel bertumpuk |
 | < 768 (`md`) | tabel masih bertumpuk · judul dan aksi menumpuk |
 | < 1024 (`lg`) | nama & role user disembunyikan dari header |
-| ≥ 1280 (`xl`) | grid tiga kolom pada halaman Station |
+| < 1280 (`xl`) | nav pindah ke **baris kedua**, menggeser mendatar |
+| ≥ 1536 (`2xl`) | padding tepi naik ke 48px |
 
-Navigasi **menggeser mendatar** di semua lebar sempit, tidak pernah
-disembunyikan. Versi pertama memakai `hidden lg:flex` — di tablet tidak ada
-navigasi sama sekali, dan satu-satunya jalan antar halaman adalah tombol
-Back. Geser mendatar dipilih daripada hamburger karena tidak butuh
-JavaScript dan tidak punya keadaan terbuka/tertutup yang bisa macet.
+Navigasi **menggeser mendatar**, tidak pernah disembunyikan. Versi pertama
+memakai `hidden lg:flex` — di tablet tidak ada navigasi sama sekali, dan
+satu-satunya jalan antar halaman adalah tombol Back. Geser mendatar dipilih
+daripada hamburger karena tidak butuh JavaScript dan tidak punya keadaan
+terbuka/tertutup yang bisa macet.
+
+Nav dirender **dua kali** (baris atas ≥1280, baris kedua di bawahnya), jadi
+isinya ada di `<x-nav-link>`. Dua salinan akan melenceng pada perubahan
+pertama, dan yang melenceng adalah yang jarang dilihat.
+
+### Cara memeriksa responsif — diukur, bukan dilihat
+
+```js
+// 8 halaman × 5 lebar. Dua hal, keduanya perlu:
+d.scrollWidth > d.clientWidth          // meluber mendatar?
+main.getBoundingClientRect().width     // benar-benar memakai ≥90% layar?
+```
+
+Pemeriksaan kedua itu yang penting. Tanpanya, halaman yang masih terkunci
+di tengah tetap "lulus" karena memang tidak meluber.
 
 ### ⛔ Kelas warna ditulis utuh, jangan dirangkai
 

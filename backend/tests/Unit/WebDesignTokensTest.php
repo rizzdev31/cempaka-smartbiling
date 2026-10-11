@@ -192,6 +192,38 @@ class WebDesignTokensTest extends TestCase
         );
     }
 
+    public function test_layout_penuh_tidak_dikunci_lebar_tetap(): void
+    {
+        /*
+         * Admin Web memakai SELURUH lebar layar.
+         *
+         * Versi pertama memakai `max-w-[1240px] mx-auto` — pola "kartu
+         * melayang" dari referensi. Wajar untuk satu halaman contoh, salah
+         * untuk alat kerja: di monitor 1920px, 680px dibiarkan kosong di
+         * kiri-kanan sementara tabel di tengah tetap harus digeser.
+         *
+         * Yang mengatur kenyamanan baca adalah padding yang ikut membesar
+         * (`2xl:px-12`) dan grid yang menambah kolom, bukan pagar lebar.
+         */
+        $layout = file_get_contents(self::VIEWS.'/components/layouts/app.blade.php');
+
+        /*
+         * Komentar dibuang dulu. Tanpa ini, kalimat yang MENJELASKAN kenapa
+         * `max-w-[1240px]` dibuang justru membuat test ini gagal — dan
+         * perbaikan yang terlihat paling mudah adalah menghapus
+         * penjelasannya.
+         */
+        $kelas = preg_replace('/\{\{--.*?--\}\}/s', '', $layout);
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/\bmax-w-(?:\[|screen-|7xl|6xl|5xl)/',
+            $kelas,
+            'Layout dikunci lebar tetap lagi — halaman akan tertahan di tengah.',
+        );
+
+        $this->assertStringContainsString('px-4 sm:px-6 lg:px-8', $layout, 'Padding tepi harus ikut membesar.');
+    }
+
     public function test_layout_memanggil_direktif_fonts(): void
     {
         /*

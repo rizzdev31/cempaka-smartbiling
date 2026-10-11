@@ -11,7 +11,7 @@
         membandingkan nilai antar baris. Grid kartu menyusut mulus dari empat
         kolom ke satu tanpa perlu dipecah seperti tabel.
     --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(19rem,1fr))] gap-4">
         @forelse ($stations as $station)
             @php
                 $device = $station->device;
@@ -118,7 +118,7 @@
                 @endif
             </x-card>
         @empty
-            <div class="sm:col-span-2 xl:col-span-3">
+            <div class="col-span-full">
                 <x-card>
                     <x-empty title="Belum ada station" icon="tv">
                         Jalankan seeder, atau tambahkan station dari database.

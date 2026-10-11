@@ -16,8 +16,8 @@
 
 | Bagian | Status |
 |---|---|
-| **Backend (Laravel)** | Tahap 0 **SELESAI**. 32 endpoint, 9 event realtime, 381 test lulus |
-| **Admin Web (Blade)** | Login + **8 halaman** di `/admin`, data nyata, responsif sampai 375px. Hanya membaca — form ubah belum ada |
+| **Backend (Laravel)** | Tahap 0 **SELESAI**. 32 endpoint, 9 event realtime, 383 test lulus |
+| **Admin Web (Blade)** | Login + **8 halaman** di `/admin`, data nyata, **penuh layar** 375–2560px. Hanya membaca — form ubah belum ada |
 | **Operator app (Flutter)** | Layar sudah jadi. Klien API **sudah ada** (`lib/data/api/`) dan alamat server sudah bisa ditemukan otomatis, tapi aplikasi **masih memakai data palsu** — belum dialihkan dan belum ada login |
 | **TV Agent (Kotlin)** | Kiosk + timer jalan, dan sudah bisa **menemukan** server, tapi **belum bicara** dengan Laravel — masih menerima perintah langsung dari tablet |
 
@@ -197,6 +197,7 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 | Tanggal | Isi |
 |---|---|
+| 11 Okt 2026 | Admin Web jadi **penuh layar** — pagar 1240px dibuang, grid menambah kolom, header sticky |
 | 11 Okt 2026 | **8 halaman Admin Web** — sesi, station, F&B, harga, customer, shift, audit. Semuanya responsif sampai 375px |
 | 11 Okt 2026 | Dashboard Admin Web memakai **data nyata**; data contoh dihapus. Audit fitur kasir → OD-029/030/031 |
 | 11 Okt 2026 | **Login Admin Web** (DEC-043) — guard session, Owner & Admin saja, pemeriksa kredensial dibagi dengan API |
