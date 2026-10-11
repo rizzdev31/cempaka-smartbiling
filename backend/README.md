@@ -2,7 +2,8 @@
 
 API + Admin Web + Customer Portal. **Satu aplikasi Laravel**, bukan tiga proyek.
 
-**Status:** belum diinisialisasi (Tahap 0).
+**Status:** **Tahap 0 SELESAI.** Laravel 13.35.0 + Sanctum, 32 endpoint,
+9 event realtime, 283 test lulus, golden path 38/38 lewat HTTP.
 
 ## Sebelum menulis kode, baca
 1. [`../CLAUDE.md`](../CLAUDE.md) — aturan kerja
@@ -21,6 +22,63 @@ Laravel · MySQL · Laravel Reverb · Sanctum
 - `Idempotency-Key` ditegakkan middleware pada 9 endpoint di `API.md` §3.
 - Station Swap atomic dalam DB transaction.
 - `audit_logs` terisi untuk login, payment, extend, swap, discount, adjustment, perubahan master data.
+
+## Pertama kali di mesin baru
+
+Urutan ini **sekali saja**. Lewat satu langkah dan yang gagal biasanya bukan
+langkah itu, tapi langkah berikutnya — dengan pesan yang tidak menunjuk ke
+penyebabnya.
+
+**1. Dependensi**
+
+```bash
+composer install
+```
+
+**2. `.env`**
+
+`.env` **tidak di-commit** (berisi kredensial). Salin dari contohnya:
+
+```bash
+cp .env.example .env
+```
+
+```bash
+php artisan key:generate
+```
+
+**3. Database**
+
+Buat database kosong bernama `cempaka_billing`, lalu sesuaikan `DB_USERNAME`
+dan `DB_PASSWORD` di `.env` dengan MySQL di mesin Anda.
+
+```bash
+php artisan migrate --seed
+```
+
+Kalau muncul `Access denied for user 'root'@'localhost' (using password: NO)`,
+itu berarti `DB_PASSWORD` di `.env` masih kosong padahal MySQL Anda pakai
+password — bukan masalah migration.
+
+**4. Pastikan hidup**
+
+```bash
+curl http://localhost:8000/api/v1/health
+```
+
+Harus menjawab `"app": "cempaka-smart-billing"`. Nilai itulah yang dipakai
+tablet dan TV untuk menemukan server ini sendiri (DEC-041) — kalau tidak
+muncul, penemuan otomatis tidak akan bekerja.
+
+### Akun contoh dari seeder
+
+Username `owner`, `admin`, `operator1`. Password diambil dari `SEED_PASSWORD`
+di `.env`; kalau tidak diisi, nilainya `password`.
+
+**Hanya untuk development.** Seeder tidak boleh dijalankan di produksi — akun
+produksi dibuat lewat Admin Web (Tahap 3B).
+
+---
 
 ## Menjalankan lokal (dev)
 
