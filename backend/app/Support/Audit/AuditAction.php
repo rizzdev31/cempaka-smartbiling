@@ -9,8 +9,11 @@ namespace App\Support\Audit;
 final class AuditAction
 {
     public const LOGIN_SUCCESS = 'auth.login.success';
+
     public const LOGIN_FAILED = 'auth.login.failed';
+
     public const LOGIN_BLOCKED_INACTIVE = 'auth.login.blocked_inactive';
+
     /** Kredensial benar, tapi rolenya tidak boleh masuk Admin Web (DEC-043). */
     public const LOGIN_BLOCKED_ROLE = 'auth.login.blocked_role';
 
@@ -28,17 +31,22 @@ final class AuditAction
     public const PAYMENT_CONFIRMED = 'payment.confirmed';
 
     public const SESSION_SWAPPED = 'session.swapped';
+
     public const SESSION_CANCELLED = 'session.cancelled';
+
     public const SESSION_CHECKOUT = 'session.checkout';
 
     public const FNB_ORDER_CREATED = 'fnb.order.created';
+
     public const FNB_STATUS_CHANGED = 'fnb.order.status_changed';
 
     public const SHIFT_OPENED = 'shift.opened';
+
     public const SHIFT_CLOSED = 'shift.closed';
 
     /** DEC-027 — operator boleh mendaftarkan, tapi tidak boleh tidak terlacak. */
     public const CUSTOMER_CREATED = 'customer.created';
+
     public const MEMBERSHIP_CREATED = 'customer.membership.created';
 
     /*
@@ -46,14 +54,17 @@ final class AuditAction
      * nilai sebelum/sesudah ikut disimpan: pertanyaan "kenapa tagihan hari
      * Senin beda" hanya bisa dijawab kalau harga lamanya tercatat.
      */
-    public const PACKAGE_CREATED = "package.created";
-    public const PACKAGE_UPDATED = "package.updated";
-    public const FNB_PRODUCT_UPDATED = "fnb.product.updated";
+    public const PACKAGE_CREATED = 'package.created';
+
+    public const PACKAGE_UPDATED = 'package.updated';
+
+    public const FNB_PRODUCT_UPDATED = 'fnb.product.updated';
 
     /** Provisioning TV (API.md §9). Token baru diterbitkan di sini. */
     public const DEVICE_REGISTERED = 'device.registered';
 
     /** DEC-026 — saldo member. Wajib diaudit: ini uang customer. */
     public const CREDIT_EARNED = 'customer.credit.earned';
+
     public const CREDIT_USED = 'customer.credit.used';
 }

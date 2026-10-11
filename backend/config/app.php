@@ -74,6 +74,20 @@ return [
     'timezone' => env('APP_TIMEZONE', 'UTC'),
 
     /*
+     * Zona waktu tempat rental berdiri — dipakai HANYA untuk menampilkan dan
+     * untuk menentukan batas "hari ini".
+     *
+     * Dua-duanya perlu, dan yang kedua mudah terlewat. DB menyimpan UTC,
+     * jadi `whereDate(..., today())` akan memotong hari pada 00:00 UTC =
+     * 07:00 WIB. Omzet jam 00:00–07:00 — justru jam paling ramai rental PS —
+     * akan masuk ke hari sebelumnya, dan laporan harian tidak akan pernah
+     * cocok dengan isi laci.
+     *
+     * Satu-satunya pemakai sah: `App\Support\Time\BusinessDay`.
+     */
+    'display_timezone' => env('APP_DISPLAY_TIMEZONE', 'Asia/Jakarta'),
+
+    /*
      * Dilaporkan oleh GET /health (API.md §5) dan dipakai client untuk
      * mencocokkan versi kontrak.
      */

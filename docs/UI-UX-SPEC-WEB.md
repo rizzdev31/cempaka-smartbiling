@@ -175,12 +175,31 @@ Di `resources/views/components/`.
 | `<x-gauge>` | meter setengah lingkaran |
 | `<x-rupiah>` | uang |
 | `<x-icon>` | satu set ikon inline SVG |
-| `<x-sample-banner>` | penanda data contoh |
+| `<x-delta>` | badge perubahan terhadap kemarin |
 
 Halaman login (`auth/login.blade.php`) **tidak** memakai `<x-layouts.app>`:
 layout itu berisi nav, tombol notifikasi, dan avatar — semuanya menuntut user
 yang sudah login. Memaksakannya berarti menaruh chrome yang tidak bisa dipakai
 di depan orang yang belum boleh memakainya.
+
+### ⛔ Angka perubahan harus dihitung, bukan dituliskan
+
+`<x-metric>` menerima badge lewat **slot**, bukan prop string:
+
+```blade
+<x-slot:badge><x-delta :now="$hariIni" :before="$kemarin" /></x-slot:badge>
+```
+
+Versi pertama menerimanya sebagai string, dan string itu diisi `"↑ 12,5%"`
+dari data contoh. Angka mati itu **bertahan** setelah datanya jadi nyata dan
+mengklaim pertumbuhan di atas nol sesi. Slot memaksa angkanya dihitung.
+
+`<x-delta>` **diam kalau pembandingnya nol**. Persentase perubahan dari nol
+tidak punya arti, tapi badge-nya tetap terlihat sah — dan "↑ 100%" di hari
+pertama akan dibaca sebagai pertumbuhan.
+
+Dikunci dua test dari dua arah: halaman kosong tidak boleh memuat `↑`/`↓`
+sama sekali, dan halaman dengan data kemarin **wajib** memuatnya.
 
 ### Dua hal yang diperbaiki dari referensi
 
@@ -236,7 +255,8 @@ php artisan test --filter=WebDesignTokensTest
 | | |
 |---|---|
 | ~~Login web~~ | ✅ **Sudah ada** — DEC-043. Guard session, Owner & Admin saja |
-| **Data nyata** | Dashboard masih memakai `DashboardSampleData`. Ganti kelas itu, jangan tambahkan query di sampingnya. **Penghalangnya sudah hilang** |
+| ~~Data nyata~~ | ✅ **Sudah** — `DashboardData` + `BusinessDay`. Batas "hari ini" = tengah malam **WIB**, bukan UTC |
+| **12 modul §19 lainnya** | Station & Device, Harga & Paket, F&B/Inventory, Customer, Shift, Payment, Audit Log sudah punya backend. Expense/Profit terhalang **OD-029**; Booking, Target, Reports, Backup belum ada |
 | Halaman Sesi, F&B, Harga & Paket, Laporan | nav-nya sudah ada, diredupkan dan tidak bisa diklik |
 | Mode gelap | tidak dibuat — sama seperti tablet (DEC-016) |
 | Responsif ponsel | tata letak sudah menyusut sampai satu kolom, tapi belum diuji di perangkat |

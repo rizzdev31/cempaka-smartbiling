@@ -6,11 +6,11 @@ use App\Enums\Permission;
 use App\Models\Device;
 use App\Models\User;
 use Illuminate\Auth\Middleware\RedirectIfAuthenticated;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Http\Request;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -63,7 +63,7 @@ class AuthServiceProvider extends ServiceProvider
          * Pendaftaran TV: 5 / menit / IP. Kode pendaftarannya cuma enam
          * huruf — tanpa batas ini, kode bisa ditebak dengan mencoba terus.
          */
-        RateLimiter::for("device-register", fn (Request $request) => Limit::perMinute(5)->by($request->ip()));
+        RateLimiter::for('device-register', fn (Request $request) => Limit::perMinute(5)->by($request->ip()));
 
         /*
          * Heartbeat: 2 / menit / device (API.md §13). TV mengirimnya tiap 30
@@ -71,7 +71,7 @@ class AuthServiceProvider extends ServiceProvider
          * jalan untuk membanjiri server.
          */
         RateLimiter::for(
-            "device-heartbeat",
+            'device-heartbeat',
             fn (Request $request) => Limit::perMinute(2)->by($request->user()?->getAuthIdentifier() ?: $request->ip()),
         );
 

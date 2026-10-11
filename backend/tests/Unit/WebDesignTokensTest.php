@@ -20,6 +20,7 @@ use PHPUnit\Framework\TestCase;
 class WebDesignTokensTest extends TestCase
 {
     private const CSS = __DIR__.'/../../resources/css/app.css';
+
     private const VIEWS = __DIR__.'/../../resources/views';
 
     /** @return list<string> */

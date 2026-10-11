@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Controllers\Web\LoginController;
-use App\Support\Web\DashboardSampleData;
+use App\Support\Web\DashboardData;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -29,6 +29,6 @@ Route::post('/logout', [LoginController::class, 'destroy'])
  * kehilangan akses, bukan menunggu dia logout sendiri.
  */
 Route::middleware(['auth', 'admin.web'])->group(function () {
-    Route::get('/admin', fn () => view('admin.dashboard', DashboardSampleData::all()))
+    Route::get('/admin', fn () => view('admin.dashboard', DashboardData::all()))
         ->name('admin.dashboard');
 });

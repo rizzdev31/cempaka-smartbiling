@@ -1,6 +1,6 @@
 @php
-    $deltaRevenue = \App\Support\Web\DashboardSampleData::delta($revenue_today, $revenue_yesterday);
     $maxDay = max(array_column($revenue_by_day, 'value')) ?: 1;
+    $adaData = $maxDay > 1 || array_sum(array_column($revenue_by_day, 'value')) > 0;
 @endphp
 
 <x-layouts.app title="Dashboard">
@@ -11,7 +11,7 @@
             <h1 class="text-2xl font-extrabold text-ink tracking-tight">Ringkasan Hari Ini</h1>
             <p class="text-xs text-ink-soft mt-1">
                 Pendapatan, sesi berjalan, dan aktivitas station ·
-                {{ $generated_at->timezone(config('app.timezone_display', 'Asia/Jakarta'))->format('d M Y, H:i') }}
+                {{ $generated_at->timezone(\App\Support\Time\BusinessDay::timezone())->format('d M Y, H:i') }} WIB
             </p>
         </div>
 
@@ -31,7 +31,6 @@
         </div>
     </div>
 
-    <x-sample-banner />
 
     {{-- ── Kartu metrik ────────────────────────────────────────────── --}}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -43,33 +42,45 @@
             label="Pendapatan hari ini"
             icon="money"
             :value="'Rp '.number_format($revenue_today, 0, ',', '.')"
-            :delta="($deltaRevenue >= 0 ? '↑ ' : '↓ ').number_format(abs($deltaRevenue), 1, ',', '.').'%'"
             :footnote="'Kemarin: Rp '.number_format($revenue_yesterday, 0, ',', '.')"
-        />
+        >
+            <x-slot:badge>
+                <x-delta :now="$revenue_today" :before="$revenue_yesterday" tone="onBrand" />
+            </x-slot:badge>
+        </x-metric>
 
         <x-metric
             label="Sesi berjalan"
             icon="play"
             :value="$sessions_active"
             :footnote="$sessions_done_today.' sesi selesai hari ini'"
-        />
+        >
+            <x-slot:badge>
+                <x-delta :now="$sessions_done_today" :before="$sessions_done_yesterday" unit=" sesi" />
+            </x-slot:badge>
+        </x-metric>
 
         <x-metric
             label="Station terpakai"
             icon="tv"
+            chip="soft"
             :value="$sessions_active.' / '.$stations_total"
-            :delta="number_format($occupancy_percent, 1, ',', '.').'%'"
-            delta-tone="brand"
-            :footnote="'Rata-rata sesi '.$avg_minutes.' menit'"
-        />
+            :footnote="$avg_minutes > 0 ? 'Rata-rata sesi '.$avg_minutes.' menit' : 'Belum ada sesi selesai hari ini'"
+        >
+            {{-- Okupansi BUKAN perbandingan terhadap kemarin, jadi ia badge
+                 biasa, bukan `x-delta`. --}}
+            <x-slot:badge>
+                <x-badge tone="brand">{{ number_format($occupancy_percent, 1, ',', '.') }}%</x-badge>
+            </x-slot:badge>
+        </x-metric>
 
         <x-metric
             label="Pesanan F&B terbuka"
             icon="cup"
             :value="$fnb_open"
-            :delta="$members_new.' member baru'"
-            delta-tone="up"
-            footnote="Belum diantar ke station"
+            :footnote="$members_new > 0
+                ? $members_new.' member baru hari ini'
+                : 'Belum diantar ke station'"
         />
     </div>
 
@@ -101,10 +112,20 @@
                                  menyebut pendapatan, dan label yang membungkus
                                  dua baris merusak jarak gridline. --}}
                             <span class="text-[11px] font-medium text-ink-faint w-12 shrink-0 tabular whitespace-nowrap">
-                                @php $t = (int) round($maxDay * $frac); @endphp
-                                {{ $t >= 1_000_000
+                                @php
+                                    $t = (int) round($maxDay * $frac);
+                                    /*
+                                     * Saat belum ada transaksi, seluruh tick
+                                     * membulat ke "0" dan sumbunya tampil
+                                     * sebagai lima angka nol bertumpuk —
+                                     * terbaca seperti rusak. Yang ditampilkan
+                                     * cukup garis dasarnya saja.
+                                     */
+                                    $kosong = $adaData === false && $frac > 0;
+                                @endphp
+                                {{ $kosong ? '' : ($t >= 1_000_000
                                     ? rtrim(rtrim(number_format($t / 1_000_000, 1, ',', '.'), '0'), ',').'jt'
-                                    : ($t >= 1_000 ? round($t / 1_000).'rb' : '0') }}
+                                    : ($t >= 1_000 ? round($t / 1_000).'rb' : '0')) }}
                             </span>
                             <div class="flex-1 ml-2 border-b {{ $frac == 0 ? 'border-line' : 'border-dashed border-line-soft' }}"></div>
                         </div>
@@ -174,14 +195,14 @@
                     <span class="text-[11px] font-medium text-ink-soft block">Sesi selesai</span>
                     <div class="flex items-center gap-1.5 mt-1 flex-wrap">
                         <span class="text-lg font-bold text-ink tabular">{{ $sessions_done_today }}</span>
-                        <x-badge tone="up">↑ 12,5%</x-badge>
+                        <x-delta :now="$sessions_done_today" :before="$sessions_done_yesterday" />
                     </div>
                 </div>
                 <div class="bg-inset rounded-block p-3">
                     <span class="text-[11px] font-medium text-ink-soft block">Rata-rata durasi</span>
                     <div class="flex items-center gap-1.5 mt-1 flex-wrap">
                         <span class="text-lg font-bold text-ink tabular">{{ $avg_minutes }}m</span>
-                        <x-badge tone="neutral">↑ 6m</x-badge>
+                        <x-delta :now="$avg_minutes" :before="$avg_minutes_yesterday" unit="m" />
                     </div>
                 </div>
             </div>
@@ -225,7 +246,14 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-line-soft">
-                    @foreach ($recent_sessions as $s)
+                    {{--
+                        Keadaan kosong harus terlihat DISENGAJA.
+
+                        Tabel yang kosong tanpa penjelasan terbaca sebagai
+                        rusak, dan orang akan mencari bug yang tidak ada.
+                        Di instalasi baru ini justru keadaan yang benar.
+                    --}}
+                    @forelse ($recent_sessions as $s)
                         <tr class="hover:bg-inset/60 transition-colors">
                             <td class="py-3 px-3">
                                 <div class="flex items-center gap-2">
@@ -249,7 +277,19 @@
                                 <x-rupiah :value="$s['total']" />
                             </td>
                         </tr>
-                    @endforeach
+                    @empty
+                        <tr>
+                            <td colspan="7" class="py-10 text-center">
+                                <div class="flex flex-col items-center gap-2">
+                                    <span class="text-ink-faint"><x-icon name="clock" class="w-6 h-6" /></span>
+                                    <p class="text-xs font-semibold text-ink">Belum ada sesi</p>
+                                    <p class="text-[11px] text-ink-soft max-w-xs">
+                                        Sesi yang dibuka dari tablet operator akan muncul di sini.
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+                    @endforelse
                 </tbody>
             </table>
         </div>

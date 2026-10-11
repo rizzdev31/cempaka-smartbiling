@@ -17,8 +17,8 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); klien API + penemuan server otomatis (DEC-041) sudah ada tapi **aplikasi masih memakai data palsu**; **225 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal + penemuan server otomatis (DEC-041); **47 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti**, dan agent **belum bicara ke Laravel** |
-| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **328 test LULUS** (1.125 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
-| **Admin Web** | **BARU 11 Okt (DEC-042, DEC-043).** Login (guard session, Owner & Admin saja) + dashboard di `/admin`. Design system dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. Isinya masih **data contoh** — itu langkah berikutnya. Spec: `docs/UI-UX-SPEC-WEB.md` |
+| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **342 test LULUS** (1.158 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
+| **Admin Web** | **BARU 11 Okt (DEC-042, DEC-043).** Login (guard session, Owner & Admin saja) + dashboard di `/admin`. Design system dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. Dashboard sudah memakai **data nyata** (11 Okt); data contoh dihapus seluruhnya. Spec: `docs/UI-UX-SPEC-WEB.md` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -2811,3 +2811,101 @@ tombol keluar → kembali ke /login, /admin tidak bisa dibuka lagi
 - Belum ada "ingat saya". Session berakhir saat browser ditutup.
 
 **Next step** — ganti `DashboardSampleData` dengan query nyata.
+
+---
+
+### 2026-10-11 — [Admin Web] Dashboard memakai data nyata; audit fitur kasir
+
+**Audit dulu, baru kode**
+
+User mengirim katalog lengkap modul kasir dan meminta UI-nya dibuat. Sebelum
+menulis apa pun, seluruh backend ditelusuri — endpoint, model, enum, kolom
+tabel — dan dibandingkan dengan katalog itu. Hasilnya: **sekitar separuh
+fitur di katalog belum punya backend sama sekali** (pause, booking, chat,
+approval, top-up saldo, poin, pengeluaran kasir, sewa aksesori).
+
+User memilih **"UI untuk yang sudah ada saja"**. Tiga prioritas backend yang
+hilang dicatat sebagai **OD-029** (pengeluaran kasir), **OD-030** (F&B
+walk-in), **OD-031** (kendali TV manual).
+
+**Catatan arah: katalog itu PRD §18, bukan §19**
+
+Katalog kasir = `Flutter Operator` (PRD §18), dan aplikasinya sudah ada.
+Laravel = `Admin Web` (PRD §19), 13 modul. Ketiga prioritas user ternyata
+memang milik §19: Expense/Profit, F&B/Inventory, Station & Device. Jadi
+mengikuti PRD tidak membuang keinginan user — hanya menaruhnya di tempat
+yang benar.
+
+**Yang dikerjakan: `DashboardSampleData` → `DashboardData`**
+
+**Jebakan zona waktu, dan kenapa ia berbahaya**
+
+DEC-005 menyimpan semua timestamp UTC. Akibatnya `whereDate(..., today())`
+memotong hari pada **00:00 UTC = 07:00 WIB** — jam paling salah untuk rental
+PS, karena sesi tengah malam sampai subuh justru yang paling ramai. Omzet jam
+00:00–07:00 akan tercatat di hari sebelumnya.
+
+Kesalahannya **tidak terlihat dari layar**: angkanya tetap wajar, hanya di
+kolom yang salah, dan baru ketahuan saat laporan harian tidak cocok dengan
+isi laci.
+
+`App\Support\Time\BusinessDay` memegang batas itu di satu tempat, dan
+`test_pembayaran_jam_dua_pagi_masuk_hari_ini_bukan_kemarin` menguncinya.
+Test itu dibuktikan bisa gagal: zona waktunya diubah ke UTC sementara → test
+gagal; dipulihkan → lulus.
+
+**Dua kebohongan yang dibongkar justru oleh data nyata**
+
+Badge `↑ 12,5%` dan `↑ 6m` di kartu gauge adalah teks **mati** peninggalan
+data contoh. Begitu datanya nyata, keduanya tetap mengklaim pertumbuhan di
+atas **nol sesi**. Bentuknya meyakinkan — itulah yang membuatnya berbahaya.
+
+Diganti komponen `<x-delta>` yang **diam kalau pembandingnya nol**: persentase
+perubahan dari nol tidak punya arti, tapi badge-nya tetap terlihat sah.
+`x-metric` sekarang menerima badge lewat **slot**, bukan string — slot
+memaksa angkanya dihitung, bukan dituliskan.
+
+Dua test menguncinya dari dua arah: halaman kosong tidak boleh memuat `↑`
+maupun `↓` sama sekali, dan halaman dengan data kemarin **wajib**
+memuatnya — kalau tidak, test pertama lulus hanya karena badge-nya mati.
+
+**Keputusan kecil yang dicatat**
+
+- **Pendapatan = uang yang benar-benar diterima** (`payments` CONFIRMED),
+  bukan nilai transaksi. Dasar yang sama dengan `ShiftService::summary()`.
+- **Okupansi = sekarang**, bukan rata-rata harian. Yang dicari owner saat
+  membuka halaman adalah "berapa meja terisi detik ini".
+- **Total di tabel dari `session_items`**, bukan dari pembayaran — sesi yang
+  masih berjalan belum dibayar, dan Rp 0 akan terbaca sebagai fakta.
+- Diskon (subtotal negatif) dikeluarkan dari penjumlahan total.
+- Grafik 7 hari: satu query `GROUP BY`, bukan tujuh query berurutan.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `Support/Time/BusinessDay.php`, `Support/Web/DashboardData.php`, `views/components/delta.blade.php`, `tests/Feature/Web/DashboardDataTest.php` |
+| Diubah | `config/app.php` (+`display_timezone`), `routes/web.php`, `views/admin/dashboard.blade.php`, `views/components/metric.blade.php` |
+| Dihapus | `DashboardSampleData.php`, `components/sample-banner.blade.php` |
+
+**DB changes** — tidak ada.
+**API/Events** — tidak ada. Tahap 0 tidak tersentuh.
+
+**Tests** — **342 lulus** (+14), 1.158 assertion.
+
+**Known issues**
+
+- Database dev masih kosong transaksi, jadi dashboard menampilkan nol
+  semuanya. Itu **benar**, bukan rusak — keadaan kosongnya sudah dibuat
+  terlihat disengaja ("Belum ada sesi").
+- **Batas hari dipotong tengah malam WIB.** Kalau rental tutup jam 02:00,
+  sesi yang selesai 01:30 masuk ke hari berikutnya padahal bagi operator itu
+  masih shift yang sama. Belum pernah ditanyakan ke user; jawabannya hanya
+  mengubah `BusinessDay`. Untuk pertanyaan "berapa yang saya terima saat
+  jaga", `Shift` sudah menjawab benar tanpa bergantung batas hari.
+- `CONVERT_TZ` dipanggil dengan offset angka (`+07:00`), bukan nama zona,
+  karena tabel zona waktu MySQL sering belum diisi di Windows. DST tidak
+  ditangani — tidak relevan untuk WIB.
+
+**Next step** — modul §19 berikutnya yang backend-nya sudah ada: Station &
+Device, Harga & Paket, atau F&B/Inventory.
