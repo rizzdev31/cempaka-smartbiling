@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); klien API + penemuan server otomatis (DEC-041) sudah ada tapi **aplikasi masih memakai data palsu**; **225 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal + penemuan server otomatis (DEC-041); **47 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti**, dan agent **belum bicara ke Laravel** |
-| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **280 test LULUS** (64 unit + 216 feature, 967 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 31 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
+| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **280 test LULUS** (64 unit + 216 feature, 967 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 31 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata. **Sudah jalan di mesin Rifqi (11 Okt)** — PHP 8.4 berdampingan, 25 tabel, seeder terisi, login terbukti |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -1448,6 +1448,94 @@ cd backend && /c/php84/php.exe /c/ProgramData/ComposerSetup/bin/composer.phar in
 
 **Next step**
 Pasang PHP 8.4, lalu `composer install` dan `migrate --seed`.
+
+---
+
+### 2026-10-11 — Backend JALAN di mesin ini
+
+**Files changed** — tidak ada di repo. Semuanya setup lingkungan.
+**DB changes** — **25 tabel dibuat**, 8 migration jalan, seeder lengkap.
+
+**Hasil akhir**
+
+| | |
+|---|---|
+| PHP 8.4.26 | `C:\php84`, berdampingan — XAMPP tetap 8.2.12, tidak tersentuh |
+| Composer | 123 paket terpasang |
+| Migrasi | 8 file, **25 tabel** |
+| Seeder | 3 user · 2 tipe station · **6 station** · 4 paket · 7 produk F&B · 1 membership |
+| `GET /api/v1/health` | `database: ok`, `broadcast: reverb` |
+| `POST /api/v1/auth/login` | **berhasil** — token + permission terbit |
+
+Login diuji dengan `operator1` / `password` (dari `SEED_PASSWORD`).
+
+**Dua masalah lingkungan, dan keduanya layak diingat**
+
+**1. MariaDB menolak migrasi** — `Invalid default value for 'expires_at'`.
+
+MariaDB mematikan `explicit_defaults_for_timestamp`, yang **menyala secara
+bawaan di MySQL 8**. Saat mati, kolom `TIMESTAMP` kedua dan seterusnya dalam
+satu tabel diberi default implisit `'0000-00-00'`, lalu ditolak `NO_ZERO_DATE`
+di `sql_mode`.
+
+Ada **17 kolom** berpola sama di beberapa migrasi. Memperbaikinya di kode
+berarti mengubah migrasi yang **sudah jalan di mesin Reyhan** — itu harus
+dikoordinasikan, bukan diputuskan sepihak. Jadi yang disesuaikan lingkungannya:
+`explicit_defaults_for_timestamp=ON` ditambahkan ke `[mysqld]` di
+`C:\xampp\mysql\bin\my.ini`.
+
+Tabel yang sudah ada tidak terpengaruh — defaultnya sudah tertulis di skema.
+Yang berubah hanya pembuatan tabel baru. Cadangan:
+`my.ini.backup-sebelum-smartbilling`.
+
+**2. MariaDB gagal start — ini akibat kesalahan saya.**
+
+Menjalankan `mysqld` dari background job shell lalu mematikannya paksa
+membuat MariaDB menulis berkas `master-*.info` bernama **potongan baris
+lognya sendiri**. Ia lalu membaca berkas itu sebagai konfigurasi replikasi,
+gagal, dan membuat berkas baru dari log kegagalannya — berulang sampai 44
+berkas, lalu `Failed to initialize multi master structures` dan `Aborting`.
+
+Mesin ini tidak memakai replikasi sama sekali, jadi semuanya sampah.
+Dipindahkan (bukan dihapus) ke `C:\xampp\mysql\data\_replinfo-sampah-11okt`.
+Setelah itu MariaDB start bersih.
+
+**Pelajaran:** jalankan `mysqld` lewat XAMPP Control Panel atau
+`Start-Process` yang benar-benar terlepas — jangan sebagai background job
+shell yang bisa mati bersama shell-nya.
+
+**Satu bug client ditemukan karena server akhirnya hidup**
+
+`/auth/login` mengembalikan `user.id` berupa **UUID string**, sementara
+`AuthUser.fromJson` di branch `feat/flutter-login` meng-cast ke `int` —
+setiap login akan melempar sebelum token tersimpan. Diperbaiki (`f084f81`).
+
+Terkaan itu datang dari membaca `UserPresenter` yang menulis `$user->id`
+tanpa menyebut tipenya. **Bentuk respons lain di branch itu sebaiknya
+dicocokkan ulang ke server yang sekarang sudah hidup**, bukan dibaca dari
+presenter.
+
+**Cara menjalankan lagi nanti**
+
+```bash
+# 1. MySQL — lewat XAMPP Control Panel (tombol Start di baris MySQL)
+# 2. API
+cd backend && /c/php84/php.exe artisan serve --host=0.0.0.0 --port=8000
+# 3. Reverb (kalau menguji realtime)
+cd backend && /c/php84/php.exe artisan reverb:start
+```
+
+`--host=0.0.0.0` wajib supaya tablet dan TV di WiFi yang sama bisa menjangkau.
+
+**Known issues**
+- `.env` hanya ada di mesin ini; mesin lain membuat sendiri dari
+  `.env.example`.
+- Branch `feat/flutter-login` masih punya 5 `shell_overflow_test` merah.
+- Reverb belum pernah dijalankan di mesin ini.
+
+**Next step**
+Lanjutkan `feat/flutter-login`: cocokkan bentuk respons ke server sungguhan,
+perbaiki 5 test merah, lalu uji login dari tablet ke `http://<IP-laptop>:8000`.
 
 ---
 
