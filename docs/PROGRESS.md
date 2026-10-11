@@ -1605,6 +1605,83 @@ Jalankan app, masuk dengan `operator1` / `password` ke
 
 ---
 
+### 2026-10-11 — Merge ke main + tinjauan Admin Web
+
+**Files changed** — `backend/README.md` (satu langkah setup yang kurang).
+**DB changes** — tidak ada.
+
+**Merge**
+
+`main` kini memuat semuanya: `origin/backend/tahap-0` (5 commit — Admin Web
+dashboard DEC-042, login DEC-043, docs) dan `feat/flutter-login` (3 commit).
+
+Dua konflik, keduanya di `docs/PROGRESS.md`, keduanya karena dua pihak
+menyisipkan entri di tempat yang sama. Diselesaikan dengan **mempertahankan
+kedua sisi** — catatan harian yang berbeda tidak saling menggantikan. Pada
+baris status backend, angka terbaru mereka (328 test, 32 endpoint) dipakai
+dan fakta "sudah jalan di mesin Rifqi" ditambahkan.
+
+`backend/package-lock.json` dikembalikan, tidak ikut di-commit: `npm install`
+di Windows hanya menghapus metadata `libc` untuk Linux. Itu derau dari versi
+npm, bukan perubahan dependensi, dan bisa merepotkan mesin lain.
+
+**Verifikasi setelah merge** — `flutter analyze` bersih, **237 test Flutter
+lulus**, **328 test backend lulus**.
+
+**Satu langkah setup yang hilang, dan mahal**
+
+Suite backend awalnya **324/328**. Empat yang gagal terlihat seperti dua
+masalah berbeda: tiga test web 500, satu test login API **401**.
+
+Keduanya satu sebab: **aset Vite belum dibangun**. `npm install && npm run
+build` ada di `SYNC.md`, tapi **tidak di bagian "Pertama kali di mesin baru"
+pada `backend/README.md`** — tempat yang justru dibaca orang saat setup.
+
+Yang membuatnya mahal bukan test webnya, melainkan yang 401: ia **lulus
+kalau dijalankan sendiri**, jadi gejalanya menunjuk ke bug autentikasi, bukan
+ke aset yang belum ada. Langkahnya ditambahkan ke README berikut peringatan
+itu.
+
+**Tinjauan Admin Web (DEC-042/043)**
+
+Diuji langsung terhadap server yang jalan, bukan dibaca saja:
+
+| Jalur | Hasil |
+|---|---|
+| `/` belum login | 302 → `/admin` → 302 → `/login` |
+| `operator1` (OPERATOR) | **ditolak**, kembali ke `/login` |
+| `owner` (OWNER) | diterima → `/admin` |
+| `/admin` sesudah login | 200 |
+
+Yang dikerjakan dengan benar dan layak dicatat: session **di-regenerate**
+setelah login (session fixation), CSRF token diperbarui saat logout, role
+diperiksa **sebelum** `Auth::login` sehingga tidak ada cookie sah yang
+tertinggal, middleware memeriksa ulang role **dan** status aktif di setiap
+request, dan rate limit dihitung per **username + IP** — bukan IP saja,
+supaya beberapa admin di satu jaringan tidak saling mengunci.
+
+**Dua catatan kecil, bukan penghalang:**
+
+1. `RateLimiter::hit` hanya dipanggil pada hasil `INVALID`. Akun nonaktif dan
+   role yang ditolak **tidak menambah hitungan**, jadi kedua jalur itu bisa
+   dicoba tanpa batas. Risikonya rendah — keduanya baru tercapai kalau
+   passwordnya sudah benar.
+2. Pesan "Admin Web hanya untuk Owner dan Admin" **memastikan kredensialnya
+   benar**. Itu membantu operator yang salah pintu, tapi juga memberi tahu
+   penebak bahwa password yang dicobanya sah. Trade-off yang masuk akal;
+   dicatat supaya keputusannya sadar, bukan kebetulan.
+
+**Known issues**
+- Dashboard `/admin` masih **data contoh** (`DashboardSampleData`) — sudah
+  ditandai sebagai langkah berikutnya oleh penulisnya.
+- Operator app belum pernah dijalankan di perangkat terhadap server ini.
+
+**Next step**
+Jalankan operator app, masuk `operator1`/`password`, pastikan dashboard
+memuat 6 station dari server.
+
+---
+
 ## SESI TV — diisi saat menguji
 
 ### Pairing

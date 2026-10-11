@@ -76,7 +76,22 @@ Kalau muncul `Access denied for user 'root'@'localhost' (using password: NO)`,
 itu berarti `DB_PASSWORD` di `.env` masih kosong padahal MySQL Anda pakai
 password — bukan masalah migration.
 
-**5. Pastikan hidup**
+**5. Aset Admin Web**
+
+```bash
+npm install && npm run build
+```
+
+**Jangan dilewat.** Admin Web memakai Tailwind lewat Vite, dan tanpa
+`public/build/manifest.json` halaman `/admin` menjawab **500**
+(`ViteManifestNotFoundException`).
+
+Yang membuatnya mahal: kegagalannya tidak berhenti di situ. Tiga test web
+ikut gagal, **dan satu test login API ikut merah dengan 401** — padahal test
+itu lulus kalau dijalankan sendiri. Gejalanya terlihat seperti bug
+autentikasi, bukan aset yang belum dibangun.
+
+**6. Pastikan hidup**
 
 ```bash
 curl http://localhost:8000/api/v1/health
