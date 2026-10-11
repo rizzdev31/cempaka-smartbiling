@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'app.dart';
 import 'core/config/api_config.dart';
+import 'data/api/api_client.dart';
 import 'data/tv/tv_link_store.dart';
 
 Future<void> main() async {
@@ -23,5 +24,13 @@ Future<void> main() async {
   // menyinkronkan keadaan ke TV pada pemuatan pertama.
   final tvLinkStore = await TvLinkStore.open();
 
-  runApp(OperatorApp(tvLinkStore: tvLinkStore));
+  // SATU klien untuk seluruh aplikasi, dan tokennya dibaca sebelum UI.
+  //
+  // Urutannya mengikat: kalau UI dibangun lebih dulu, `AuthController`
+  // menyimpulkan belum ada token dan melempar operator ke layar masuk —
+  // padahal tokennya ada di disk dan tinggal dibaca.
+  final apiClient = ApiClient();
+  await apiClient.loadToken();
+
+  runApp(OperatorApp(tvLinkStore: tvLinkStore, apiClient: apiClient));
 }
