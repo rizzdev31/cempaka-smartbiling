@@ -233,7 +233,7 @@
         </div>
 
         <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs">
+            <table class="w-full text-left text-xs table-stacked">
                 <thead>
                     <tr class="text-ink-soft border-b border-line-soft">
                         <th scope="col" class="py-3 px-3 font-medium">Station</th>
@@ -241,8 +241,8 @@
                         <th scope="col" class="py-3 px-3 font-medium">Paket</th>
                         <th scope="col" class="py-3 px-3 font-medium">Mulai</th>
                         <th scope="col" class="py-3 px-3 font-medium">Status</th>
-                        <th scope="col" class="py-3 px-3 font-medium text-right">Durasi</th>
-                        <th scope="col" class="py-3 px-3 font-medium text-right">Total</th>
+                        <th scope="col" class="py-3 px-3 font-medium md:text-right">Durasi</th>
+                        <th scope="col" class="py-3 px-3 font-medium md:text-right">Total</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-line-soft">
@@ -255,7 +255,7 @@
                     --}}
                     @forelse ($recent_sessions as $s)
                         <tr class="hover:bg-inset/60 transition-colors">
-                            <td class="py-3 px-3">
+                            <td data-label="Station" class="py-3 px-3">
                                 <div class="flex items-center gap-2">
                                     <div class="w-6 h-6 rounded-chip bg-brand-50 text-brand-600 flex items-center justify-center font-bold text-[10px] shrink-0">
                                         {{ $s['console'] === 'PS3' ? '3' : '4' }}
@@ -263,17 +263,17 @@
                                     <span class="font-semibold text-ink">{{ $s['station'] }}</span>
                                 </div>
                             </td>
-                            <td class="py-3 px-3 text-ink font-medium">{{ $s['customer'] }}</td>
-                            <td class="py-3 px-3 text-ink-soft">{{ $s['package'] }}</td>
-                            <td class="py-3 px-3 text-ink-soft tabular">{{ $s['started'] }}</td>
-                            <td class="py-3 px-3"><x-status-pill :status="$s['status']" /></td>
-                            <td class="py-3 px-3 text-right text-ink-soft tabular">
+                            <td data-label="Customer" class="py-3 px-3 text-ink font-medium">{{ $s['customer'] }}</td>
+                            <td data-label="Paket" class="py-3 px-3 text-ink-soft">{{ $s['package'] }}</td>
+                            <td data-label="Mulai" class="py-3 px-3 text-ink-soft tabular">{{ $s['started'] }}</td>
+                            <td data-label="Status" class="py-3 px-3"><x-status-pill :status="$s['status']" /></td>
+                            <td data-label="Durasi" class="py-3 px-3 md:text-right text-ink-soft tabular">
                                 {{-- Open Tab belum punya durasi: `end_at` null sampai
                                      checkout (DEC-034). Ditulis "—", bukan "0 menit",
                                      karena nol akan terbaca sebagai fakta. --}}
                                 {{ $s['minutes'] > 0 ? $s['minutes'].'m' : '—' }}
                             </td>
-                            <td class="py-3 px-3 text-right font-bold text-ink">
+                            <td data-label="Total" class="py-3 px-3 md:text-right font-bold text-ink">
                                 <x-rupiah :value="$s['total']" />
                             </td>
                         </tr>

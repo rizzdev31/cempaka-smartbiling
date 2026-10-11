@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); klien API + penemuan server otomatis (DEC-041) sudah ada tapi **aplikasi masih memakai data palsu**; **225 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal + penemuan server otomatis (DEC-041); **47 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti**, dan agent **belum bicara ke Laravel** |
-| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **423 test LULUS** (1.327 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
+| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **436 test LULUS** (1.375 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
 | **Admin Web** | **BARU 11 Okt (DEC-042, DEC-043).** Login (guard session, Owner & Admin saja) + dashboard di `/admin`. Design system dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. **8 halaman** (dashboard, sesi, station, F&B, harga, customer, shift, audit), semuanya data nyata dan **penuh layar** dari 375px sampai 2560px (diukur, 40 kombinasi). Sudah bisa **mengubah** harga, paket, stok, status F&B, dan tutup shift (DEC-044), serta **menyegarkan diri otomatis**. Spec: `docs/UI-UX-SPEC-WEB.md` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
@@ -3266,3 +3266,84 @@ dengan parse error. Ketahuan langsung oleh test, bukan oleh pembacaan.
 
 **Next step** — OD-029 (pengeluaran kasir), atau kelola user kalau akun
 produksi sudah dibutuhkan.
+
+---
+
+### 2026-10-11 — [Admin Web] Semua operasi sesi masuk — DEC-045
+
+User membalik DEC-044: Laravel adalah **owner dari semua fitur** dan harus
+punya setiap akses, walaupun bukan dia yang berhadapan dengan customer.
+
+**Delapan operasi baru dari web**
+
+mulai sesi · catat pembayaran · extend · pindah station · pesan F&B ·
+checkout · batalkan sesi · buka shift
+
+Semuanya memanggil Service yang sama dengan API. Izin di `routes/web.php`
+**disalin persis** dari `routes/api.php` — dua pintu dengan gerbang berbeda
+sama saja dengan satu pintu tanpa gerbang.
+
+**Tiga bug nyata, ketiganya ketemu dengan mencoba, bukan membaca**
+
+1. **Validasi `min:1` pada qty F&B menolak setiap pesanan.** Form
+   menampilkan seluruh menu dengan kolom jumlah, jadi menu yang TIDAK
+   dipesan ikut terkirim bernilai 0 — dan validasi berjalan sebelum
+   penyaringan. Ditemukan test.
+
+2. **Penyegaran otomatis menghapus isian panel sebelum sempat dikirim.**
+   Penjaganya hanya aktif setelah ada yang diketik; membuka panel lalu
+   membaca pilihan paketnya sepuluh detik sudah cukup kehilangan. Sekarang
+   penyegaran dilewati selama ada `<details open>`. **Test tidak menemukan
+   ini** — test tidak menunggu sepuluh detik. Ketemu saat menjalankan
+   alurnya sungguhan di browser.
+
+3. **"Open Tab — tanpa batas" muncul pada sesi Prepaid.** `end_at` null
+   punya dua arti: Postpaid memang tanpa batas, Prepaid yang belum dibayar
+   timernya belum mulai. Menyamakannya membuat sesi menunggu bayar terbaca
+   seolah boleh main sepuasnya.
+
+**Tata letak: diukur, bukan dilihat**
+
+10 halaman × 5 lebar (375–1920), dengan **semua panel aksi dibuka** supaya
+form-nya ikut diukur. Tiga elemen terdeteksi keluar batas; dua di antaranya
+memang di dalam area geser yang disengaja (chip filter).
+
+Yang ketiga nyata: **tabel dashboard satu-satunya yang tidak memakai
+`table-stacked`** — di ponsel ia digeser menyamping sementara semua tabel
+lain jadi kartu. Sudah disamakan.
+
+**Keputusan yang sengaja berbeda dari API**
+
+| | Web | Kenapa |
+|---|---|---|
+| `Idempotency-Key` | tidak dipakai | Di browser, form yang dikirim dua kali adalah dua niat berbeda. Pengamannya state machine |
+| Alasan pembatalan | **wajib** | Membatalkan dari belakang meja tanpa alasan adalah persis yang perlu dijelaskan saat laporan tidak cocok |
+| Split payment | satu pembayaran | Split dipakai tablet tempat customer berdiri membagi tunai dan QRIS |
+| Extend | pilihan, bukan kolom bebas | Kolom bebas mengundang "45 menit" yang pasti ditolak DEC-007 |
+| Station tujuan swap | disaring di server | Dropdown yang menawarkan pilihan lalu ditolak setelah ditekan membuat orang mengira sistemnya rusak |
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `Web/SessionActionController.php`, `components/{action-panel,action-submit,select-field}.blade.php`, `tests/Feature/Web/SessionActionTest.php` |
+| Diubah | `routes/web.php` (+8 rute), `admin/{session,stations,shifts,dashboard}.blade.php`, `Web/AdminController.php`, `resources/js/app.js` |
+
+**DB changes** — tidak ada. **API/Events** — tidak ada yang berubah.
+
+**Tests** — **436 lulus** (+13), 1.375 assertion. `SessionActionTest`
+menjalankan golden path lewat web: mulai → bayar → F&B → extend → checkout,
+dan memeriksa harga extend **dihitung server** (30 menit pada tarif 10.000
+= 5.000) apa pun yang dikirim form.
+
+**Manual test** — alur nyata di browser: panel dibuka, bertahan melewati
+siklus penyegaran, sesi `S-20261011-0001` terbentuk di ST01 dengan baris
+RENTAL dan jejak audit. Sesi ujinya lalu dibatalkan supaya ST01 kembali
+kosong.
+
+**Known issues** — katalog kasir masih jauh dari lengkap: pause, booking,
+chat/approval, promo, pengeluaran kasir, F&B walk-in, kendali TV, top-up,
+poin, aksesori, mode offline. Semuanya **belum punya backend**, bukan
+sekadar belum punya UI.
+
+**Next step** — OD-029 (pengeluaran kasir).

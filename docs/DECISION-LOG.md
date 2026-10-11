@@ -1672,6 +1672,53 @@ seseorang mengisi kas akhir akan menghapus ketikannya.
 
 ---
 
+## DEC-045 — Laravel punya SEMUA akses, termasuk operasi sesi
+**Tanggal:** 11 Okt 2026 · **Status:** APPROVED · **Membalik sebagian:** DEC-044
+
+User: *"laravelnya ini anggap saja dia owner dari semua fiturnya jadi dia
+harus punya semua akses nya walaupun dia tidak langsung melayani customer."*
+
+DEC-044 menetapkan Laravel **tidak** melakukan operasi sesi — mengatur saja.
+Itu dibalik. Admin Web sekarang bisa: mulai sesi, catat pembayaran, extend,
+pindah station, pesan F&B, checkout, batalkan sesi, buka & tutup shift.
+
+### Yang TIDAK berubah
+
+| | |
+|---|---|
+| Siapa boleh masuk | Owner & Admin saja (DEC-043). DEC-045 menambah **fitur**, bukan membuka pintunya |
+| Peran sehari-hari | Kasir tetap melayani dari tablet. Web adalah jalur owner, bukan pengganti |
+| Aturan bisnis | Tidak ada satu pun yang ditulis ulang |
+
+### ⛔ Konsekuensi yang harus disadari
+
+**Sekarang ada DUA pintu ke operasi yang memegang uang.** Itu aman hanya
+karena keduanya memanggil Service yang sama — aturan billing, state machine,
+broadcast, dan audit semuanya hidup di sana. Begitu salah satu pintu mulai
+menulis aturannya sendiri, keduanya akan berbeda, dan yang berbeda adalah
+uang.
+
+Izin di `routes/web.php` **disalin persis** dari `routes/api.php`. Dua pintu
+dengan gerbang berbeda sama saja dengan satu pintu tanpa gerbang.
+
+### Yang sengaja berbeda dari API
+
+| | Web | Kenapa |
+|---|---|---|
+| `Idempotency-Key` | tidak dipakai | Di tablet ia mencegah duplikat saat jaringan putus di tengah kirim. Di browser, form yang dikirim dua kali adalah dua niat berbeda. Pengamannya state machine — sesi COMPLETED menolak checkout kedua |
+| Alasan pembatalan | **wajib** | API membolehkannya kosong. Membatalkan sesi dari belakang meja tanpa alasan adalah persis yang perlu dijelaskan saat laporan tidak cocok |
+| Split payment | satu pembayaran saja | Split dipakai tablet, tempat customer berdiri membagi tunai dan QRIS. Menambahnya di web berarti merawat dua tempat untuk kasus yang jarang |
+
+### Satu bug yang hanya ketahuan dengan mencoba sungguhan
+
+Penyegaran otomatis **menutup panel aksi dan menghapus isinya** sebelum
+sempat dikirim. Penjaganya hanya aktif setelah ada yang diketik — membuka
+panel lalu membaca pilihan paketnya sepuluh detik sudah cukup kehilangan.
+
+Sekarang penyegaran juga dilewati selama ada `<details open>` di dalam
+`#live`. Test tidak menemukannya, karena test tidak menunggu sepuluh detik.
+
+---
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**

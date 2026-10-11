@@ -1,5 +1,7 @@
 @php
+    use App\Enums\SessionMode;
     use App\Support\Time\BusinessDay;
+
     $tz = BusinessDay::timezone();
     $jam = fn ($t) => $t?->timezone($tz)->format('d M Y, H:i') ?? '—';
 @endphp
@@ -126,7 +128,23 @@
                     @foreach ([
                         'Dibuka' => $jam($session->created_at),
                         'Mulai' => $jam($session->started_at),
-                        'Selesai dijadwalkan' => $session->end_at ? $jam($session->end_at) : 'Open Tab — tanpa batas',
+                        /*
+                         * `end_at` null punya DUA arti yang berbeda, dan
+                         * menyamakannya menyesatkan:
+                         *
+                         * - Postpaid: memang tidak punya batas (DEC-034).
+                         * - Prepaid yang belum dibayar: timernya belum
+                         *   mulai, jadi batasnya belum ada — bukan tidak ada.
+                         *
+                         * Versi pertama menulis "Open Tab — tanpa batas"
+                         * untuk keduanya, dan sesi Prepaid yang menunggu
+                         * bayar terbaca seolah boleh main sepuasnya.
+                         */
+                        'Selesai dijadwalkan' => match (true) {
+                            $session->end_at !== null => $jam($session->end_at),
+                            $session->mode === SessionMode::POSTPAID => 'Open Tab — tanpa batas',
+                            default => 'Belum mulai — menunggu pembayaran',
+                        },
                         'Berakhir' => $jam($session->ended_at),
                     ] as $label => $nilai)
                         <div class="flex items-baseline justify-between gap-3">
@@ -246,6 +264,145 @@
             @endif
         </div>
     </div>
+
+    {{-- ── Aksi sesi — DEC-045 ─────────────────────────────────────
+         Laravel adalah owner dari semua fitur dan harus punya setiap akses,
+         walaupun bukan dia yang berhadapan dengan customer.
+
+         Panel tertutup secara bawaan: enam form terbuka sekaligus membuat
+         yang dicari tenggelam, dan di tablet mendorong rincian tagihan
+         sampai di luar pandangan. --}}
+    @unless ($session->status->isFinal())
+        <x-card class="mt-4" padding="p-4 sm:p-6">
+            <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                <h2 class="text-base font-bold text-ink">Aksi</h2>
+                <p class="text-[11px] text-ink-soft">
+                    Aturannya sama persis dengan yang dipakai tablet — satu Service, satu hasil.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-[repeat(auto-fit,minmax(17rem,1fr))] gap-3 items-start">
+
+                <x-action-panel title="Catat pembayaran">
+                    <form method="POST" action="{{ route('admin.sessions.pay', $session) }}" class="space-y-3 mt-3">
+                        @csrf
+                        <x-select-field name="method" label="Metode" :options="$metodeBayar" />
+                        <x-money-input name="amount" label="Jumlah" required />
+                        <x-field name="reference" label="Referensi (QRIS)" placeholder="opsional" />
+                        <x-action-submit>Catat pembayaran</x-action-submit>
+                    </form>
+                </x-action-panel>
+
+                @if ($session->isExtendable())
+                    <x-action-panel title="Tambah waktu">
+                        <form method="POST" action="{{ route('admin.sessions.extend', $session) }}" class="space-y-3 mt-3">
+                            @csrf
+                            {{-- Kelipatan 30 menit saja (DEC-007). Ditawarkan
+                                 sebagai pilihan, bukan kolom bebas — kolom
+                                 bebas mengundang "45" yang pasti ditolak. --}}
+                            <x-select-field name="duration_minutes" label="Durasi"
+                                            :options="[30 => '30 menit', 60 => '1 jam', 90 => '1,5 jam', 120 => '2 jam', 180 => '3 jam']"
+                                            :selected="60" />
+                            <p class="text-[11px] text-ink-soft">
+                                Kelipatan 30 menit. Harga memakai tarif yang dibekukan saat sesi dibuka.
+                            </p>
+                            <x-action-submit>Tambah waktu</x-action-submit>
+                        </form>
+                    </x-action-panel>
+                @endif
+
+                @if ($stationTujuan !== [])
+                    <x-action-panel title="Pindah station">
+                        <form method="POST" action="{{ route('admin.sessions.swap', $session) }}" class="space-y-3 mt-3">
+                            @csrf
+                            <x-select-field name="target_station_id" label="Station tujuan"
+                                            :options="$stationTujuan" placeholder="Pilih station" required />
+                            <x-field name="reason" label="Alasan" placeholder="stik rusak" />
+                            {{-- DEC-021: hanya dalam tipe konsol yang sama.
+                                 Disebutkan supaya tidak dicari-cari kenapa
+                                 PS4 tidak muncul saat sesinya ada di PS3. --}}
+                            <p class="text-[11px] text-ink-soft">
+                                Hanya station {{ $session->station?->stationType?->name }} yang kosong. Sisa waktu ikut pindah.
+                            </p>
+                            <x-action-submit>Pindahkan</x-action-submit>
+                        </form>
+                    </x-action-panel>
+                @endif
+
+                @if ($menu->isNotEmpty())
+                    <x-action-panel title="Tambah pesanan F&B">
+                        <form method="POST" action="{{ route('admin.sessions.fnb', $session) }}" class="space-y-3 mt-3">
+                            @csrf
+                            <div class="max-h-56 overflow-y-auto -mx-1 px-1 space-y-1.5">
+                                @foreach ($menu as $i => $m)
+                                    <div class="flex items-center gap-2">
+                                        <input type="hidden" name="items[{{ $i }}][product_id]" value="{{ $m->id }}">
+                                        <span class="flex-1 min-w-0 text-xs text-ink truncate">{{ $m->name }}</span>
+                                        <span class="text-[11px] text-ink-soft shrink-0">
+                                            <x-rupiah :value="$m->price" />
+                                        </span>
+                                        {{-- Harga TIDAK dikirim — selalu dari
+                                             server (CLAUDE.md §4). Yang
+                                             dikirim hanya id dan jumlah. --}}
+                                        <input type="text" inputmode="numeric" pattern="[0-9]*"
+                                               name="items[{{ $i }}][qty]" value="0"
+                                               aria-label="Jumlah {{ $m->name }}"
+                                               class="w-12 shrink-0 px-2 py-1 bg-inset border border-transparent rounded-chip
+                                                      text-xs text-ink tabular text-center
+                                                      focus:outline-none focus:bg-card focus:border-brand-600 transition-all">
+                                    </div>
+                                @endforeach
+                            </div>
+                            <x-field name="note" label="Catatan dapur" placeholder="telur diceplok, cabai 5" />
+                            <x-action-submit>Buat pesanan</x-action-submit>
+                        </form>
+                    </x-action-panel>
+                @endif
+
+                <x-action-panel title="Checkout" tone="warning">
+                    <form method="POST" action="{{ route('admin.sessions.checkout', $session) }}" class="space-y-3 mt-3">
+                        @csrf
+                        <div class="p-3 rounded-chip bg-inset flex items-baseline justify-between gap-2 text-xs">
+                            <span class="text-ink-soft">Kurang bayar</span>
+                            <span class="font-bold text-ink"><x-rupiah :value="$totals->balanceDue()" /></span>
+                        </div>
+                        <x-select-field name="method" label="Metode" :options="$metodeBayar" />
+                        <x-money-input name="amount" label="Jumlah bayar" :value="$totals->balanceDue() ?: null" />
+                        <x-field name="reference" label="Referensi (QRIS)" placeholder="opsional" />
+
+                        @if ($saldoMember > 0)
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" name="use_credit" value="1" class="w-4 h-4 rounded-chip accent-brand-600">
+                                <span class="text-xs text-ink">
+                                    Potong saldo member (<x-rupiah :value="$saldoMember" />)
+                                </span>
+                            </label>
+                        @endif
+
+                        <p class="text-[11px] text-ink-soft">
+                            Kosongkan jumlah kalau tagihannya sudah lunas dari pembayaran sebelumnya.
+                        </p>
+                        <x-action-submit tone="warning">Selesaikan sesi</x-action-submit>
+                    </form>
+                </x-action-panel>
+
+                <x-action-panel title="Batalkan sesi" tone="danger">
+                    <form method="POST" action="{{ route('admin.sessions.cancel', $session) }}" class="space-y-3 mt-3">
+                        @csrf
+                        <x-field name="reason" label="Alasan" placeholder="salah input station" required />
+                        {{-- Alasan WAJIB di web, walau API membolehkannya
+                             kosong. Membatalkan sesi dari belakang meja tanpa
+                             alasan adalah persis yang perlu dijelaskan saat
+                             laporan tidak cocok. --}}
+                        <p class="text-[11px] text-ink-soft">
+                            Alasannya masuk audit log dan akan dibaca saat laporan diperiksa.
+                        </p>
+                        <x-action-submit tone="danger">Batalkan</x-action-submit>
+                    </form>
+                </x-action-panel>
+            </div>
+        </x-card>
+    @endunless
 
     {{-- ── Jejak audit ─────────────────────────────────────────────── --}}
     <x-card class="mt-4" padding="p-4 sm:p-6">

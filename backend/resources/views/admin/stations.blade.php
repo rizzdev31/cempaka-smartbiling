@@ -108,6 +108,45 @@
                     </p>
                 @endif
 
+                {{-- ── Aksi per station — DEC-045 ─────────────────── --}}
+                @if ($sesi)
+                    <a href="{{ route('admin.session', $sesi) }}"
+                       class="w-full px-4 py-2 text-xs font-semibold rounded-full text-card bg-brand-600
+                              hover:bg-brand-700 transition-colors text-center">
+                        Buka sesi {{ $sesi->code }}
+                    </a>
+                @elseif ($station->status === \App\Enums\StationStatus::ACTIVE && isset($paket[$station->station_type_id]))
+                    <x-action-panel title="Mulai sesi baru">
+                        <form method="POST" action="{{ route('admin.sessions.store') }}" class="space-y-3 mt-3">
+                            @csrf
+                            <input type="hidden" name="station_id" value="{{ $station->id }}">
+
+                            <x-select-field name="package_id" label="Paket"
+                                            :options="$paket[$station->station_type_id]" required />
+
+                            {{--
+                                Prepaid vs Postpaid, dan bedanya disebut.
+                                Nama modenya saja tidak memberi tahu apa pun
+                                kepada orang yang baru memakai sistem ini.
+                            --}}
+                            <x-select-field name="mode" label="Mode"
+                                            :options="['PREPAID' => 'Prepaid — bayar di awal, timer mundur', 'POSTPAID' => 'Open Tab — bayar di akhir, timer maju']" />
+
+                            {{-- DEC-008: satu sesi satu customer. Pilih member
+                                 ATAU ketik nama; kalau member dipilih, nama
+                                 ketikan diabaikan, bukan digabung. --}}
+                            @if ($member !== [])
+                                <x-select-field name="customer_id" label="Member (opsional)"
+                                                :options="$member" placeholder="Bukan member / walk-in" />
+                            @endif
+
+                            <x-field name="customer_name" label="Nama customer" placeholder="Andi" />
+
+                            <x-action-submit>Mulai sesi</x-action-submit>
+                        </form>
+                    </x-action-panel>
+                @endif
+
                 @if ($device)
                     <div class="pt-3 border-t border-line-soft text-[11px] text-ink-soft flex flex-wrap gap-x-3 gap-y-1">
                         <span class="tabular">{{ $device->device_uid }}</span>

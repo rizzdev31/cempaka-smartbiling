@@ -3,6 +3,7 @@
 use App\Http\Controllers\Web\AdminActionController;
 use App\Http\Controllers\Web\AdminController;
 use App\Http\Controllers\Web\LoginController;
+use App\Http\Controllers\Web\SessionActionController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -109,4 +110,45 @@ Route::middleware(['auth', 'admin.web'])
 
         Route::post('/shift/{shift}/tutup', 'closeShift')
             ->middleware('can:shift.manage')->name('shifts.close');
+    });
+
+/*
+ * Operasi sesi dari web — DEC-045.
+ *
+ * DEC-044 sempat menetapkan Laravel TIDAK melakukan operasi sesi. User
+ * membalikkannya: Laravel adalah owner dari semua fitur dan harus punya
+ * setiap akses, walaupun bukan dia yang berhadapan dengan customer.
+ *
+ * Izinnya DISALIN PERSIS dari `routes/api.php`. Sekarang ada dua pintu ke
+ * operasi yang memegang uang, dan dua pintu dengan gerbang berbeda sama
+ * saja dengan satu pintu tanpa gerbang.
+ */
+Route::middleware(['auth', 'admin.web'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->controller(SessionActionController::class)
+    ->group(function () {
+        Route::post('/sesi', 'store')
+            ->middleware('can:session.create')->name('sessions.store');
+
+        Route::post('/sesi/{session}/bayar', 'pay')
+            ->middleware('can:payment.confirm')->name('sessions.pay');
+
+        Route::post('/sesi/{session}/extend', 'extend')
+            ->middleware('can:session.extend')->name('sessions.extend');
+
+        Route::post('/sesi/{session}/pindah', 'swap')
+            ->middleware('can:session.swap')->name('sessions.swap');
+
+        Route::post('/sesi/{session}/checkout', 'checkout')
+            ->middleware('can:session.checkout')->name('sessions.checkout');
+
+        Route::post('/sesi/{session}/batal', 'cancel')
+            ->middleware('can:session.cancel')->name('sessions.cancel');
+
+        Route::post('/sesi/{session}/fnb', 'storeFnbOrder')
+            ->middleware('can:fnb.manage')->name('sessions.fnb');
+
+        Route::post('/shift/buka', 'openShift')
+            ->middleware('can:shift.manage')->name('shifts.open');
     });

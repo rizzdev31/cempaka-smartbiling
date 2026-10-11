@@ -6,6 +6,7 @@ use App\Enums\FnbOrderStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\SessionItemType;
 use App\Enums\SessionStatus;
+use App\Enums\StationStatus;
 use App\Models\AuditLog;
 use App\Models\BillingSession;
 use App\Models\Customer;
@@ -113,6 +114,45 @@ class AdminController
                 ->orderBy('created_at')
                 ->get(),
             'waPhone' => Phone::toWhatsApp($session->customer?->phone),
+
+            'metodeBayar' => collect(PaymentMethod::cases())
+                ->mapWithKeys(fn (PaymentMethod $m) => [$m->value => $m->value])
+                ->all(),
+
+            /*
+             * Station tujuan swap: KOSONG dan bertipe konsol SAMA (DEC-021).
+             *
+             * Disaring di sini, bukan di form, supaya yang tidak sah tidak
+             * pernah bisa dipilih. Dropdown yang menawarkan pilihan lalu
+             * ditolak setelah ditekan membuat orang mengira sistemnya rusak.
+             */
+            'stationTujuan' => Station::query()
+                ->where('station_type_id', $session->station?->station_type_id)
+                ->whereKeyNot($session->station_id)
+                ->where('status', StationStatus::ACTIVE)
+                ->whereDoesntHave('sessions', fn ($q) => $q->whereIn('status', [
+                    SessionStatus::PENDING_PAYMENT,
+                    SessionStatus::ACTIVE,
+                    SessionStatus::WARNING,
+                    SessionStatus::EXPIRED,
+                    SessionStatus::CHECKOUT,
+                ]))
+                ->orderBy('code')
+                ->pluck('code', 'id')
+                ->all(),
+
+            // Menu yang benar-benar bisa dijual: aktif, dan stoknya bukan nol.
+            'menu' => FnbProduct::query()
+                ->where('is_available', true)
+                ->where(fn ($q) => $q->whereNull('stock')->orWhere('stock', '>', 0))
+                ->orderBy('category')
+                ->orderBy('name')
+                ->get(),
+
+            'saldoMember' => $session->customer === null ? 0 : (int) DB::table('customer_credits')
+                ->where('customer_id', $session->customer_id)
+                ->selectRaw("COALESCE(SUM(CASE WHEN type = 'EARNED' THEN amount ELSE -amount END), 0) AS saldo")
+                ->value('saldo'),
         ]);
     }
 
@@ -177,6 +217,31 @@ class AdminController
              * online dan offline sekaligus.
              */
             'offlineThreshold' => Device::OFFLINE_THRESHOLD_SECONDS,
+
+            /*
+             * Paket per tipe konsol, untuk form "mulai sesi" (DEC-019).
+             * Dikelompokkan supaya kartu PS3 hanya menawarkan paket PS3 —
+             * memilih paket tipe lain akan ditolak server, tapi baru setelah
+             * ditekan.
+             */
+            'paket' => Package::query()
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->get()
+                ->groupBy('station_type_id')
+                ->map(fn ($g) => $g->mapWithKeys(fn (Package $p) => [
+                    $p->id => $p->name.' · Rp '.number_format($p->price, 0, ',', '.'),
+                ])->all())
+                ->all(),
+
+            // Member saja — walk-in diketik namanya, tidak perlu ada di daftar.
+            'member' => Customer::query()
+                ->whereHas('membership', fn ($q) => $q->where('is_active', true))
+                ->orderBy('name')
+                ->limit(200)
+                ->get()
+                ->mapWithKeys(fn (Customer $c) => [$c->id => $c->name.($c->phone ? ' · '.$c->phone : '')])
+                ->all(),
         ]);
     }
 

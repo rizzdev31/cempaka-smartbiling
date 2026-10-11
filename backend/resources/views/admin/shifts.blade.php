@@ -95,8 +95,22 @@
     @else
         <x-card class="mb-6">
             <x-empty title="Tidak ada shift yang terbuka" icon="clock">
-                Operator membuka shift dari tablet sebelum mulai melayani.
+                Operator biasanya membukanya dari tablet. Bisa juga dari sini.
             </x-empty>
+
+            {{-- DEC-045: Laravel punya semua akses. Jalur normalnya tetap
+                 tablet — orang yang memegang uangnya yang menghitung modal
+                 awal. --}}
+            <div class="max-w-md mx-auto mt-2">
+                <x-action-panel title="Buka shift dari sini">
+                    <form method="POST" action="{{ route('admin.shifts.open') }}" class="space-y-3 mt-3">
+                        @csrf
+                        <x-money-input name="opening_cash" label="Modal awal di laci" required />
+                        <x-field name="note" label="Catatan (opsional)" placeholder="serah terima dari Budi" />
+                        <x-action-submit>Buka shift</x-action-submit>
+                    </form>
+                </x-action-panel>
+            </div>
         </x-card>
     @endif
 

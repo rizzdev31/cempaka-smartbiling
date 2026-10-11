@@ -16,7 +16,7 @@
 
 | Bagian | Status |
 |---|---|
-| **Backend (Laravel)** | Tahap 0 **SELESAI**. 33 endpoint, 9 event realtime, 423 test lulus |
+| **Backend (Laravel)** | Tahap 0 **SELESAI**. 33 endpoint, 9 event realtime, 436 test lulus |
 | **Admin Web (Blade)** | Login + **10 halaman** di `/admin`, data nyata, **penuh layar**, **menyegarkan otomatis**. Bisa ubah harga, stok, status F&B, tutup shift (DEC-044) |
 | **Operator app (Flutter)** | Layar sudah jadi. Klien API **sudah ada** (`lib/data/api/`) dan alamat server sudah bisa ditemukan otomatis, tapi aplikasi **masih memakai data palsu** — belum dialihkan dan belum ada login |
 | **TV Agent (Kotlin)** | Kiosk + timer jalan, dan sudah bisa **menemukan** server, tapi **belum bicara** dengan Laravel — masih menerima perintah langsung dari tablet |
@@ -115,33 +115,32 @@ mengganti alamatnya dan memutus **semua** perangkat sekaligus.
 
 ---
 
-## ⛔ Pembagian peran — DEC-044
+## ⛔ Pembagian peran — DEC-044, diperbarui DEC-045
 
 | | Laravel Admin Web | Flutter Tablet |
 |---|---|---|
-| **Peran** | mengatur & mengawasi | melayani customer |
-| Harga, paket, stok F&B | ✅ **sumbernya** | melihat saja |
-| Kas, laporan, audit | ✅ | — |
-| Buka/tutup sesi, bayar, extend, swap | — | ✅ |
-| Daftar member baru | — | ✅ |
+| **Peran** | owner — **punya semua akses** | kasir — melayani customer |
+| Harga, paket, stok, HPP | ✅ **sumbernya** | melihat saja |
+| Mulai sesi, bayar, extend, swap, checkout, batal | ✅ **bisa** (DEC-045) | ✅ jalur sehari-hari |
+| Kas, laporan, audit, pembayaran | ✅ | — |
+| Daftar member baru | ✅ | ✅ |
 
 > **Untuk Flutter:** jangan bangun layar pengaturan harga atau stok. Begitu
-> sebuah pengaturan ada di Laravel, Flutter **tidak** membuat salinannya —
-> dua tempat mengubah harga berarti dua tempat yang bisa berbeda.
+> sebuah pengaturan ada di Laravel, Flutter **tidak** membuat salinannya.
+>
+> **DEC-045:** Laravel sekarang juga bisa menjalankan operasi sesi. Itu
+> jalur owner, bukan pengganti kasir — tablet tetap yang dipakai melayani.
 
-**Setiap aksi ubah di web memanggil Service yang sama dengan API.** Yang
-berbeda hanya bentuk jawabannya. Kalau Anda menambah aksi web baru, salin
-juga `can:` dari `routes/api.php` — letak penegakannya berbeda per sumber
-daya, dan versi pertama grup ini melewatkannya sampai admin bisa mengubah
-seluruh tarif rental.
+**Sekarang ada DUA pintu ke operasi yang memegang uang.** Itu aman hanya
+karena keduanya memanggil Service yang sama. Kalau Anda menambah aksi web
+baru, **salin juga `can:` dari `routes/api.php`** — dua pintu dengan gerbang
+berbeda sama saja dengan satu pintu tanpa gerbang.
 
 **Realtime = polling tiap 10 detik**, bukan Reverb. Reverb sudah dua kali
-mati diam-diam minggu ini (`REVERB_HOST` salah, lalu `queue:work` tidak
-jalan). Halaman yang bergantung padanya akan membeku sambil terlihat
-normal — polling berhenti memperbarui penanda waktunya, dan itu terlihat.
+mati diam-diam. Penyegaran dilewati selama ada yang mengetik **atau** ada
+panel aksi yang terbuka.
 
 ---
-
 ## Admin Web dimulai — DEC-042
 
 Ada permukaan **ketiga** sekarang: Laravel Blade di `/admin`. Bentuknya dari
@@ -224,6 +223,7 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 | Tanggal | Isi |
 |---|---|
+| 11 Okt 2026 | **DEC-045** — Laravel punya SEMUA akses: mulai sesi, bayar, extend, swap, F&B, checkout, batal, buka shift |
 | 11 Okt 2026 | 7 celah "backend ada, UI belum" ditutup: detail sesi, struk WA, pembayaran, daftar member, tambah menu, HPP. `POST /fnb/products` baru (DRAFT 17) |
 | 11 Okt 2026 | **DEC-044** — Laravel mengatur semuanya, Flutter melayani. Web bisa ubah harga/stok/shift, menyegarkan otomatis tiap 10 detik |
 | 11 Okt 2026 | Admin Web jadi **penuh layar** — pagar 1240px dibuang, grid menambah kolom, header sticky |

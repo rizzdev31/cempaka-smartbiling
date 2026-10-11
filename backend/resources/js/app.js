@@ -52,6 +52,17 @@ function bolehMenyegarkan() {
         return false;
     }
 
+    /*
+     * Panel aksi yang TERBUKA berarti ada yang sedang mengerjakan sesuatu —
+     * walaupun belum satu huruf pun diketik.
+     *
+     * Tanpa ini: orang membuka "Mulai sesi baru", membaca pilihan paketnya
+     * sepuluh detik, lalu panelnya tertutup sendiri dan isiannya hilang.
+     * Ketahuan saat mencoba alurnya sungguhan di browser — bukan dari test,
+     * karena test tidak menunggu sepuluh detik.
+     */
+    if (document.querySelector(`${TARGET} details[open]`)) return false;
+
     return true;
 }
 
