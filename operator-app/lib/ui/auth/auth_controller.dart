@@ -74,7 +74,12 @@ class AuthController extends ChangeNotifier {
     } on ApiError catch (e) {
       _error = e.message;
       _busy = false;
-      notifyListeners();
+      // Status ikut ditegaskan, bukan hanya `notifyListeners()`.
+      //
+      // Tanpa ini, controller yang belum sempat `bootstrap()` tertinggal di
+      // `checking` setelah login gagal — dan gate di `app.dart` menahan
+      // spinner selamanya, bukan menampilkan layar masuk beserta pesannya.
+      _set(AuthStatus.signedOut);
       return false;
     }
   }

@@ -25,7 +25,9 @@ import '../../domain/repositories/billing_repository.dart';
 /// asli yang mengungkap field yang kurang. Karena itu DEC-012 syarat 2
 /// mewajibkan penggantian pada vertical slice pertama.
 class FakeBillingRepository implements BillingRepository {
-  FakeBillingRepository({int? seed}) : _rand = Random(seed ?? 7) {
+  FakeBillingRepository({int? seed, bool simulateLatency = true})
+      : _rand = Random(seed ?? 7),
+        _simulateLatency = simulateLatency {
     _seedData();
   }
 
@@ -59,11 +61,20 @@ class FakeBillingRepository implements BillingRepository {
 
   // ── Simulasi jaringan ─────────────────────────────────────────────
 
+  /// Dimatikan di test yang tidak menguji penantian.
+  ///
+  /// Delay ini membuat `Timer` yang masih menggantung saat test selesai, dan
+  /// flutter_test menggagalkan test dengan "Pending timers" — kegagalan yang
+  /// menunjuk ke tempat yang salah, karena yang diuji layout, bukan jeda.
+  final bool _simulateLatency;
+
   /// Delay realistis LAN. Bukan 0 — UI harus tahu rasanya menunggu.
-  Future<void> _latency([int minMs = 120, int maxMs = 320]) =>
-      Future<void>.delayed(
-        Duration(milliseconds: minMs + _rand.nextInt(maxMs - minMs)),
-      );
+  Future<void> _latency([int minMs = 120, int maxMs = 320]) {
+    if (!_simulateLatency) return Future<void>.value();
+    return Future<void>.delayed(
+      Duration(milliseconds: minMs + _rand.nextInt(maxMs - minMs)),
+    );
+  }
 
   /// Jam "server" palsu. Bisa dimajukan di test untuk mensimulasikan waktu
   /// berjalan — tanpa ini, aturan yang bergantung waktu (grace extend

@@ -49,8 +49,12 @@ Future<String?> _firstOverflow(
     httpClient: MockClient((request) async {
       if (request.url.path.endsWith('/auth/me')) {
         return http.Response(
-          '{"data":{"user":{"id":1,"name":"Operator Uji",'
-          '"username":"uji","role":"OPERATOR","permissions":[]},'
+          // Bentuknya disalin dari respons server SUNGGUHAN, bukan dikarang:
+          // `id` adalah UUID string, bukan int. Mock yang menebak bentuk
+          // respons hanya memindahkan bug ke tempat yang tidak terlihat.
+          '{"data":{"user":{"id":"9505a47b-495a-4bcd-a28e-6f9599ad2d48",'
+          '"name":"Operator Kasir","username":"operator1","role":"OPERATOR",'
+          '"permissions":["station.read","session.read"]},'
           '"active_shift":null}}',
           200,
           headers: {'content-type': 'application/json'},
@@ -85,7 +89,7 @@ Future<String?> _firstOverflow(
       tvLinkStore: store,
       apiClient: api,
       tvClient: client,
-      billingRepository: FakeBillingRepository(),
+      billingRepository: FakeBillingRepository(simulateLatency: false),
     ),
   );
   await tester.pump(const Duration(milliseconds: 600));
