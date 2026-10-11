@@ -47,7 +47,23 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-**3. Database**
+**3. Kredensial Reverb**
+
+`REVERB_APP_ID`, `REVERB_APP_KEY`, dan `REVERB_APP_SECRET` di `.env.example`
+sengaja **kosong** — itu rahasia, tidak boleh di-commit. Isi sekali:
+
+```bash
+php artisan install:broadcasting
+```
+
+Kalau dilewati, `reverb:start` jalan tapi setiap broadcast ditolak, dan
+jatuh ke `failed_jobs` tanpa tanda apa pun di sisi operator.
+
+Jangan sentuh `REVERB_SERVER_HOST` dan `REVERB_HOST` — nilainya sudah benar,
+dan menukarnya adalah kesalahan yang paling sulit disadari di proyek ini
+(lihat **Dua host Reverb yang berbeda** di bawah).
+
+**4. Database**
 
 Buat database kosong bernama `cempaka_billing`, lalu sesuaikan `DB_USERNAME`
 dan `DB_PASSWORD` di `.env` dengan MySQL di mesin Anda.
@@ -60,7 +76,7 @@ Kalau muncul `Access denied for user 'root'@'localhost' (using password: NO)`,
 itu berarti `DB_PASSWORD` di `.env` masih kosong padahal MySQL Anda pakai
 password — bukan masalah migration.
 
-**4. Pastikan hidup**
+**5. Pastikan hidup**
 
 ```bash
 curl http://localhost:8000/api/v1/health
