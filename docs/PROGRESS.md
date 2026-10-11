@@ -1384,6 +1384,73 @@ Pindahkan laptop & tablet ke WiFi TV, lalu `./scripts/tv.sh health`.
 
 ---
 
+### 2026-10-11 — Setup backend di mesin ini: `.env` selesai, tertahan versi PHP
+
+**Files changed** — `backend/.env` (dibuat, **tidak** di-commit — gitignored).
+**DB changes** — belum. Migrasi **belum bisa dijalankan**, lihat di bawah.
+
+**Yang sudah beres**
+
+| | |
+|---|---|
+| MySQL | XAMPP MariaDB **10.4.32**, hidup di port 3306 |
+| Kredensial | `root` tanpa password — **diuji, berhasil** |
+| Database | `cempaka_billing` **sudah ada**, tapi **0 tabel** — migrasi belum pernah jalan |
+| `.env` | dibuat dari `.env.example`, **semua kunci terisi** |
+
+`APP_KEY` dibuat dengan format Laravel yang sah (32 byte acak, base64, berawalan
+`base64:`), dan `REVERB_APP_ID` / `APP_KEY` / `APP_SECRET` dibuat acak. Tidak
+ada kunci `.env.example` yang hilang maupun kelebihan — sudah dibandingkan.
+
+**Tertahan: PHP di mesin ini terlalu lama**
+
+| | Versi |
+|---|---|
+| `composer.json` meminta | `^8.3` |
+| `composer.lock` sebenarnya butuh | **≥8.4.1** (`symfony/http-foundation` v8.1.8) |
+| Terpasang di mesin ini | **8.2.12** — bawaan XAMPP, satu-satunya |
+
+`composer install` gagal dengan 40 konflik versi. Ini bukan sesuatu yang bisa
+dikodekan: Laravel 13 memang tidak berjalan di PHP 8.2.
+
+**Jangan diselesaikan dengan `composer update`.** Itu akan menulis ulang
+`composer.lock` dan menurunkan paket supaya muat di 8.2 — sementara mesin
+Reyhan memakai 8.4. Hasilnya dua lingkungan yang berbeda diam-diam, dan bug
+yang hanya muncul di satu sisi. Lebih murah menaikkan PHP di sini.
+
+**Yang perlu dilakukan user**
+
+Pasang **PHP 8.4 x64 Thread Safe** dari `windows.php.net/download`, ekstrak ke
+mis. `C:\php84`, lalu di `php.ini` aktifkan: `pdo_mysql`, `mbstring`,
+`openssl`, `fileinfo`, `curl`, `zip`, `sodium`.
+
+Tidak perlu mengganti PHP XAMPP — cukup panggil yang baru secara eksplisit:
+
+```bash
+cd backend && /c/php84/php.exe /c/ProgramData/ComposerSetup/bin/composer.phar install
+/c/php84/php.exe artisan migrate --seed
+```
+
+**Setelah PHP 8.4 ada, sisa langkahnya**
+
+1. `composer install`
+2. `php artisan migrate` — 12 migration
+3. `php artisan db:seed` — user contoh (password dari `SEED_PASSWORD=password`),
+   master data, menu F&B
+4. `php artisan serve --host=0.0.0.0` supaya tablet bisa menjangkau
+
+**Known issues**
+- Login Flutter diparkir di branch `feat/flutter-login` (`278099d`), 5 test
+  `shell_overflow_test` merah karena "Pending timers" — belum didiagnosis.
+- `.env` hanya ada di mesin ini. Mesin lain harus membuat sendiri dari
+  `.env.example`; `APP_KEY` dan kredensial Reverb **tidak boleh** disamakan
+  lewat repo.
+
+**Next step**
+Pasang PHP 8.4, lalu `composer install` dan `migrate --seed`.
+
+---
+
 ## SESI TV — diisi saat menguji
 
 ### Pairing
