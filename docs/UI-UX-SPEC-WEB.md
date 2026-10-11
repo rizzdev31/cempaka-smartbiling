@@ -177,6 +177,11 @@ Di `resources/views/components/`.
 | `<x-icon>` | satu set ikon inline SVG |
 | `<x-sample-banner>` | penanda data contoh |
 
+Halaman login (`auth/login.blade.php`) **tidak** memakai `<x-layouts.app>`:
+layout itu berisi nav, tombol notifikasi, dan avatar — semuanya menuntut user
+yang sudah login. Memaksakannya berarti menaruh chrome yang tidak bisa dipakai
+di depan orang yang belum boleh memakainya.
+
 ### Dua hal yang diperbaiki dari referensi
 
 **Gauge.** Referensi menggambar lingkaran penuh, memutarnya 180°, lalu
@@ -230,8 +235,8 @@ php artisan test --filter=WebDesignTokensTest
 
 | | |
 |---|---|
-| **Login web** | Auth sekarang Sanctum — token API untuk tablet, bukan session web. Pekerjaan tersendiri, dan **wajib** sebelum ada data nyata di halaman |
-| **Data nyata** | Dashboard memakai `DashboardSampleData`. Ganti kelas itu, jangan tambahkan query di sampingnya |
+| ~~Login web~~ | ✅ **Sudah ada** — DEC-043. Guard session, Owner & Admin saja |
+| **Data nyata** | Dashboard masih memakai `DashboardSampleData`. Ganti kelas itu, jangan tambahkan query di sampingnya. **Penghalangnya sudah hilang** |
 | Halaman Sesi, F&B, Harga & Paket, Laporan | nav-nya sudah ada, diredupkan dan tidak bisa diklik |
 | Mode gelap | tidak dibuat — sama seperti tablet (DEC-016) |
 | Responsif ponsel | tata letak sudah menyusut sampai satu kolom, tapi belum diuji di perangkat |

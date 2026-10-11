@@ -15,6 +15,6 @@
         <span class="font-bold">Data contoh — belum dari database.</span>
         Semua angka di halaman ini berasal dari <code class="font-semibold">DashboardSampleData</code>,
         bukan dari tabel. Nominalnya memakai tarif asli supaya masuk akal, tapi
-        tidak mencerminkan transaksi apa pun. Login web dan query nyatanya belum dibuat.
+        tidak mencerminkan transaksi apa pun. Login sudah nyata; query-nya belum.
     </p>
 </div>

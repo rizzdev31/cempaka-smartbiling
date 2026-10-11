@@ -4,16 +4,15 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Exceptions\ApiException;
 use App\Http\Requests\Api\V1\LoginRequest;
-use App\Models\User;
 use App\Support\Api\ApiResponse;
 use App\Support\Api\ErrorCode;
 use App\Support\Audit\AuditAction;
 use App\Support\Audit\AuditLogger;
+use App\Support\Auth\CredentialCheck;
+use App\Support\Auth\CredentialOutcome;
 use App\Support\Presenters\UserPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 /**
  * Autentikasi — API.md §4.
@@ -25,47 +24,25 @@ use Illuminate\Support\Str;
  */
 class AuthController
 {
-    /** Hash pembanding untuk username yang tidak ada. Lihat login(). */
-    private static ?string $dummyHash = null;
-
-    public function __construct(private readonly AuditLogger $audit) {}
-
-    /**
-     * Hash acak yang tidak akan pernah cocok, dibuat dengan cost yang sama
-     * seperti hash asli supaya waktu pemeriksaannya setara.
-     *
-     * Harus hash bcrypt yang sah — string sembarang membuat Hash::check
-     * melempar "This password does not use the Bcrypt algorithm", dan login
-     * dengan username tak terdaftar jadi 500 alih-alih 401.
-     */
-    private static function dummyHash(): string
-    {
-        return self::$dummyHash ??= Hash::make(Str::random(32));
-    }
+    public function __construct(
+        private readonly AuditLogger $audit,
+        /*
+         * Pemeriksaan kredensialnya DIBAGI dengan login Admin Web
+         * (DEC-043). Aturan timing-safe, pesan yang tidak membocorkan
+         * username, dan pemblokiran akun nonaktif tidak boleh punya dua
+         * salinan yang bisa melenceng.
+         */
+        private readonly CredentialCheck $credentials,
+    ) {}
 
     public function login(LoginRequest $request): JsonResponse
     {
-        $user = User::query()->where('username', $request->string('username'))->first();
-
-        /*
-         * Hash::check dijalankan juga saat user tidak ada, memakai hash dummy.
-         * Tanpa itu, username yang salah menjawab jauh lebih cepat daripada
-         * password yang salah — dan selisih waktu itu cukup untuk menebak
-         * username mana yang terdaftar.
-         */
-        $passwordValid = Hash::check(
+        $result = $this->credentials->attempt(
+            $request->string('username')->toString(),
             (string) $request->string('password'),
-            $user?->password ?? self::dummyHash(),
         );
 
-        if ($user === null || ! $passwordValid) {
-            $this->audit->forAnonymous(AuditAction::LOGIN_FAILED, [
-                'actor_id' => $user?->id,
-                'actor_name' => $user?->name,
-                'actor_role' => $user?->role->value,
-                'after' => ['username' => $request->string('username')->toString()],
-            ]);
-
+        if ($result->outcome === CredentialOutcome::INVALID) {
             // Pesan sama untuk username salah maupun password salah —
             // jangan memberi tahu username mana yang ada.
             throw new ApiException(
@@ -75,17 +52,15 @@ class AuthController
             );
         }
 
-        // PRD §6: akun dinonaktifkan tidak boleh masuk, tapi barisnya tetap ada
-        // supaya histori transaksinya tidak kehilangan pemilik.
-        if (! $user->is_active) {
-            $this->audit->forUser($user, AuditAction::LOGIN_BLOCKED_INACTIVE);
-
+        if ($result->outcome === CredentialOutcome::INACTIVE) {
             throw new ApiException(
                 ErrorCode::USER_INACTIVE,
                 'Akun ini dinonaktifkan. Hubungi admin.',
                 403,
             );
         }
+
+        $user = $result->user;
 
         // Satu token per login. Token lama tidak dicabut: operator bisa
         // memakai tablet dan laptop sekaligus saat pengujian.

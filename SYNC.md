@@ -16,8 +16,8 @@
 
 | Bagian | Status |
 |---|---|
-| **Backend (Laravel)** | Tahap 0 **SELESAI**. 32 endpoint, 9 event realtime, 306 test lulus |
-| **Admin Web (Blade)** | **BARU.** Satu halaman dashboard di `/admin`, design system lengkap. Masih **data contoh**, belum ada login |
+| **Backend (Laravel)** | Tahap 0 **SELESAI**. 32 endpoint, 9 event realtime, 328 test lulus |
+| **Admin Web (Blade)** | **BARU.** Login (Owner & Admin) + dashboard di `/admin`, design system lengkap. Isinya masih **data contoh** |
 | **Operator app (Flutter)** | Layar sudah jadi. Klien API **sudah ada** (`lib/data/api/`) dan alamat server sudah bisa ditemukan otomatis, tapi aplikasi **masih memakai data palsu** — belum dialihkan dan belum ada login |
 | **TV Agent (Kotlin)** | Kiosk + timer jalan, dan sudah bisa **menemukan** server, tapi **belum bicara** dengan Laravel — masih menerima perintah langsung dari tablet |
 
@@ -133,7 +133,7 @@ Lalu buka `http://localhost:8000/admin`.
 | **Warnanya sama persis** | Teal Amor ternyata skala `cyan` Tailwind: `primary #0E7490` = `cyan-700`. Sebuah test membaca `tokens.dart` dan gagal kalau keduanya menyimpang |
 | **Font: Plus Jakarta Sans saja** | Berbeda dari tablet yang memakai tiga family |
 | **Isinya data contoh** | `DashboardSampleData`, dengan spanduk peringatan yang tidak bisa dimatikan |
-| **Belum ada login web** | Sanctum = token API untuk tablet, bukan session web. **Wajib dibuat sebelum ada data nyata di halaman** |
+| **Login sudah ada** (DEC-043) | Guard **session**, bukan Sanctum — tablet tidak terpengaruh. Masuk dengan `owner` atau `admin`; **operator ditolak**, dia memakai tablet |
 
 > **Kalau Anda menyentuh Blade:** jangan tulis `bg-blue-600`, `text-gray-400`,
 > atau hex mentah. Semua warna lewat token di `resources/css/app.css`.
@@ -191,6 +191,7 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 | Tanggal | Isi |
 |---|---|
+| 11 Okt 2026 | **Login Admin Web** (DEC-043) — guard session, Owner & Admin saja, pemeriksa kredensial dibagi dengan API |
 | 11 Okt 2026 | **Admin Web dimulai** (DEC-042) — dashboard Blade di `/admin`, design system teal Amor + bentuk referensi |
 | 10 Okt 2026 | Penemuan server otomatis (DEC-041) di Flutter **dan** Kotlin. `/health` menyebut identitasnya; `APP_ID` jadi kontrak |
 | 10 Okt 2026 | Klien API Flutter ditulis. `GET /shifts` ditambahkan; struk sekarang membawa objek payment utuh |

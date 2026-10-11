@@ -17,8 +17,8 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); klien API + penemuan server otomatis (DEC-041) sudah ada tapi **aplikasi masih memakai data palsu**; **225 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal + penemuan server otomatis (DEC-041); **47 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti**, dan agent **belum bicara ke Laravel** |
-| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **306 test LULUS** (1.060 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
-| **Admin Web** | **BARU 11 Okt (DEC-042).** Dashboard Blade di `/admin` — design system lengkap dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. Masih **data contoh**; **belum ada login web** dan itu wajib sebelum data nyata. Spec: `docs/UI-UX-SPEC-WEB.md` |
+| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **328 test LULUS** (1.125 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
+| **Admin Web** | **BARU 11 Okt (DEC-042, DEC-043).** Login (guard session, Owner & Admin saja) + dashboard di `/admin`. Design system dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. Isinya masih **data contoh** — itu langkah berikutnya. Spec: `docs/UI-UX-SPEC-WEB.md` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -2722,3 +2722,92 @@ Buka `http://localhost:8000/admin`.
 
 **Next step** — login web berbasis session, lalu ganti `DashboardSampleData`
 dengan query nyata. Urutannya tidak boleh dibalik.
+
+---
+
+### 2026-10-11 — [Admin Web] Login — DEC-043
+
+DEC-042 meninggalkan `/admin` **tanpa auth sama sekali**. Itu hanya aman
+selama isinya data contoh. Ini menutupnya sebelum ada satu pun query nyata.
+
+**Yang paling penting: pemeriksa kredensial dibagi, bukan ditulis dua kali**
+
+Login API sudah punya tiga aturan yang mudah terlihat seperti detail yang
+bisa disederhanakan saat seseorang menulis login kedua:
+
+| Aturan | Kalau hilang di salinan kedua |
+|---|---|
+| `Hash::check` tetap jalan untuk username tak dikenal, pakai hash dummy | Username salah menjawab jauh lebih cepat — cukup untuk menebak username mana yang terdaftar |
+| Pesan sama untuk username salah dan password salah | Separuh pekerjaan penebak password selesai |
+| Akun nonaktif ditolak | Orang yang baru diberhentikan masih bisa masuk |
+
+Ketiganya dipindah ke `App\Support\Auth\CredentialCheck`, dipakai API dan
+web. Sengaja **tidak melempar exception** — API perlu `ApiException`, web
+perlu kembali ke form. Kalau pemeriksanya sudah melempar, salah satu
+permukaan terpaksa menangkap exception milik permukaan lain.
+
+15 test auth API tetap hijau sesudah ekstraksi, dijalankan sebelum lanjut.
+
+**Keputusan akses: Owner dan Admin saja**
+
+Operator memakai tablet. Dashboard ini menampilkan pendapatan seluruh usaha.
+Rolenya diperiksa **sebelum** `Auth::login` — kalau sesudah, cookie login
+yang sah sudah terbentuk dan halaman yang lupa dipasangi middleware akan
+menerimanya. Ada test terpisah yang membuktikan tidak ada sesi tertinggal.
+
+**Yang diperiksa ulang setiap request**
+
+Session bertahan berhari-hari, jadi `admin.web` memeriksa role + status aktif
+di setiap request. Akun yang diturunkan atau dinonaktifkan di tengah jalan
+langsung kehilangan akses. Login menjawab "boleh masuk?"; middleware menjawab
+"masih boleh?" — dua pertanyaan berbeda, keduanya perlu.
+
+**Pembatasan percobaan sengaja beda dari API**
+
+API: `throttle:login`, 5/menit/IP, jawabannya halaman 429 telanjang.
+Web: 5/menit per **username + IP**, pesannya muncul di tempat yang sama
+dengan error lain dan menyebut sisa detik. Per IP saja berarti beberapa admin
+di satu jaringan rental bisa saling mengunci.
+
+Blokirnya berlaku pada **kredensialnya**: password benar pun tertahan selama
+terblokir. Kalau tidak, pembatasnya tidak memperlambat penebakan sama sekali.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `Support/Auth/{CredentialCheck,CredentialOutcome,CredentialResult}.php`, `Http/Controllers/Web/LoginController.php`, `Http/Middleware/EnsureWebAdmin.php`, `views/auth/login.blade.php`, `tests/Feature/Web/LoginTest.php` |
+| Diubah | `Api/V1/AuthController.php` (pakai CredentialCheck), `AuditAction` (+`LOGIN_BLOCKED_ROLE`), `AuthServiceProvider` (arah redirect guest), `bootstrap/app.php` (alias `admin.web`), `routes/web.php`, layout (user asli + tombol keluar), `icon` (+logout), `sample-banner` (teksnya sudah usang) |
+| Dihapus | `tests/Feature/ExampleTest.php` — scaffold Laravel yang menguji `GET /` = 200; `/` sekarang mengarah ke `/admin`, dan `LoginTest` sudah mengujinya |
+
+**DB changes** — tidak ada.
+**API/Events** — tidak ada yang berubah untuk tablet. `POST /api/v1/auth/login`
+berperilaku persis sama; hanya isi perutnya yang dipindah.
+
+**Tests** — **328 lulus** (+22 bersih), 1.125 assertion. `LoginTest` 23 test.
+
+**Satu temuan saat menulis test**
+
+Pemeriksaan "sudah login" di `LoginController::show()` ternyata **dead code** —
+middleware `guest` sudah melempar user yang login sebelum controller jalan.
+Dibuang, dan arah lemparannya diatur ke dashboard (bawaannya `/`, yang cuma
+melompat sekali lagi). Cabang yang tidak pernah dijalankan akan membusuk
+tanpa ketahuan.
+
+**Manual test** — dibuktikan di browser, alur penuh:
+
+```
+tamu /admin  → dilempar /login
+password salah → "Username atau password salah."
+owner + password seed → dashboard, header menampilkan "Owner / OWNER"
+tombol keluar → kembali ke /login, /admin tidak bisa dibuka lagi
+```
+
+**Known issues**
+
+- Dashboard masih `DashboardSampleData`. Penghalangnya sudah hilang.
+- Belum ada "lupa password" maupun ganti password dari web — akun dibuat
+  lewat seeder. Manajemen user adalah Tahap 3B.
+- Belum ada "ingat saya". Session berakhir saat browser ditutup.
+
+**Next step** — ganti `DashboardSampleData` dengan query nyata.

@@ -76,6 +76,14 @@
                 <x-icon name="cog" />
             </button>
 
+            @php
+                $me = auth()->user();
+                // Dua huruf dari nama, bukan dari username: yang dikenali
+                // orang adalah namanya.
+                $inisial = collect(explode(' ', trim($me?->name ?? '?')))
+                    ->take(2)->map(fn ($w) => mb_strtoupper(mb_substr($w, 0, 1)))->implode('');
+            @endphp
+
             <div class="flex items-center gap-2 pl-1">
                 {{--
                     Avatar inisial, bukan foto. Referensi memuat foto dari
@@ -83,12 +91,22 @@
                     di jaringan lokal, dan menghasilkan ikon rusak.
                 --}}
                 <div class="w-10 h-10 rounded-full bg-inset border border-line flex items-center justify-center text-sm font-bold text-ink-soft">
-                    OW
+                    {{ $inisial }}
                 </div>
                 <div class="hidden xl:block leading-tight">
-                    <div class="text-xs font-bold text-ink">Owner</div>
-                    <div class="text-[11px] text-ink-soft">belum login</div>
+                    <div class="text-xs font-bold text-ink">{{ $me?->name }}</div>
+                    <div class="text-[11px] text-ink-soft">{{ $me?->role->value }}</div>
                 </div>
+
+                {{-- POST, bukan tautan. Logout lewat GET bisa dipicu dari
+                     gambar atau prefetch browser tanpa user menekan apa pun. --}}
+                <form method="POST" action="{{ route('logout') }}" class="ml-1">
+                    @csrf
+                    <button type="submit" aria-label="Keluar"
+                            class="w-10 h-10 rounded-full border border-line flex items-center justify-center text-ink-soft hover:bg-danger-surface hover:text-danger hover:border-danger/30 transition-colors">
+                        <x-icon name="logout" />
+                    </button>
+                </form>
             </div>
         </div>
     </header>

@@ -1504,6 +1504,88 @@ nyatanya masuk, login wajib lebih dulu.**
 
 ---
 
+## DEC-043 — Login Admin Web: guard session, Owner & Admin saja, pemeriksa kredensial dibagi
+**Tanggal:** 11 Okt 2026 · **Status:** APPROVED · **Melanjutkan:** DEC-042 · **Melengkapi:** DEC-020
+
+DEC-042 meninggalkan halaman admin **tanpa auth sama sekali**, dan itu hanya
+aman selama isinya data contoh. Ini menutupnya.
+
+### Tiga keputusan
+
+**1. Guard `web` (session), bukan Sanctum.**
+
+Sanctum yang dipakai tablet adalah token API: setiap request membawa
+`Authorization: Bearer`. Browser tidak melakukan itu — ia membawa cookie.
+Keduanya hidup berdampingan; tidak ada yang berubah di sisi tablet.
+
+**2. Admin Web hanya untuk OWNER dan ADMIN.**
+
+Operator memakai tablet. Dashboard ini menampilkan pendapatan seluruh usaha —
+angka yang bukan urusannya, dan PRD §6 tidak pernah memberinya akses laporan.
+`UserRole::isAdminLevel()` yang sudah ada dipakai apa adanya.
+
+Rolenya diperiksa **sebelum** `Auth::login`, bukan oleh middleware sesudahnya:
+sesi yang dibuat lalu ditolak tetap meninggalkan cookie login yang sah, dan
+halaman mana pun yang lupa dipasangi middleware akan menerimanya.
+
+**3. Pemeriksa kredensial DIBAGI dengan API.**
+
+`App\Support\Auth\CredentialCheck` sekarang dipakai login tablet maupun web.
+Isinya tiga aturan yang mudah terlihat seperti detail yang bisa
+disederhanakan saat seseorang menulis login kedua:
+
+| Aturan | Kalau hilang di salah satu salinan |
+|---|---|
+| `Hash::check` tetap jalan untuk username yang tidak ada, memakai hash dummy | Username salah menjawab jauh lebih cepat daripada password salah — cukup untuk menebak username mana yang terdaftar |
+| Pesan sama untuk username salah dan password salah | Separuh pekerjaan penebak password selesai |
+| Akun nonaktif ditolak (PRD §6) | Orang yang baru diberhentikan masih bisa masuk |
+
+Audit ikut di dalamnya, bukan di controller, karena PRD §24 mewajibkan login
+tercatat **dari permukaan mana pun**.
+
+Yang tetap berbeda hanya bentuk jawabannya: `ApiException` di API, kembali ke
+form di web. Karena itu `CredentialCheck` sengaja **tidak melempar** —
+masing-masing permukaan menerjemahkan hasilnya sendiri.
+
+### Pembatasan percobaan dibuat terpisah dari API
+
+API memakai `throttle:login` (5/menit/**IP**). Web memakai hitungan sendiri,
+5/menit per **username + IP**, karena dua alasan:
+
+- Middleware itu menjawab halaman 429 telanjang. Di form login, pesannya harus
+  muncul di tempat yang sama dengan error lain, menyebut sisa waktunya.
+- Per IP saja berarti beberapa admin di satu jaringan rental bisa saling
+  mengunci.
+
+Blokirnya berlaku pada **kredensialnya**, bukan sekadar menolak yang salah —
+password benar pun ikut tertahan selama terblokir. Kalau tidak, pembatasnya
+tidak memperlambat penebakan sama sekali. Ada test khusus untuk itu.
+
+### Yang diperiksa ulang setiap request
+
+Session bertahan berhari-hari. Middleware `admin.web` memeriksa role dan
+status aktif di **setiap** request, jadi akun yang diturunkan atau
+dinonaktifkan di tengah jalan langsung kehilangan akses — bukan menunggu
+orangnya kebetulan logout. Keduanya menjawab pertanyaan berbeda: login
+menjawab "boleh masuk?", middleware menjawab "masih boleh?".
+
+`EnsureUserIsActive` milik API tidak dipakai di sini: ia melempar
+`ApiException`, yang di browser hanya menghasilkan halaman error tanpa
+penjelasan.
+
+### Catatan
+
+- `LOGIN_BLOCKED_ROLE` ditambahkan ke `AuditAction`.
+- `RedirectIfAuthenticated` diarahkan ke dashboard; bawaannya `/`, yang cuma
+  melompat sekali lagi.
+- `tests/Feature/ExampleTest.php` dihapus — scaffold Laravel yang menguji
+  `GET /` = 200, padahal `/` sekarang mengarah ke `/admin`. Perilaku barunya
+  sudah diuji `LoginTest`.
+- **Data nyata masih belum masuk.** Dashboard tetap `DashboardSampleData`.
+  Sekarang penghalangnya sudah hilang, jadi itu langkah berikutnya.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
