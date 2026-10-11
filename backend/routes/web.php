@@ -1,7 +1,7 @@
 <?php
 
+use App\Http\Controllers\Web\AdminController;
 use App\Http\Controllers\Web\LoginController;
-use App\Support\Web\DashboardData;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -28,7 +28,24 @@ Route::post('/logout', [LoginController::class, 'destroy'])
  * akun yang diturunkan atau dinonaktifkan di tengah jalan harus langsung
  * kehilangan akses, bukan menunggu dia logout sendiri.
  */
-Route::middleware(['auth', 'admin.web'])->group(function () {
-    Route::get('/admin', fn () => view('admin.dashboard', DashboardData::all()))
-        ->name('admin.dashboard');
-});
+Route::middleware(['auth', 'admin.web'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->controller(AdminController::class)
+    ->group(function () {
+        Route::get('/', 'dashboard')->name('dashboard');
+        Route::get('/sesi', 'sessions')->name('sessions');
+        Route::get('/station', 'stations')->name('stations');
+        Route::get('/fnb', 'fnb')->name('fnb');
+        Route::get('/customer', 'customers')->name('customers');
+        Route::get('/shift', 'shifts')->name('shifts');
+        Route::get('/audit', 'audit')->name('audit');
+
+        /*
+         * Harga butuh permission tersendiri (DEC-020). Halamannya boleh
+         * DILIHAT admin — mengetahui tarif adalah bagian dari pekerjaannya —
+         * tapi tombol ubahnya hanya untuk owner, dan penegaknya ada di
+         * endpoint perubahan, bukan di tampilan.
+         */
+        Route::get('/harga', 'pricing')->name('pricing');
+    });

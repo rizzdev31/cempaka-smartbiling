@@ -17,8 +17,8 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); klien API + penemuan server otomatis (DEC-041) sudah ada tapi **aplikasi masih memakai data palsu**; **225 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal + penemuan server otomatis (DEC-041); **47 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti**, dan agent **belum bicara ke Laravel** |
-| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **342 test LULUS** (1.158 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
-| **Admin Web** | **BARU 11 Okt (DEC-042, DEC-043).** Login (guard session, Owner & Admin saja) + dashboard di `/admin`. Design system dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. Dashboard sudah memakai **data nyata** (11 Okt); data contoh dihapus seluruhnya. Spec: `docs/UI-UX-SPEC-WEB.md` |
+| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **381 test LULUS** (1.222 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
+| **Admin Web** | **BARU 11 Okt (DEC-042, DEC-043).** Login (guard session, Owner & Admin saja) + dashboard di `/admin`. Design system dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. **8 halaman** (dashboard, sesi, station, F&B, harga, customer, shift, audit), semuanya data nyata dan responsif sampai 375px. Masih **hanya membaca** — form ubah belum ada. Spec: `docs/UI-UX-SPEC-WEB.md` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -2909,3 +2909,106 @@ memuatnya — kalau tidak, test pertama lulus hanya karena badge-nya mati.
 
 **Next step** — modul §19 berikutnya yang backend-nya sudah ada: Station &
 Device, Harga & Paket, atau F&B/Inventory.
+
+---
+
+### 2026-10-11 — [Admin Web] Delapan halaman, semuanya responsif
+
+User: *"sekarang semua fitur yang sudah ada, kamu buatkan UI-nya. dan
+usahakan semua halamannya untuk yang operator itu bisa di sesuaikan
+ukurannya."*
+
+**Navigasi sebelumnya HILANG di tablet**
+
+Nav memakai `hidden lg:flex` — di bawah 1024px tidak ada navigasi sama
+sekali, dan satu-satunya jalan antar halaman adalah tombol Back browser.
+Tablet operator justru hidup di lebar itu. Sekarang nav menggeser mendatar,
+dipilih daripada menu hamburger karena tidak butuh JavaScript, tidak punya
+keadaan terbuka/tertutup yang bisa macet, dan halaman aktifnya tetap
+terlihat tanpa membuka apa pun.
+
+**Tabel jadi kartu bertumpuk di bawah 48rem**
+
+Tabel delapan kolom di lebar 375px hanya punya dua jalan keluar: menggeser
+ke samping (kolom Total hilang dari pandangan — justru yang dicari) atau
+meremas teks sampai tidak terbaca. Jalan ketiga: `@utility table-stacked` —
+tiap baris jadi blok, nama kolom pindah ke kiri tiap nilai lewat
+`data-label`. Tanpa JavaScript, tanpa markup kedua yang harus dijaga sinkron.
+
+Konsekuensinya setiap `<td>` wajib punya `data-label`, dan yang lupa hanya
+rusak **di layar sempit** — lolos dari siapa pun yang mengujinya di laptop.
+Karena itu ada test yang memindai Blade dan menolak sel tanpa label.
+Dibuktikan bisa gagal: satu `data-label` dihapus → test gagal menyebut
+berkasnya; dipulihkan → lulus.
+
+**Delapan halaman**
+
+| Halaman | Isi |
+|---|---|
+| Dashboard | sudah ada |
+| Sesi | 50 terbaru + chip filter per status, hitungannya dari seluruh riwayat |
+| Station & TV | kartu per station, **tiga** keadaan TV |
+| F&B | antrean pesanan + menu & stok per kategori |
+| Harga & Paket | paket per tipe konsol + harga F&B dengan margin |
+| Customer | daftar + pencarian + saldo member |
+| Shift | shift berjalan + riwayat 30 terakhir |
+| Audit | 100 terbaru + filter aksi, hanya field yang BERUBAH |
+
+**Keputusan yang menghindari salah baca**
+
+- **TV punya tiga keadaan, bukan dua.** "Belum didaftarkan" ≠ "Offline":
+  yang pertama berarti TV-nya belum pernah dipasang, yang kedua berarti ada
+  yang rusak. Menggabungkannya membuat teknisi mencari kabel pada TV yang
+  memang belum ada.
+- **Stok `null` = tidak dilacak**, bukan nol. "0" akan terbaca sebagai habis.
+- **HPP kosong → margin "—"**, bukan "0%" yang terbaca sebagai rugi.
+- **Halaman Shift menyebut OD-029 terang-terangan.** Kas seharusnya belum
+  dikurangi pengeluaran kasir; kalau tidak dikatakan, kasir jujur yang
+  mengambil uang untuk beli galon akan terlihat seperti mencuri.
+- **Audit hanya menampilkan field yang berubah**, maksimal 4. Menumpahkan
+  seluruh `before`/`after` membuat kolom setinggi layar dan justru
+  menyembunyikan satu angka yang dicari.
+- Kelas warna **ditulis utuh**, tidak dirangkai dari nama nada: Tailwind v4
+  memindai kelas literal, jadi `bg-{$nada}-surface` tidak pernah dibuat dan
+  badge-nya tampil tanpa warna — hanya di produksi.
+
+**Kenapa query langsung, bukan memanggil API sendiri**
+
+Admin Web berjalan di proses Laravel yang sama. Memanggil `GET /api/v1/...`
+dari sini berarti satu request HTTP ke diri sendiri untuk data yang sudah
+ada satu lapisan di bawah. Aturan "client tidak boleh akses DB langsung"
+berlaku untuk Flutter dan Kotlin yang memang terpisah mesin; Blade bukan
+client. Yang tidak ditiru: menulis aturan bisnis — halaman ini hanya membaca.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `Web/AdminController.php`, 7 view `admin/*.blade.php`, komponen `page-header`/`empty`/`stat`, `tests/Feature/Web/AdminPagesTest.php` |
+| Diubah | `app.css` (+`table-stacked`), `layouts/app.blade.php` (nav responsif), `routes/web.php`, `WebDesignTokensTest` (+aturan `data-label`) |
+
+**DB changes** — tidak ada.
+**API/Events** — tidak ada. Tahap 0 tidak tersentuh.
+
+**Tests** — **381 lulus** (+39), 1.222 assertion. `AdminPagesTest` membuka
+setiap halaman **empat kali**: database kosong, database terisi, sebagai
+tamu, sebagai operator. Halaman yang lulus hanya saat kosong tidak pernah
+melewati perulangan isinya; yang lulus hanya saat terisi akan meledak di
+instalasi baru.
+
+**Manual test** — kedelapan halaman diperiksa di 1280px, 768px, dan 375px.
+Tidak ada satu pun yang meluber mendatar di 375px (diukur
+`scrollWidth` vs `clientWidth`, bukan dilihat).
+
+**Known issues**
+
+- Semua halaman **hanya membaca**. Mengubah harga, menutup shift, atau
+  mengubah status pesanan belum bisa dari web — endpoint-nya ada, formnya
+  belum.
+- Laporan, Booking, Target, Backup belum ada (backend-nya juga belum).
+- Halaman Shift memanggil `ShiftService::summary()` untuk shift berjalan;
+  riwayat tidak, karena itu satu query per baris. Selisih kas tiap shift
+  dibaca dari audit log.
+
+**Next step** — form ubah harga (owner-only, endpoint sudah ada), atau
+OD-029 supaya rekonsiliasi laci berhenti berbohong.

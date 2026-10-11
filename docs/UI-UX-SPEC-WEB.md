@@ -182,6 +182,55 @@ layout itu berisi nav, tombol notifikasi, dan avatar — semuanya menuntut user
 yang sudah login. Memaksakannya berarti menaruh chrome yang tidak bisa dipakai
 di depan orang yang belum boleh memakainya.
 
+### ⛔ Responsif: tiap `<td>` wajib punya `data-label`
+
+Tabel memakai `table-stacked`. Di bawah **48rem** setiap baris berubah jadi
+blok, dan nama kolom pindah ke kiri tiap nilai lewat `data-label`:
+
+```blade
+<table class="w-full text-left text-xs table-stacked">
+    ...
+    <td data-label="Total" class="py-3 px-3 md:text-right">…</td>
+```
+
+Sel yang lupa labelnya tampil **tanpa keterangan** — dan hanya di layar
+sempit, jadi lolos dari siapa pun yang mengujinya di laptop.
+`test_setiap_sel_tabel_punya_data_label` menolaknya. Pengecualiannya hanya
+`<td colspan>`, yaitu baris keadaan kosong yang memang dibiarkan utuh.
+
+Alasan tidak memakai scroll mendatar: kolom paling kanan — Total, Status —
+justru yang dicari, dan di tabel yang digeser ia selalu di luar pandangan.
+
+### Breakpoint yang dipakai
+
+| Lebar | Perilaku |
+|---|---|
+| < 640 (`sm`) | satu kolom · nama rental disembunyikan · padding 12px · tabel bertumpuk |
+| < 768 (`md`) | tabel masih bertumpuk · judul dan aksi menumpuk |
+| < 1024 (`lg`) | nama & role user disembunyikan dari header |
+| ≥ 1280 (`xl`) | grid tiga kolom pada halaman Station |
+
+Navigasi **menggeser mendatar** di semua lebar sempit, tidak pernah
+disembunyikan. Versi pertama memakai `hidden lg:flex` — di tablet tidak ada
+navigasi sama sekali, dan satu-satunya jalan antar halaman adalah tombol
+Back. Geser mendatar dipilih daripada hamburger karena tidak butuh
+JavaScript dan tidak punya keadaan terbuka/tertutup yang bisa macet.
+
+### ⛔ Kelas warna ditulis utuh, jangan dirangkai
+
+```blade
+{{-- SALAH: Tailwind tidak pernah membuat CSS-nya --}}
+<span class="bg-{{ $nada }}-surface text-{{ $nada }}">
+
+{{-- BENAR --}}
+@php $nada = $online ? 'bg-playing-surface text-playing' : 'bg-danger-surface text-danger'; @endphp
+<span class="{{ $nada }}">
+```
+
+Tailwind v4 memindai **kelas literal** di berkas source. Kelas yang baru
+terbentuk saat render tidak pernah muncul sebagai teks, jadi CSS-nya tidak
+dibuat — dan badge tampil tanpa warna sama sekali, hanya di produksi.
+
 ### ⛔ Angka perubahan harus dihitung, bukan dituliskan
 
 `<x-metric>` menerima badge lewat **slot**, bukan prop string:
@@ -256,7 +305,8 @@ php artisan test --filter=WebDesignTokensTest
 |---|---|
 | ~~Login web~~ | ✅ **Sudah ada** — DEC-043. Guard session, Owner & Admin saja |
 | ~~Data nyata~~ | ✅ **Sudah** — `DashboardData` + `BusinessDay`. Batas "hari ini" = tengah malam **WIB**, bukan UTC |
-| **12 modul §19 lainnya** | Station & Device, Harga & Paket, F&B/Inventory, Customer, Shift, Payment, Audit Log sudah punya backend. Expense/Profit terhalang **OD-029**; Booking, Target, Reports, Backup belum ada |
-| Halaman Sesi, F&B, Harga & Paket, Laporan | nav-nya sudah ada, diredupkan dan tidak bisa diklik |
+| **Modul §19 lainnya** | Laporan, Booking, Target, Backup — backend-nya juga belum ada. Expense/Profit terhalang **OD-029** |
+| **Semua halaman hanya membaca** | Form ubah harga, tutup shift, dan ubah status pesanan belum ada — endpoint-nya sudah ada, UI-nya belum |
+| Laporan | satu-satunya menu nav yang masih diredupkan dan tidak bisa diklik |
 | Mode gelap | tidak dibuat — sama seperti tablet (DEC-016) |
 | Responsif ponsel | tata letak sudah menyusut sampai satu kolom, tapi belum diuji di perangkat |

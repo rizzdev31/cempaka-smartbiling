@@ -128,6 +128,40 @@ class WebDesignTokensTest extends TestCase
         );
     }
 
+    public function test_setiap_sel_tabel_punya_data_label(): void
+    {
+        /*
+         * `table-stacked` mengubah tiap baris jadi blok di bawah 48rem, dan
+         * nama kolomnya datang dari `data-label`. Sel yang lupa akan tampil
+         * tanpa keterangan — dan HANYA di layar sempit, jadi lolos dari siapa
+         * pun yang mengujinya di laptop.
+         */
+        $pelanggar = [];
+
+        foreach ($this->bladeFiles() as $file) {
+            $isi = file_get_contents($file);
+
+            if (! str_contains($isi, 'table-stacked')) {
+                continue;
+            }
+
+            // `<td` tanpa `data-label`, kecuali yang memakai colspan —
+            // itu baris keadaan kosong yang memang dibiarkan utuh.
+            preg_match_all('/<td(?![^>]*\bdata-label=)(?![^>]*\bcolspan=)[^>]*>/', $isi, $m);
+
+            if ($m[0] !== []) {
+                $pelanggar[basename($file)] = $m[0];
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $pelanggar,
+            "Sel tabel tanpa `data-label` — akan tampil tanpa keterangan di ponsel.\n"
+            .json_encode($pelanggar, JSON_PRETTY_PRINT),
+        );
+    }
+
     public function test_layout_memanggil_direktif_fonts(): void
     {
         /*
