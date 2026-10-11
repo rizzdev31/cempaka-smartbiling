@@ -36,11 +36,17 @@ Claude = **coding assistant**, bukan pengambil keputusan produk.
 ## 3. Urutan tahap (SUDAH DIUBAH dari PRD — lihat DEC-001)
 
 ```
-TAHAP 0  Laravel API Core (lokal)      ← prasyarat, tidak bisa dilewati
+TAHAP 0  Laravel API Core (lokal)      ← SELESAI (32 endpoint, 9 event, 283 test)
 TAHAP 1  Flutter Operator (tablet)     ← SEDANG DIKERJAKAN
-TAHAP 2  Kotlin Android TV Agent
+TAHAP 2  Kotlin Android TV Agent       ← sebagian: kiosk jalan, belum bicara ke Laravel
 TAHAP 3  Laravel Superadmin Web + migrasi VPS + Customer Portal + gateway
 ```
+
+**Yang menahan Tahap 1 sekarang** — detail dan urutannya di `SYNC.md`:
+operator app masih memakai `FakeBillingRepository`. `ApiBillingRepository`
+sudah ada di `lib/data/api/`, tapi `main.dart` belum dialihkan dan belum ada
+layar login. Sampai itu beres, **aplikasi masih menampilkan data palsu** —
+dan fake-nya meniru aturan billing yang sudah dicabut (lihat §4).
 
 **Penting:** "Laravel tahap 3" = **Admin/Superadmin Web UI + reporting + finance**, BUKAN API.
 Laravel API Core wajib ada di Tahap 0/1, karena PRD melarang Flutter menyimpan business rule.
@@ -61,16 +67,35 @@ Detail: `docs/ROADMAP.md`.
 - Semua uang = **integer rupiah**, tanpa desimal.
 - Timezone: app `Asia/Jakarta`, simpan **UTC** di DB.
 
-### Aturan billing (sudah final — DEC-007/008/009)
-- **Extend:** kelipatan **30 menit** saja. `harga = ceil(tarif_per_jam ÷ 2 × (menit ÷ 30))`, di mana `tarif_per_jam = harga_paket ÷ durasi_paket_jam`.
-- **Grace extend:** boleh selama `now ≤ end_at + 10 menit`. `end_at_baru = end_at_lama + durasi` — **bukan** dari waktu approve. Lewat 10 menit → tolak.
-- **Satu session = satu customer.** `sessions.customer_id` nullable single FK. Tidak ada pivot `session_customers`.
+### Aturan billing (DEC-007/008/009, **diubah** DEC-033/034)
+
+> Bagian ini pernah usang dan membuat kode ditulis mengikuti aturan yang sudah
+> dicabut. Kalau ragu, **`docs/DECISION-LOG.md` yang menang**, bukan file ini.
+
+**Prepaid dan Postpaid sekarang berbeda secara mendasar:**
+
+| | Prepaid | Postpaid |
+|---|---|---|
+| `end_at` | `started_at + durasi paket` | **`null`** — tidak ada batas (DEC-034) |
+| Timer | menghitung **mundur** | menghitung **maju** |
+| Peringatan 10/5/1 menit | ada | **tidak ada** — tidak ada yang habis |
+| TV mati sendiri | **ya**, saat waktu habis | **tidak** — sampai operator menutup sesi |
+| Extend | boleh, **sebelum** habis | **tidak berlaku** |
+| Tagihan rental | harga paket, dibekukan di depan | durasi aktual, dibulatkan |
+
+- **Waktu habis = berhenti (DEC-033).** `now > end_at` → `EXPIRED`, TV mati/standby. **Tidak ada kelebihan waktu, tidak ada penagihan overstay.** Mau lanjut = **sesi baru dengan paket baru**, bukan extend.
+- **Tidak ada grace extend.** Izin extend 10 menit setelah `end_at` **DICABUT** oleh DEC-033. Extend hanya sah selama `now ≤ end_at`. `extend_deadline_at` di `API.md` §7 tetap ada demi client lama, tapi nilainya **sama persis dengan `end_at`**.
+- **Extend:** kelipatan **30 menit** saja. `harga = ceil(tarif_per_jam ÷ 2 × (menit ÷ 30))`, di mana `tarif_per_jam = harga_paket ÷ durasi_paket_jam`. `end_at_baru = end_at_lama + durasi` — **bukan** dari waktu approve. (Rumus ini tetap berlaku.)
 - **Rounding durasi (Postpaid saja):** `sisa = m mod 30`; `sisa ≤ 5` → bulatkan ke bawah; `sisa > 5` → ke atas; minimum 30 menit. Prepaid & Extend tidak di-rounding.
-- **Overstay belum diatur** (OD-001). Jangan putuskan di kode.
+- **Baris `RENTAL` Postpaid tidak dibuat saat start** (DEC-034). Kalau dibuat di awal dengan harga paket, operator melihat tagihan penuh untuk customer yang baru main 5 menit — lalu menagihkannya. Baris itu lahir saat checkout; selama sesi berjalan `totals.rental` dihitung dari waktu terpakai memakai rumus yang **sama persis** dengan checkout.
+- **Satu session = satu customer.** `sessions.customer_id` nullable single FK. Tidak ada pivot `session_customers`.
+- **Operator boleh mendaftarkan member baru** (DEC-027). OD-014 sudah terjawab.
 
 ### Realtime
 - Server **tidak** mengirim countdown per detik. Server kirim `start_at` / `end_at`; client menghitung sendiri.
-- Event wajib: `session.started`, `session.updated`, `session.extended`, `session.swapped`, `session.expired`, `payment.confirmed`, `fnb.order.created`, `device.heartbeat`.
+- Event yang **benar-benar disiarkan backend** (9, cocokkan dengan `backend/app/Events/`): `session.started`, `session.updated`, `session.extended`, `session.swapped`, `session.expired`, `payment.confirmed`, `fnb.order.created`, `device.heartbeat`, **`master.updated`**.
+- `master.updated` terbit saat owner mengubah harga/paket. Client **wajib** mendengarnya lalu memuat ulang `GET /packages` — tanpa itu tablet menagih dengan harga lama.
+- `device.offline` dan `fnb.order.updated` ada di `REALTIME.md` tapi **belum diimplementasikan**. Jangan diandalkan.
 
 ### Client (Flutter & Kotlin)
 - **Tidak ada akses MySQL langsung.** Selalu lewat Laravel API.
