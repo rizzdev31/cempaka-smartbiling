@@ -1537,6 +1537,71 @@ cd backend && /c/php84/php.exe artisan reverb:start
 **Next step**
 Lanjutkan `feat/flutter-login`: cocokkan bentuk respons ke server sungguhan,
 perbaiki 5 test merah, lalu uji login dari tablet ke `http://<IP-laptop>:8000`.
+### 2026-10-11 — Login Flutter selesai; app memakai data server
+
+**Files changed** — baru: `domain/models/auth.dart`,
+`data/api/auth_repository.dart`, `ui/auth/auth_controller.dart`,
+`ui/auth/login_screen.dart`, `test/auth_test.dart`.
+Diubah: `app.dart`, `main.dart`, `data/fake/fake_billing_repository.dart`,
+`test/shell_overflow_test.dart`.
+**Branch:** `feat/flutter-login`.
+
+**Kenapa pengalihan repository tidak bisa berdiri sendiri**
+
+Dari 31 route backend hanya **2 yang publik** (`/health`, `/auth/login`);
+**29 di balik `auth:sanctum`**. Mengalihkan `BillingRepository` tanpa login
+berarti setiap layar menerima 401 — aplikasi tidak bisa dipakai sama sekali.
+Jadi login dikerjakan sekalian, bukan menyusul.
+
+**Keputusan yang diambil, berikut alasannya**
+
+| | |
+|---|---|
+| Satu `ApiClient` untuk seluruh app, dibuat di `main()` | Dua instance = token login tak terlihat repository billing, semua request 401 walau login tampak berhasil |
+| Token dibaca sebelum UI dibangun | Kalau tidak, `AuthController` menyimpulkan belum ada token dan melempar operator ke layar masuk padahal tokennya ada di disk |
+| Gate tunggal `_AuthGate` di `app.dart` | Kalau tiap layar memutuskan sendiri, muncul keadaan setengah masuk: sebagian panel berdata, sebagian 401 |
+| Alamat server + "Cari otomatis" **di layar masuk** | Alamat salah = login gagal, dan Pengaturan ada di DALAM shell. Tanpa ini operator terkunci |
+| Server tak terjangkau **tidak** membuang token | Jaringan putus sesaat bukan alasan memaksa masuk ulang — layar masuknya pun tidak akan jalan |
+| Logout membuang token lokal apa pun jawaban server | Yang berbahaya tablet tetap terbuka, bukan token yatim yang akan kedaluwarsa sendiri |
+
+**Empat bug ditemukan dan diperbaiki**
+
+1. **`user.id` UUID string, bukan int** — ketahuan setelah server hidup dan
+   `/auth/login` dipanggil sungguhan. Cast ke `int` melempar di setiap login.
+2. **Mock test ikut salah** — mengirim `"id":1`. Mock yang menebak bentuk
+   respons hanya memindahkan bug ke tempat yang tidak terlihat. Sekarang
+   semua bentuk respons di `auth_test.dart` **disalin dari `curl` ke server
+   sungguhan**.
+3. **`signIn` gagal meninggalkan status `checking`** — ditangkap test. Di
+   aplikasi tersamar karena `bootstrap()` jalan lebih dulu, tapi artinya gate
+   bisa menahan spinner selamanya.
+4. **`FakeBillingRepository._latency` membuat Timer menggantung** → 8 test
+   `shell_overflow_test` gagal "Pending timers". Ditambahkan
+   `simulateLatency: false` untuk test layout, yang memang tidak menguji
+   penantian.
+
+**Bentuk respons dicocokkan ke server sungguhan**
+
+`Station.fromJson` membaca persis 7 field yang dikirim server
+(`id, code, name, console_type, status, session, device`), dan `status:
+"ACTIVE"` dikenali `StationMasterStatus.active`.
+
+`session` dan `device` masih `null` di DB yang baru di-seed, jadi **bentuk
+bersarangnya belum terverifikasi** — itu baru bisa setelah ada sesi berjalan.
+
+**Tests** — +12 (`auth_test.dart`), total **237 lulus**, `analyze` bersih.
+
+**Known issues**
+- Belum pernah dijalankan di perangkat terhadap server sungguhan.
+- Bentuk `session` dan `device` bersarang belum dicocokkan.
+- `ServerConnector().connect()` masih **belum dipanggil otomatis** saat
+  `main()` (SYNC item 3) — untuk sekarang alamat diperbaiki manual lewat
+  "Cari otomatis" di layar masuk.
+- Belum ada klien Reverb, jadi belum ada realtime.
+
+**Next step**
+Jalankan app, masuk dengan `operator1` / `password` ke
+`http://<IP-laptop>:8000`, dan pastikan dashboard memuat 6 station dari server.
 
 ---
 

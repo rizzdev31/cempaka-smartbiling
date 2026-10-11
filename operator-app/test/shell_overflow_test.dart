@@ -20,6 +20,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:operator_app/app.dart';
+import 'package:operator_app/data/api/api_client.dart';
+import 'package:operator_app/data/fake/fake_billing_repository.dart';
 import 'package:operator_app/data/tv/tv_agent_client.dart';
 import 'package:operator_app/data/tv/tv_link_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,8 +40,31 @@ Future<String?> _firstOverflow(
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
-  SharedPreferences.setMockInitialValues({});
+  // Token palsu + `/auth/me` tiruan: shell hanya muncul setelah gate auth
+  // lolos, dan yang diuji di sini layout-nya, bukan alur masuknya.
+  SharedPreferences.setMockInitialValues({'auth.token': 'token-uji'});
   final store = await TvLinkStore.open();
+
+  final api = ApiClient(
+    httpClient: MockClient((request) async {
+      if (request.url.path.endsWith('/auth/me')) {
+        return http.Response(
+          // Bentuknya disalin dari respons server SUNGGUHAN, bukan dikarang:
+          // `id` adalah UUID string, bukan int. Mock yang menebak bentuk
+          // respons hanya memindahkan bug ke tempat yang tidak terlihat.
+          '{"data":{"user":{"id":"9505a47b-495a-4bcd-a28e-6f9599ad2d48",'
+          '"name":"Operator Kasir","username":"operator1","role":"OPERATOR",'
+          '"permissions":["station.read","session.read"]},'
+          '"active_shift":null}}',
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      return http.Response('{"error":{"code":"INTERNAL"}}', 500);
+    }),
+  );
+  await api.loadToken();
+  addTearDown(api.close);
 
   // Klien palsu: tanpa ini widget test membuat http.Client sungguhan, dan
   // klien yang hidup menahan isolate sampai suite butuh menit untuk keluar.
@@ -60,7 +85,12 @@ Future<String?> _firstOverflow(
   }
 
   await tester.pumpWidget(
-    OperatorApp(tvLinkStore: store, tvClient: client),
+    OperatorApp(
+      tvLinkStore: store,
+      apiClient: api,
+      tvClient: client,
+      billingRepository: FakeBillingRepository(simulateLatency: false),
+    ),
   );
   await tester.pump(const Duration(milliseconds: 600));
   capture();
