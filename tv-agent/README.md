@@ -2,7 +2,7 @@
 
 Agen pada TV tiap station. Menampilkan timer dan menerima perintah operator.
 
-**Status:** kiosk + timer + kontrol langsung lewat LAN berjalan. 31 unit test lulus, APK debug ter-build.
+**Status:** kiosk + timer + kontrol langsung lewat LAN berjalan, dan server Laravel sudah bisa ditemukan otomatis (DEC-041). 47 unit test lulus, APK debug ter-build.
 
 > ⚠️ **Mode kontrol langsung ini sementara.** Lihat `../docs/DECISION-LOG.md` → **DEC-015**. Di Tahap 2 sebenarnya, perintah datang dari Laravel lewat Reverb. Yang diganti hanya satu kelas — lihat [Batas yang menjaga ini tidak terbuang](#batas-yang-menjaga-ini-tidak-terbuang).
 
@@ -165,13 +165,14 @@ Layar kiosk, timer, persistence, dan recovery **tidak tahu** dari mana perintah 
 
 ## Test
 
-31 unit test JVM, tanpa emulator:
+47 unit test JVM, tanpa emulator:
 
 | File | Yang dikunci |
 |---|---|
 | `TimeSyncTest` | koreksi jam TV yang salah, sisa waktu negatif tidak di-clamp, kompensasi latensi |
 | `PairingTest` | kode sekali pakai, penguncian setelah 10 percobaan, validasi token, normalisasi station |
 | `CommandApplierTest` | penolakan sebelum pairing, penolakan perintah salah sasaran, jalur extend, `LOCKED` tidak menebak perilaku |
+| `ServerDiscoveryTest` | penolakan layanan lain di port 8000, hanya subnet sendiri yang dipindai, alamat lama tidak dihapus saat server mati |
 
 `TimeSync` memakai `System.nanoTime()`, bukan `SystemClock.elapsedRealtime()` — keduanya monotonik, tapi yang pertama murni Java sehingga aturan waktu bisa diuji murah. Aturan waktu adalah bagian yang paling mahal kalau salah.
 
