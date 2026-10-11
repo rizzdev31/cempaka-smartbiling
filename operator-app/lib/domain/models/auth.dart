@@ -16,7 +16,11 @@ class AuthUser {
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) => AuthUser(
-        id: json['id'] as int,
+        // UUID string, bukan int.
+        //
+        // Dipastikan dari respons server sungguhan: backend memakai UUID
+        // untuk users. Cast ke int melempar di setiap login.
+        id: json['id'] as String,
         name: json['name'] as String? ?? '',
         username: json['username'] as String? ?? '',
         role: json['role'] as String? ?? '',
@@ -25,7 +29,7 @@ class AuthUser {
             .toSet(),
       );
 
-  final int id;
+  final String id;
   final String name;
   final String username;
   final String role;
