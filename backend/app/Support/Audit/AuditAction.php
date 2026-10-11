@@ -11,6 +11,9 @@ final class AuditAction
     public const LOGIN_SUCCESS = 'auth.login.success';
     public const LOGIN_FAILED = 'auth.login.failed';
     public const LOGIN_BLOCKED_INACTIVE = 'auth.login.blocked_inactive';
+    /** Kredensial benar, tapi rolenya tidak boleh masuk Admin Web (DEC-043). */
+    public const LOGIN_BLOCKED_ROLE = 'auth.login.blocked_role';
+
     public const LOGOUT = 'auth.logout';
 
     public const SESSION_CREATED = 'session.created';

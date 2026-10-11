@@ -3,6 +3,7 @@
 use App\Exceptions\ApiException;
 use App\Http\Middleware\EnforceIdempotency;
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Middleware\EnsureWebAdmin;
 use App\Http\Middleware\ServerTime;
 use App\Support\Api\ApiResponse;
 use App\Support\Api\ErrorCode;
@@ -59,6 +60,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'idempotency' => EnforceIdempotency::class,
             'active.user' => EnsureUserIsActive::class,
+            // DEC-043 — padanan `active.user` untuk browser: mengembalikan
+            // ke form login, bukan melempar ApiException yang di web hanya
+            // menghasilkan halaman error tanpa penjelasan.
+            'admin.web' => EnsureWebAdmin::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

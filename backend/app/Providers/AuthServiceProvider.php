@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Enums\Permission;
 use App\Models\Device;
 use App\Models\User;
+use Illuminate\Auth\Middleware\RedirectIfAuthenticated;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -37,6 +38,15 @@ class AuthServiceProvider extends ServiceProvider
         Auth::viaRequest('device-token', fn (Request $request) => Device::fromToken(
             $request->header('X-Device-Token'),
         ));
+
+        /*
+         * Ke mana middleware `guest` melempar user yang sudah login
+         * (DEC-043). Bawaannya `/`, yang di sini cuma redirect lagi ke
+         * `/admin` — dua lompatan untuk satu tujuan, dan `/` bisa berubah
+         * arah nanti tanpa ada yang ingat halaman login ikut bergantung
+         * padanya.
+         */
+        RedirectIfAuthenticated::redirectUsing(fn () => route('admin.dashboard'));
 
         foreach (Permission::cases() as $permission) {
             Gate::define(
