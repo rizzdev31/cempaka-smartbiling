@@ -52,6 +52,7 @@
         ['label' => 'Station & TV', 'route' => 'admin.stations'],
         ['label' => 'F&B', 'route' => 'admin.fnb'],
         ['label' => 'Harga & Paket', 'route' => 'admin.pricing'],
+        ['label' => 'Pembayaran', 'route' => 'admin.payments'],
         ['label' => 'Customer', 'route' => 'admin.customers'],
         ['label' => 'Shift', 'route' => 'admin.shifts'],
         ['label' => 'Audit', 'route' => 'admin.audit'],

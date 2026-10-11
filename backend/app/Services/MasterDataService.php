@@ -104,10 +104,56 @@ class MasterDataService
      * dikunci untuk owner, operator menunggu owner hanya untuk mematikan satu
      * menu, dan di lapangan itu berarti menu habis tetap muncul di tablet.
      */
+    /**
+     * Produk F&B baru.
+     *
+     * Butuh owner, bukan `fnb.manage`. Membuat produk berarti MENETAPKAN
+     * harganya, dan DEC-020 menyerahkan setiap angka harga ke owner —
+     * membolehkan admin membuat produk baru akan membuka jalan memutar yang
+     * persis sama dengan mengubah harga produk lama.
+     */
+    public function createFnbProduct(array $input, User $actor): FnbProduct
+    {
+        if (! $actor->role->canManagePricing()) {
+            throw ApiException::forbidden('Hanya owner yang boleh menambah produk — menambah berarti menetapkan harga.');
+        }
+
+        $product = DB::transaction(function () use ($input, $actor) {
+            $product = FnbProduct::query()->create($input);
+
+            $this->audit->forUser($actor, AuditAction::FNB_PRODUCT_CREATED, [
+                'subject_type' => 'fnb_product',
+                'subject_id' => $product->id,
+                'after' => $this->snapshotProduct($product),
+            ]);
+
+            return $product;
+        });
+
+        MasterDataUpdated::dispatch('fnb_product', 'created', $product->id);
+
+        return $product;
+    }
+
     public function updateFnbProduct(FnbProduct $product, array $input, User $actor): FnbProduct
     {
-        if (array_key_exists('price', $input) && ! $actor->role->canManagePricing()) {
-            throw ApiException::forbidden('Hanya owner yang boleh mengubah harga.');
+        /*
+         * `hpp` ikut dikunci untuk owner, sama seperti `price`.
+         *
+         * Ia bukan harga jual, tapi ia menentukan margin di setiap laporan
+         * laba — dan angka yang mengubah laporan laba adalah angka yang
+         * paling menggoda untuk dirapikan. Dikunci dulu sampai user
+         * memutuskan sendiri (OD-033); melonggarkan nanti jauh lebih murah
+         * daripada menarik kembali akses yang terlanjur diberikan.
+         */
+        foreach (['price', 'hpp'] as $field) {
+            if (array_key_exists($field, $input) && ! $actor->role->canManagePricing()) {
+                throw ApiException::forbidden(
+                    $field === 'price'
+                        ? 'Hanya owner yang boleh mengubah harga.'
+                        : 'Hanya owner yang boleh mengubah HPP.',
+                );
+            }
         }
 
         $product = DB::transaction(function () use ($product, $input, $actor) {
@@ -145,6 +191,7 @@ class MasterDataService
         return [
             'name' => $product->name,
             'price' => (int) $product->price,
+            'hpp' => $product->hpp === null ? null : (int) $product->hpp,
             'stock' => $product->stock === null ? null : (int) $product->stock,
             'is_available' => (bool) $product->is_available,
         ];

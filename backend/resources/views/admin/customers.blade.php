@@ -15,6 +15,37 @@
         </x-slot:actions>
     </x-page-header>
 
+    {{-- ── Daftar customer baru ────────────────────────────────────
+         Operator juga bisa dari tablet (DEC-027). Yang di sini untuk kasus
+         lain: member yang mendaftar lewat telepon, atau yang datanya
+         telanjur ditulis di kertas. --}}
+    <x-card class="mb-4" padding="p-4 sm:p-6">
+        <h2 class="text-base font-bold text-ink mb-4">Tambah Customer</h2>
+
+        <form method="POST" action="{{ route('admin.customers.store') }}"
+              class="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3 items-end">
+            @csrf
+            <x-field name="name" label="Nama" placeholder="Budi" required />
+            <x-field name="phone" label="No. HP (opsional)" placeholder="0812-3456-7890" />
+            <x-field name="note" label="Catatan (opsional)" />
+
+            <label class="flex items-center gap-2 pb-2">
+                <input type="checkbox" name="jadikan_member" value="1"
+                       class="w-4 h-4 rounded-chip accent-brand-600">
+                <span class="text-xs font-semibold text-ink">Langsung jadikan member</span>
+            </label>
+
+            <button type="submit"
+                    class="px-4 py-2 text-xs font-semibold rounded-full text-card bg-brand-600 hover:bg-brand-700 shadow-brand transition-colors">
+                Tambah
+            </button>
+        </form>
+
+        <p class="text-[11px] text-ink-soft mt-3">
+            Nomor HP opsional, tapi wajib kalau struk mau dikirim lewat WhatsApp. Biaya member Rp {{ number_format(config('billing.membership_fee'), 0, ',', '.') }} (DEC-029).
+        </p>
+    </x-card>
+
     <x-card padding="p-4 sm:p-6">
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs table-stacked">
@@ -25,6 +56,7 @@
                         <th scope="col" class="py-3 px-3 font-medium">Member</th>
                         <th scope="col" class="py-3 px-3 font-medium md:text-right">Sesi</th>
                         <th scope="col" class="py-3 px-3 font-medium md:text-right">Saldo</th>
+                        <th scope="col" class="py-3 px-3 font-medium md:text-right"><span class="sr-only">Aksi</span></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-line-soft">
@@ -50,9 +82,20 @@
                                 --}}
                                 <x-rupiah :value="$saldo[$c->id] ?? 0" />
                             </td>
+                            <td data-label="Aksi" class="py-3 px-3 md:text-right">
+                                @unless ($c->membership?->is_active)
+                                    <form method="POST" action="{{ route('admin.customers.membership', $c) }}">
+                                        @csrf
+                                        <button type="submit"
+                                                class="px-3 py-1.5 text-[11px] font-semibold rounded-full text-card bg-brand-600 hover:bg-brand-700 transition-colors">
+                                            Jadikan member
+                                        </button>
+                                    </form>
+                                @endunless
+                            </td>
                         </tr>
                     @empty
-                        <x-empty title="{{ $q !== '' ? 'Tidak ada yang cocok' : 'Belum ada customer' }}" icon="search" colspan="5">
+                        <x-empty title="{{ $q !== '' ? 'Tidak ada yang cocok' : 'Belum ada customer' }}" icon="search" colspan="6">
                             {{ $q !== ''
                                 ? 'Coba kata kunci lain, atau sebagian nomor HP.'
                                 : 'Customer dicatat saat operator membuka sesi atas nama seseorang.' }}

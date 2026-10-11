@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Web;
 
 use App\Enums\FnbOrderStatus;
 use App\Exceptions\ApiException;
+use App\Http\Requests\Api\V1\StoreFnbProductRequest;
+use App\Models\Customer;
 use App\Models\FnbOrder;
 use App\Models\FnbProduct;
 use App\Models\Package;
 use App\Models\Shift;
 use App\Services\FnbService;
 use App\Services\MasterDataService;
+use App\Services\MembershipService;
 use App\Services\ShiftService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -40,6 +43,7 @@ class AdminActionController
         private readonly MasterDataService $masterData,
         private readonly FnbService $fnb,
         private readonly ShiftService $shifts,
+        private readonly MembershipService $memberships,
     ) {}
 
     /**
@@ -111,6 +115,7 @@ class AdminActionController
              * tidak dilacak (es batu, sambal), nol berarti habis. Form
              * mengirim string kosong untuk "tidak dilacak".
              */
+            'hpp' => ['nullable', 'integer', 'min:0'],
             'stock' => ['nullable', 'integer', 'min:0'],
             'is_available' => ['nullable', 'boolean'],
         ]);
@@ -132,12 +137,101 @@ class AdminActionController
             $input['price'] = (int) $data['price'];
         }
 
+        // HPP dikunci untuk owner juga (OD-033), jadi perlakuannya sama:
+        // dikirim hanya kalau benar-benar berubah.
+        $hppBaru = $request->input('hpp') === '' ? null : $data['hpp'] ?? null;
+        $hppLama = $product->hpp === null ? null : (int) $product->hpp;
+
+        if ($hppBaru !== $hppLama) {
+            $input['hpp'] = $hppBaru;
+        }
+
         $this->jalankan(fn () => $this->masterData->updateFnbProduct($product, $input, $request->user()), 'price');
 
         return back()->with('sukses', "“{$product->name}” diperbarui.");
     }
 
+    // ── Customer & member ─────────────────────────────────────────────
+
+    /**
+     * Daftarkan customer baru dari web — DEC-044.
+     *
+     * Operator juga boleh melakukannya dari tablet (DEC-027). Yang di sini
+     * untuk kasus yang berbeda: owner memasukkan member yang mendaftar lewat
+     * telepon atau yang datanya telanjur ditulis di kertas.
+     */
+    public function storeCustomer(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            /*
+             * Nomor unik dan opsional. Memaksanya akan membuat orang
+             * mengarang nomor demi melewati form, dan nomor karangan lebih
+             * buruk daripada kosong — ia tidak bisa dicari DAN memblokir
+             * nomor asli yang kebetulan sama.
+             */
+            'phone' => ['nullable', 'string', 'max:32', 'unique:customers,phone'],
+            'note' => ['nullable', 'string', 'max:500'],
+            'jadikan_member' => ['nullable', 'boolean'],
+        ], [
+            'phone.unique' => 'Nomor telepon ini sudah terdaftar atas nama lain.',
+        ], ['name' => 'nama']);
+
+        $customer = Customer::query()->create([
+            'name' => $data['name'],
+            'phone' => $data['phone'] ?? null,
+            'note' => $data['note'] ?? null,
+        ]);
+
+        if ($request->boolean('jadikan_member')) {
+            $this->jalankan(
+                fn () => $this->memberships->register($customer, null, null, $request->user()),
+                'name',
+            );
+
+            return back()->with('sukses', "{$customer->name} terdaftar sebagai member.");
+        }
+
+        return back()->with('sukses', "{$customer->name} ditambahkan.");
+    }
+
+    /** Jadikan member customer yang sudah ada. */
+    public function storeMembership(Request $request, Customer $customer): RedirectResponse
+    {
+        $this->jalankan(
+            fn () => $this->memberships->register($customer, null, null, $request->user()),
+            'membership',
+        );
+
+        return back()->with('sukses', "{$customer->name} sekarang member.");
+    }
+
     // ── F&B ───────────────────────────────────────────────────────────
+
+    public function storeFnbProduct(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'category' => ['required', 'string', Rule::in(StoreFnbProductRequest::kategori())],
+            'name' => ['required', 'string', 'max:255', 'unique:fnb_products,name'],
+            'price' => ['required', 'integer', 'min:0'],
+            'hpp' => ['nullable', 'integer', 'min:0'],
+            'stock' => ['nullable', 'integer', 'min:0'],
+        ], [
+            'name.unique' => 'Sudah ada menu dengan nama ini.',
+        ], ['name' => 'nama menu']);
+
+        // Kosong = tidak dilacak, BERBEDA dari nol yang berarti habis.
+        $data['stock'] = $request->input('stock') === '' ? null : ($data['stock'] ?? null);
+        $data['hpp'] = $request->input('hpp') === '' ? null : ($data['hpp'] ?? null);
+        $data['is_available'] = true;
+
+        $produk = $this->jalankan(
+            fn () => $this->masterData->createFnbProduct($data, $request->user()),
+            'name',
+        );
+
+        return back()->with('sukses', "Menu “{$produk->name}” ditambahkan.");
+    }
 
     public function updateFnbStatus(Request $request, FnbOrder $order): RedirectResponse
     {

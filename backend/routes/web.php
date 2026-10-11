@@ -49,6 +49,14 @@ Route::middleware(['auth', 'admin.web'])
          * endpoint perubahan, bukan di tampilan.
          */
         Route::get('/harga', 'pricing')->name('pricing');
+
+        Route::get('/pembayaran', 'payments')->name('payments');
+
+        /*
+         * Detail sesi. Diletakkan SETELAH `/sesi` supaya `/sesi` tidak
+         * tertangkap sebagai `{session}`.
+         */
+        Route::get('/sesi/{session}', 'session')->name('session');
     });
 
 /*
@@ -84,6 +92,17 @@ Route::middleware(['auth', 'admin.web'])
 
         Route::patch('/fnb/produk/{product}', 'updateFnbProduct')
             ->middleware('can:fnb.manage')->name('fnb-products.update');
+
+        // Menambah menu = menetapkan harga → owner (DEC-020), sama dengan
+        // `POST /api/v1/fnb/products`.
+        Route::post('/fnb/produk', 'storeFnbProduct')
+            ->middleware('can:pricing.manage')->name('fnb-products.store');
+
+        Route::post('/customer', 'storeCustomer')
+            ->middleware('can:customer.create')->name('customers.store');
+
+        Route::post('/customer/{customer}/member', 'storeMembership')
+            ->middleware('can:customer.create')->name('customers.membership');
 
         Route::post('/fnb/pesanan/{order}/status', 'updateFnbStatus')
             ->middleware('can:fnb.manage')->name('fnb-orders.status');

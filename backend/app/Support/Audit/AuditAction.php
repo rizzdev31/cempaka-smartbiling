@@ -58,6 +58,8 @@ final class AuditAction
 
     public const PACKAGE_UPDATED = 'package.updated';
 
+    public const FNB_PRODUCT_CREATED = 'fnb.product.created';
+
     public const FNB_PRODUCT_UPDATED = 'fnb.product.updated';
 
     /** Provisioning TV (API.md §9). Token baru diterbitkan di sini. */

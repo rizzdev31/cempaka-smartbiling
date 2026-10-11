@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Web;
 
 use App\Enums\FnbOrderStatus;
+use App\Enums\PaymentMethod;
 use App\Enums\SessionItemType;
 use App\Enums\SessionStatus;
 use App\Models\AuditLog;
@@ -12,9 +13,11 @@ use App\Models\Device;
 use App\Models\FnbOrder;
 use App\Models\FnbProduct;
 use App\Models\Package;
+use App\Models\Payment;
 use App\Models\Shift;
 use App\Models\Station;
 use App\Models\StationType;
+use App\Support\Phone;
 use App\Support\Time\BusinessDay;
 use App\Support\Web\DashboardData;
 use Illuminate\Http\Request;
@@ -83,6 +86,69 @@ class AdminController
                 ->selectRaw('status, COUNT(*) as jumlah')
                 ->groupBy('status')
                 ->pluck('jumlah', 'status'),
+        ]);
+    }
+
+    /**
+     * Satu sesi, lengkap — PRD §19.
+     *
+     * Halaman ini yang menjawab "kenapa tagihannya segitu". Karena itu
+     * semuanya ditampilkan apa adanya: tiap baris item, tiap pembayaran, dan
+     * jejak auditnya. Ringkasan saja tidak cukup — yang dicari orang selalu
+     * satu baris yang tidak dia harapkan ada di situ.
+     */
+    public function session(BillingSession $session): View
+    {
+        $session->load(['station.stationType', 'customer.membership', 'items', 'payments.actor', 'openedBy']);
+
+        return view('admin.session', [
+            'session' => $session,
+            'totals' => $session->totals(),
+            /*
+             * Jejak audit sesi ini. `subject_id` cocok untuk aksi yang
+             * menyebut sesinya langsung — extend, swap, checkout, batal.
+             */
+            'logs' => AuditLog::query()
+                ->where('subject_id', $session->id)
+                ->orderBy('created_at')
+                ->get(),
+            'waPhone' => Phone::toWhatsApp($session->customer?->phone),
+        ]);
+    }
+
+    /**
+     * Pembayaran — PRD §19 "Payment: transaction, method, status,
+     * reference, reconciliation".
+     *
+     * Dibatasi pada rentang hari supaya angka totalnya punya arti. Daftar
+     * seluruh riwayat dengan total di bawahnya akan menjawab pertanyaan yang
+     * tidak pernah ditanyakan siapa pun.
+     */
+    public function payments(Request $request): View
+    {
+        $hari = $request->date('tanggal') ?? BusinessDay::now();
+        [$dari, $sampai] = BusinessDay::range($hari);
+
+        $payments = Payment::query()
+            ->with(['session.station', 'actor'])
+            ->where('confirmed_at', '>=', $dari)
+            ->where('confirmed_at', '<', $sampai)
+            ->orderByDesc('confirmed_at')
+            ->get();
+
+        return view('admin.payments', [
+            'payments' => $payments,
+            'tanggal' => $hari->format('Y-m-d'),
+            /*
+             * Hanya yang CONFIRMED yang dijumlahkan — dasar yang sama dengan
+             * dashboard dan `ShiftService::summary()`. Yang belum
+             * dikonfirmasi tetap ditampilkan di daftar, supaya terlihat ada,
+             * tapi tidak ikut dihitung sebagai uang masuk.
+             */
+            'cash' => (int) $payments->where('status', 'CONFIRMED')
+                ->where('method', PaymentMethod::CASH)->sum('amount'),
+            'qris' => (int) $payments->where('status', 'CONFIRMED')
+                ->where('method', PaymentMethod::QRIS_STATIC)->sum('amount'),
         ]);
     }
 

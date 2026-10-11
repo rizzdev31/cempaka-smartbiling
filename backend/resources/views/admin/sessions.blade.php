@@ -41,7 +41,10 @@
                 <tbody class="divide-y divide-line-soft">
                     @forelse ($sessions as $s)
                         <tr class="hover:bg-inset/60 transition-colors">
-                            <td data-label="Kode" class="py-3 px-3 font-semibold text-ink tabular">{{ $s->code }}</td>
+                            <td data-label="Kode" class="py-3 px-3">
+                                <a href="{{ route('admin.session', $s) }}"
+                                   class="font-semibold text-brand-600 hover:underline tabular">{{ $s->code }}</a>
+                            </td>
                             <td data-label="Station" class="py-3 px-3">
                                 <span class="font-semibold text-ink">{{ $s->station?->code }}</span>
                                 <span class="text-ink-soft">{{ $s->station?->stationType?->name }}</span>

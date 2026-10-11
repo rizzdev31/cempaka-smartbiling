@@ -44,6 +44,7 @@ class AdminPagesTest extends TestCase
             'customer' => ['admin.customers'],
             'shift' => ['admin.shifts'],
             'audit' => ['admin.audit'],
+            'pembayaran' => ['admin.payments'],
         ];
     }
 

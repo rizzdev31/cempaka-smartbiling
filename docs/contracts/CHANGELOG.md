@@ -610,6 +610,45 @@ dihapus.
 
 ---
 
+## v1 · DRAFT 17 — 2026-10-11
+
+Menu F&B bisa ditambah lewat API, dan HPP bisa diubah.
+
+**ADDED — API** · Admin Web · **DEC-044**
+- `POST /fnb/products` — menu baru. **Owner saja** (`can:pricing.manage`),
+  bukan `fnb.manage`. Menambah produk berarti **menetapkan harganya**, dan
+  DEC-020 menyerahkan setiap angka harga ke owner; membolehkan admin
+  menambah produk akan membuka jalan memutar yang persis sama dengan
+  mengubah harga produk lama. 201 + objek `fnb_product`, butuh
+  `Idempotency-Key`.
+
+```json
+{ "category": "Minuman", "name": "Es Jeruk", "price": 7000, "hpp": 3000, "stock": null }
+```
+
+`category` dibatasi pada kategori yang **sudah ada di database**, bukan
+teks bebas. "MINUMAN", "Minuman", dan "minuman " akan tampil sebagai tiga
+kelompok berbeda di halaman menu, dan tidak ada yang menyadari sampai
+daftarnya jadi panjang. Konsekuensinya kategori baru hanya lewat seeder.
+
+**ADDED — API** · `PATCH /fnb/products/{id}`
+- Field `hpp` sekarang diterima (`nullable`, integer).
+
+**CHANGED — izin** · ⚠️ perhatikan
+- `hpp` ikut **dikunci untuk owner**, sama seperti `price`. Ia bukan harga
+  yang dibayar customer, tapi ia menentukan margin di setiap laporan laba —
+  dan angka yang mengubah laporan laba adalah angka yang paling menggoda
+  untuk dirapikan. Dikunci dulu sampai user memutuskan (**OD-033**);
+  melonggarkan nanti jauh lebih murah daripada menarik kembali akses yang
+  terlanjur diberikan.
+
+**Yang perlu diketahui Flutter**
+
+Tidak ada yang wajib dikerjakan. Tapi kalau nanti ada layar menu di tablet:
+`price` dan `hpp` akan ditolak 403 untuk operator maupun admin. `stock` dan
+`is_available` tetap boleh — "Mie Goreng habis" kejadian harian.
+
+---
 ## v1 · DRAFT <n> — YYYY-MM-DD
 
 **<JENIS> — API|REALTIME** · terdampak: Flutter | Kotlin | Admin | semua

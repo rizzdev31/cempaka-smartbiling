@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); klien API + penemuan server otomatis (DEC-041) sudah ada tapi **aplikasi masih memakai data palsu**; **225 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal + penemuan server otomatis (DEC-041); **47 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti**, dan agent **belum bicara ke Laravel** |
-| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **399 test LULUS** (1.265 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
+| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **423 test LULUS** (1.327 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
 | **Admin Web** | **BARU 11 Okt (DEC-042, DEC-043).** Login (guard session, Owner & Admin saja) + dashboard di `/admin`. Design system dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. **8 halaman** (dashboard, sesi, station, F&B, harga, customer, shift, audit), semuanya data nyata dan **penuh layar** dari 375px sampai 2560px (diukur, 40 kombinasi). Sudah bisa **mengubah** harga, paket, stok, status F&B, dan tutup shift (DEC-044), serta **menyegarkan diri otomatis**. Spec: `docs/UI-UX-SPEC-WEB.md` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
@@ -3175,3 +3175,94 @@ atas nama Owner. Seeder dijalankan ulang untuk mengembalikannya.
 
 **Next step** — OD-029 (pengeluaran kasir). Satu tabel, satu endpoint, satu
 form, dan setelah itu angka "kas seharusnya" berhenti berbohong.
+
+---
+
+### 2026-10-11 — [Admin Web] Tujuh dari sembilan celah "backend ada, UI belum"
+
+User meminta seluruh daftar celah dikerjakan. Tujuh item Laravel selesai;
+dua sisanya (Reverb di client, Kotlin ke Laravel) **sengaja tidak
+dikerjakan** — alasannya di bawah.
+
+**Yang selesai**
+
+| | Cara |
+|---|---|
+| Detail sesi | halaman baru `/admin/sesi/{id}` — tiap baris item, tiap pembayaran, jejak audit |
+| Struk + kirim WA | di halaman detail, tautan `wa.me` (DEC-035) |
+| Daftar pembayaran | halaman baru `/admin/pembayaran`, per hari |
+| Daftar member dari web | form di halaman Customer, + tombol "jadikan member" per baris |
+| Tambah produk F&B | endpoint **API baru** `POST /fnb/products` + form |
+| Ubah HPP | field baru di `PATCH /fnb/products/{id}` + kolom di form |
+| Kelola user | ❌ **tidak dikerjakan** — lihat "Yang tidak dikerjakan" |
+
+**Keputusan yang paling berpengaruh: siapa boleh apa**
+
+- **Tambah menu = owner**, bukan `fnb.manage`. Menambah produk berarti
+  menetapkan harganya; membolehkan admin akan membuka jalan memutar yang
+  persis sama dengan mengubah harga produk lama (DEC-020).
+- **HPP = owner** juga. Ia bukan harga yang dibayar customer, tapi ia
+  menentukan margin di setiap laporan laba. Dipilih yang lebih ketat dulu —
+  melonggarkan nanti jauh lebih murah daripada menarik kembali akses.
+  Dicatat **OD-033**.
+
+**Satu bug yang nyaris lolos, ketahuan karena memeriksa database**
+
+Daftar kategori F&B hampir saya tulis `['MAKANAN', 'MINUMAN', 'SNACK']`.
+Isi database ternyata `Makanan, Minuman, Snack`. Daftar karangan itu akan
+menciptakan kategori kembar yang hanya berbeda huruf besar — persis bug
+yang saya tulis peringatannya di komentar beberapa baris di atasnya.
+
+Sekarang kategorinya **dibaca dari database**, dan `StoreFnbProductRequest::kategori()`
+dipakai dropdown maupun validator. Dropdown dan validator yang punya daftar
+sendiri-sendiri akan berbeda pada perubahan pertama.
+
+**Detail sesi: yang sengaja ditampilkan**
+
+Halaman ini punya satu tugas — menjawab "kenapa tagihannya segitu".
+
+- **Durasi sebenarnya dan durasi ditagih berdampingan.** "Kenapa 63 menit
+  ditagih 60" pasti ditanyakan, dan jawabannya harus ada di layar yang sama,
+  bukan di dokumen yang tidak akan dibuka saat customer menunggu (DEC-009).
+- **Tarif yang dibekukan.** Angka ini yang menjelaskan kenapa tagihan tidak
+  ikut berubah setelah owner menaikkan harga (DEC-040).
+- **Kelebihan bayar.** `balanceDue()` dijaga tidak negatif supaya tablet
+  tidak menampilkan tagihan minus (API.md §7) — tapi di halaman audit,
+  kelebihan itu justru yang perlu terlihat: ia berarti ada yang salah.
+- Baris total bernilai nol **disembunyikan**: lima baris "Rp 0" membuat satu
+  angka yang penting jadi sulit ditemukan.
+
+**Halaman pembayaran: yang belum dikonfirmasi tampil, tapi tidak dijumlahkan**
+
+Menyembunyikannya membuat selisih laci jadi misteri; ikut menjumlahkannya
+membuat omzet terlihat lebih besar dari uang yang benar-benar ada. Keduanya
+salah.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `admin/{session,payments}.blade.php`, `StoreFnbProductRequest.php`, `tests/Feature/Web/AdminDetailTest.php` |
+| Diubah | `MasterDataService` (+`createFnbProduct`, HPP dikunci, HPP di snapshot audit), `FnbController` (+`storeProduct`), `UpdateFnbProductRequest` (+`hpp`), `AuditAction` (+`FNB_PRODUCT_CREATED`), `Web/Admin{,Action}Controller`, `routes/{api,web}.php`, 4 view |
+
+**DB changes** — tidak ada.
+**API/Events** — `POST /fnb/products` (baru, owner), `hpp` di `PATCH /fnb/products/{id}`. **CHANGELOG DRAFT 17.**
+
+**Tests** — **423 lulus** (+24), 1.327 assertion.
+
+**Satu kesalahan saya sendiri**
+
+Menyisipkan komentar lewat `php -r` dengan `*\/` — itu escape JavaScript,
+bukan PHP. Komentarnya jadi tidak tertutup dan **seluruh suite gagal**
+dengan parse error. Ketahuan langsung oleh test, bukan oleh pembacaan.
+
+**Yang TIDAK dikerjakan, dan kenapa**
+
+| | Alasan |
+|---|---|
+| **Kelola user** | Butuh endpoint baru yang menangani **password**. Itu permukaan paling sensitif di sistem ini dan pantas dikerjakan sendirian, bukan ditempel di akhir batch tujuh item. Juga belum jelas: boleh reset password orang lain? wajib ganti saat pertama login? |
+| **Reverb di Flutter** | Flutter **masih memakai `FakeBillingRepository`** dan belum punya layar login. Memasang klien realtime sebelum aplikasinya tersambung ke API berarti membangun atap sebelum dindingnya ada |
+| **Kotlin ke Laravel** | Urutannya sama: `ServerConnector` sudah ada tapi belum dipanggil `AgentService`. Menyambung ke `/devices/*` adalah langkah sesudah itu, dan keduanya milik Tahap 2 |
+
+**Next step** — OD-029 (pengeluaran kasir), atau kelola user kalau akun
+produksi sudah dibutuhkan.

@@ -3,9 +3,9 @@
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\DeviceController;
-use App\Http\Controllers\Api\V1\PackageController;
 use App\Http\Controllers\Api\V1\FnbController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\PackageController;
 use App\Http\Controllers\Api\V1\SessionCancelController;
 use App\Http\Controllers\Api\V1\SessionCheckoutController;
 use App\Http\Controllers\Api\V1\SessionController;
@@ -158,6 +158,15 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
      * kalau pemanggilnya bukan owner. Dipisah begitu supaya operator bisa
      * menandai menu habis sendiri tanpa menunggu owner.
      */
+    /*
+     * Menambah menu butuh OWNER, bukan `fnb.manage`: menambah berarti
+     * menetapkan harga, dan DEC-020 menyerahkan setiap angka harga ke owner.
+     * Membolehkan admin menambah produk akan membuka jalan memutar yang
+     * persis sama dengan mengubah harga produk lama.
+     */
+    Route::post('/fnb/products', [FnbController::class, 'storeProduct'])
+        ->middleware(['can:pricing.manage', 'idempotency']);
+
     Route::patch('/fnb/products/{product}', [FnbController::class, 'updateProduct'])
         ->middleware('can:fnb.manage');
 

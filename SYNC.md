@@ -4,7 +4,7 @@
 > setiap ada perubahan backend. Kalau tidak ada nama Anda di bagian
 > "Perlu dikerjakan", tidak ada yang perlu Anda lakukan.
 
-**Terakhir diperbarui:** 11 Oktober 2026 · **Kontrak:** `v1 DRAFT 16`
+**Terakhir diperbarui:** 11 Oktober 2026 · **Kontrak:** `v1 DRAFT 17`
 
 > **Perubahan batas kerja (10 Okt):** user mencabut aturan "backend saja".
 > Claude sekarang juga menyentuh `operator-app/` dan `tv-agent/`.
@@ -16,8 +16,8 @@
 
 | Bagian | Status |
 |---|---|
-| **Backend (Laravel)** | Tahap 0 **SELESAI**. 32 endpoint, 9 event realtime, 399 test lulus |
-| **Admin Web (Blade)** | Login + **8 halaman** di `/admin`, data nyata, **penuh layar**, **menyegarkan otomatis**. Bisa ubah harga, stok, status F&B, tutup shift (DEC-044) |
+| **Backend (Laravel)** | Tahap 0 **SELESAI**. 33 endpoint, 9 event realtime, 423 test lulus |
+| **Admin Web (Blade)** | Login + **10 halaman** di `/admin`, data nyata, **penuh layar**, **menyegarkan otomatis**. Bisa ubah harga, stok, status F&B, tutup shift (DEC-044) |
 | **Operator app (Flutter)** | Layar sudah jadi. Klien API **sudah ada** (`lib/data/api/`) dan alamat server sudah bisa ditemukan otomatis, tapi aplikasi **masih memakai data palsu** — belum dialihkan dan belum ada login |
 | **TV Agent (Kotlin)** | Kiosk + timer jalan, dan sudah bisa **menemukan** server, tapi **belum bicara** dengan Laravel — masih menerima perintah langsung dari tablet |
 
@@ -224,6 +224,7 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 | Tanggal | Isi |
 |---|---|
+| 11 Okt 2026 | 7 celah "backend ada, UI belum" ditutup: detail sesi, struk WA, pembayaran, daftar member, tambah menu, HPP. `POST /fnb/products` baru (DRAFT 17) |
 | 11 Okt 2026 | **DEC-044** — Laravel mengatur semuanya, Flutter melayani. Web bisa ubah harga/stok/shift, menyegarkan otomatis tiap 10 detik |
 | 11 Okt 2026 | Admin Web jadi **penuh layar** — pagar 1240px dibuang, grid menambah kolom, header sticky |
 | 11 Okt 2026 | **8 halaman Admin Web** — sesi, station, F&B, harga, customer, shift, audit. Semuanya responsif sampai 375px |

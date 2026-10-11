@@ -223,6 +223,7 @@
                         <th scope="col" class="py-2 px-2 font-medium">Nama</th>
                         <th scope="col" class="py-2 px-2 font-medium">Kategori</th>
                         <th scope="col" class="py-2 px-2 font-medium md:text-right">Harga</th>
+                        <th scope="col" class="py-2 px-2 font-medium md:text-right">HPP</th>
                         <th scope="col" class="py-2 px-2 font-medium md:text-right">Stok</th>
                         <th scope="col" class="py-2 px-2 font-medium md:text-right">Dijual</th>
                         <th scope="col" class="py-2 px-2 font-medium md:text-right">Margin</th>
@@ -248,6 +249,13 @@
 
                             <td data-label="Harga" class="py-2.5 px-2 md:text-right">
                                 <x-money-input name="price" :value="$p->price" form="fnb-{{ $p->id }}" required
+                                               :disabled="! $bolehUbah" class="w-28 ml-auto disabled:opacity-60" />
+                            </td>
+
+                            <td data-label="HPP" class="py-2.5 px-2 md:text-right">
+                                {{-- Boleh kosong: harga modal sering baru
+                                     diketahui setelah belanja pertama. --}}
+                                <x-money-input name="hpp" :value="$p->hpp" form="fnb-{{ $p->id }}"
                                                :disabled="! $bolehUbah" class="w-28 ml-auto disabled:opacity-60" />
                             </td>
 
@@ -286,17 +294,62 @@
                             </td>
                         </tr>
                     @empty
-                        <x-empty title="Belum ada produk F&B" icon="cup" colspan="7" />
+                        <x-empty title="Belum ada produk F&B" icon="cup" colspan="8" />
                     @endforelse
                 </tbody>
             </table>
         </div>
 
-        {{-- HPP belum bisa diubah: `UpdateFnbProductRequest` tidak
-             menerimanya. Disebutkan supaya orang tidak mencarinya. --}}
         <p class="text-[11px] text-ink-soft mt-4">
-            HPP belum bisa diubah dari sini — endpoint-nya belum menerima field itu.
+            HPP ikut dikunci untuk owner. Ia bukan harga yang dibayar customer, tapi ia menentukan
+            margin di setiap laporan laba — dan angka yang mengubah laporan laba adalah angka yang
+            paling menggoda untuk dirapikan (OD-033).
         </p>
+
+        {{-- ── Tambah menu ─────────────────────────────────────────
+             Owner saja: menambah menu berarti menetapkan harganya, dan
+             membolehkan admin akan membuka jalan memutar yang persis sama
+             dengan mengubah harga menu lama (DEC-020). --}}
+        @if ($bolehUbah)
+            <div class="mt-6 pt-6 border-t border-line-soft">
+                <h3 class="text-sm font-bold text-ink mb-3">Tambah Menu</h3>
+
+                <form method="POST" action="{{ route('admin.fnb-products.store') }}"
+                      class="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-3 items-end">
+                    @csrf
+
+                    <label class="block">
+                        <span class="block text-[11px] font-semibold text-ink-soft mb-1">Kategori</span>
+                        <select name="category" required
+                                class="w-full px-3 py-2 bg-inset border border-transparent rounded-chip text-xs text-ink
+                                       focus:outline-none focus:bg-card focus:border-brand-600 transition-all">
+                            {{-- Pilihannya dibaca dari database lewat Request
+                                 yang sama dengan validatornya — dropdown dan
+                                 validator yang punya daftar sendiri-sendiri
+                                 akan berbeda pada perubahan pertama. --}}
+                            @foreach (\App\Http\Requests\Api\V1\StoreFnbProductRequest::kategori() as $k)
+                                <option value="{{ $k }}" @selected(old('category') === $k)>{{ $k }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+
+                    <x-field name="name" label="Nama menu" placeholder="Es Jeruk" required />
+                    <x-money-input name="price" label="Harga jual" required />
+                    <x-money-input name="hpp" label="HPP (opsional)" />
+                    <x-field name="stock" label="Stok awal" placeholder="kosong = tidak dilacak" class="tabular" />
+
+                    <button type="submit"
+                            class="px-4 py-2 text-xs font-semibold rounded-full text-card bg-brand-600 hover:bg-brand-700 shadow-brand transition-colors">
+                        Tambah
+                    </button>
+                </form>
+
+                <p class="text-[11px] text-ink-soft mt-3">
+                    Kategori baru belum bisa dibuat dari sini — menambah kategori adalah keputusan tata menu,
+                    bukan kejadian harian. Untuk sekarang lewat seeder.
+                </p>
+            </div>
+        @endif
     </x-card>
 
 </x-layouts.app>
