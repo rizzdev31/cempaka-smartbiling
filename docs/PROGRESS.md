@@ -17,8 +17,8 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); klien API + penemuan server otomatis (DEC-041) sudah ada tapi **aplikasi masih memakai data palsu**; **225 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal + penemuan server otomatis (DEC-041); **47 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti**, dan agent **belum bicara ke Laravel** |
-| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **383 test LULUS** (1.225 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
-| **Admin Web** | **BARU 11 Okt (DEC-042, DEC-043).** Login (guard session, Owner & Admin saja) + dashboard di `/admin`. Design system dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. **8 halaman** (dashboard, sesi, station, F&B, harga, customer, shift, audit), semuanya data nyata dan **penuh layar** dari 375px sampai 2560px (diukur, 40 kombinasi). Masih **hanya membaca** — form ubah belum ada. Spec: `docs/UI-UX-SPEC-WEB.md` |
+| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **399 test LULUS** (1.265 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
+| **Admin Web** | **BARU 11 Okt (DEC-042, DEC-043).** Login (guard session, Owner & Admin saja) + dashboard di `/admin`. Design system dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. **8 halaman** (dashboard, sesi, station, F&B, harga, customer, shift, audit), semuanya data nyata dan **penuh layar** dari 375px sampai 2560px (diukur, 40 kombinasi). Sudah bisa **mengubah** harga, paket, stok, status F&B, dan tutup shift (DEC-044), serta **menyegarkan diri otomatis**. Spec: `docs/UI-UX-SPEC-WEB.md` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -3072,3 +3072,106 @@ tidak membuatnya lebih mudah diisi.
 
 **Next step** — form ubah: harga, shift, status pesanan. Permintaan user
 berikutnya, dan endpoint-nya sebagian sudah ada.
+
+---
+
+### 2026-10-11 — [Admin Web] Bisa mengubah, dan menyegarkan diri sendiri
+
+User menegaskan pembagian peran: **Laravel yang mengatur semuanya**, Flutter
+hanya melayani customer dan mendaftarkan member. Dicatat sebagai **DEC-044**.
+
+**Lubang keamanan yang ditemukan test, bukan pembacaan kode**
+
+Route aksi web versi pertama **tidak punya gerbang izin sama sekali**. Saya
+menulis di komentarnya bahwa "izin per field ditentukan Service" — itu benar
+untuk produk F&B, dan **salah untuk paket**:
+
+| Sumber daya | Gerbangnya |
+|---|---|
+| Produk F&B | `can:fnb.manage` di route, lalu **Service** menolak `price` dari non-owner |
+| **Paket** | `can:pricing.manage` **di route**. Service tidak memeriksa apa pun |
+
+Akibatnya **admin bisa mengubah seluruh tarif rental** lewat web. Izinnya
+sekarang disalin persis dari `routes/api.php` — dua pintu ke service yang
+sama harus dijaga sama ketatnya.
+
+**Realtime: polling, bukan Reverb**
+
+Reverb sudah ada dan menyiarkan sembilan event. Tapi dua kali minggu ini
+realtime-nya mati diam-diam — `REVERB_HOST` salah, lalu `queue:work` tidak
+jalan. Keduanya tanpa error yang terlihat.
+
+Halaman admin yang bergantung padanya akan membeku dengan cara yang sama:
+menampilkan angka lama sambil terlihat normal. Itu **lebih buruk** daripada
+tidak realtime, karena owner mengambil keputusan dari angka yang dia kira
+baru. Polling tidak bisa gagal diam-diam — penanda waktunya berhenti maju.
+
+Dua aturan yang menyertainya, keduanya soal tidak merusak pekerjaan orang:
+
+- penyegaran **dilewati** kalau fokus ada di dalam form, atau ada form yang
+  sudah disentuh tapi belum dikirim;
+- diperiksa **dua kali** — sebelum meminta dan sesudah jawabannya datang,
+  karena orangnya bisa mulai mengetik di tengah jalan.
+
+Berhenti setelah tiga kegagalan berturut-turut, lanjut lagi saat tab dibuka.
+
+**Yang sekarang bisa diubah dari web**
+
+| | Siapa |
+|---|---|
+| Harga, durasi, nama, aktif/nonaktif paket | owner |
+| Tambah paket baru | owner |
+| Harga F&B | owner |
+| **Stok & ketersediaan F&B** | admin — "Mie Goreng habis" kejadian harian |
+| Status pesanan F&B (satu langkah maju, atau batal) | admin |
+| Tutup shift + catatan | pemilik shift / admin |
+
+**Keputusan kecil yang menghindari jebakan**
+
+- `price` hanya dikirim kalau **berubah**. Form selalu memuat kolom harga;
+  meneruskannya apa adanya membuat Service menolak admin yang hanya
+  mengubah stok — padahal itu justru pekerjaan hariannya.
+- `$request->boolean()` untuk checkbox. Browser **tidak mengirim** checkbox
+  yang tidak dicentang; tanpa itu, menonaktifkan paket mustahil.
+- Stok kosong = **tidak dilacak**, bukan nol.
+- Status F&B hanya menawarkan **satu langkah maju**, bukan lima pilihan.
+  Dropdown penuh mengundang lompatan yang pasti ditolak — tapi baru setelah
+  ditekan.
+- `<form>` ditaruh di luar tabel lewat atribut `form=`; `<form>` tidak boleh
+  jadi anak langsung `<tr>` dan browser akan memindahkannya diam-diam.
+- Pesan hasil aksi ada di **luar** `#live`, supaya tidak ikut terhapus saat
+  halaman menyegarkan diri beberapa detik kemudian.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `Web/AdminActionController.php`, `components/{field,money-input,nav-link}.blade.php`, `resources/js/app.js`, `tests/Feature/Web/AdminActionsTest.php` |
+| Diubah | `routes/web.php` (+5 rute aksi, +izin), `layouts/app.blade.php` (`#live`, pesan aksi, penanda segar), `admin/{pricing,fnb,shifts}.blade.php`, `Web/AdminController.php` |
+
+**DB changes** — tidak ada. **API/Events** — tidak ada. Tahap 0 tidak tersentuh.
+
+**Tests** — **399 lulus** (+16), 1.265 assertion.
+
+`AdminActionsTest` membuktikan web memakai Service yang sama lewat
+**akibatnya**, bukan dengan membaca kode: izin per field ditegakkan, dan
+audit log terisi `before.price → after.price`. Keduanya hilang diam-diam
+kalau suatu saat ada yang mengganti panggilan Service dengan
+`$model->update()`.
+
+**Manual test** — harga PS3 1 Jam diubah 8.000 → 9.000 lewat browser;
+tersimpan, "Setara / jam" ikut berubah, dan audit mencatat `8000 → 9000`
+atas nama Owner. Seeder dijalankan ulang untuk mengembalikannya.
+
+**Known issues**
+
+- **Pengeluaran kasir belum ada** (OD-029) — rekonsiliasi laci masih kurang
+  satu suku, dan halaman Shift mengatakannya terang-terangan.
+- **Promo belum ada sama sekali** di backend → **OD-032** (baru).
+- HPP belum bisa diubah; `UpdateFnbProductRequest` belum menerima field itu.
+- Station & tipe konsol belum bisa diubah (OD-028).
+- Halaman Customer dan Audit belum punya aksi apa pun — keduanya memang
+  hanya untuk dibaca.
+
+**Next step** — OD-029 (pengeluaran kasir). Satu tabel, satu endpoint, satu
+form, dan setelah itu angka "kas seharusnya" berhenti berbohong.

@@ -14,6 +14,7 @@ use App\Models\FnbProduct;
 use App\Models\Package;
 use App\Models\Shift;
 use App\Models\Station;
+use App\Models\StationType;
 use App\Support\Time\BusinessDay;
 use App\Support\Web\DashboardData;
 use Illuminate\Http\Request;
@@ -156,6 +157,11 @@ class AdminController
              * kontrol keamanan.
              */
             'bolehUbah' => auth()->user()?->role->canManagePricing() ?? false,
+
+            // Untuk form tambah paket. `station_type_id` tidak bisa diubah
+            // setelah paket dibuat (DEC-040), jadi pilihannya hanya muncul
+            // di sini.
+            'stationTypes' => StationType::query()->where('is_active', true)->orderBy('name')->get(),
         ]);
     }
 

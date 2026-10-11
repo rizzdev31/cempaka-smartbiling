@@ -1586,6 +1586,92 @@ penjelasan.
 
 ---
 
+## DEC-044 — Pembagian peran: Laravel mengatur, Flutter melayani
+**Tanggal:** 11 Okt 2026 · **Status:** APPROVED · **Mempertegas:** PRD §18/§19, DEC-001 · **Melanjutkan:** DEC-042, DEC-043
+
+User: *"ternyata di laravel ini yang bisa setting semuanya. yang flutter itu
+untuk yang kasir hanya melayani customer dan input member baru… untuk stock,
+harga, promo, kas, pengeluaran [di Laravel]."*
+
+### Pembagiannya
+
+| | Laravel Admin Web | Flutter Tablet |
+|---|---|---|
+| **Peran** | mengatur & mengawasi | melayani customer |
+| Harga & paket | ✅ sumbernya | melihat saja |
+| Stok F&B | ✅ sumbernya | melihat saja |
+| Kas, pengeluaran, laporan | ✅ | — |
+| Buka/tutup sesi, bayar, extend, swap | — | ✅ |
+| Daftar member baru | — | ✅ (DEC-027) |
+| Antar pesanan F&B | ✅ bisa | ✅ |
+
+Ini **bukan** perubahan arah dari PRD — §18 memang mendaftar layar operator
+dan §19 mendaftar modul admin. Yang ditegaskan di sini: begitu sebuah
+pengaturan ada di Laravel, Flutter **tidak** membuat salinannya. Dua tempat
+mengubah harga berarti dua tempat yang bisa berbeda.
+
+### Satu aturan yang mengikat setiap aksi ubah di web
+
+**Web memanggil Service yang sama dengan API.** Tidak ada satu pun aturan
+bisnis ditulis ulang.
+
+Alasannya bukan kerapian. `MasterDataService::updateFnbProduct()` memeriksa
+bahwa hanya owner yang boleh mengubah `price` (DEC-020) dan mencatat nilai
+sebelum/sesudah ke audit log (PRD §24). Controller web yang menulis
+`$product->update()` sendiri akan melewati keduanya — dan kehilangannya
+tidak menimbulkan error apa pun.
+
+Yang berbeda hanya bentuk jawabannya: JSON di API, kembali ke form di web.
+`ApiException` **wajib** ditangkap di web — ia hanya dirender JSON untuk
+`api/*`, dan dibiarkan lewat ia jadi halaman 500 kosong padahal isinya
+kalimat yang justru perlu dibaca.
+
+### ⛔ Izin disalin PERSIS dari `routes/api.php`
+
+Letak penegakannya berbeda per sumber daya, dan itu mudah salah:
+
+| Sumber daya | Gerbangnya |
+|---|---|
+| **Paket** | `can:pricing.manage` **di route**. Service tidak memeriksa apa pun |
+| **Produk F&B** | `can:fnb.manage` di route, lalu **Service** menolak `price` dari non-owner |
+
+Versi pertama route web melewatkan gerbang paket, dan **admin bisa mengubah
+seluruh tarif rental**. Ditemukan test, bukan saat dibaca. Dua pintu ke
+service yang sama harus dijaga sama ketatnya.
+
+### Realtime: polling, bukan WebSocket
+
+Reverb sudah ada dan menyiarkan sembilan event. Tapi dua kali dalam seminggu
+terakhir realtime-nya mati diam-diam — sekali karena `REVERB_HOST` salah,
+sekali karena `queue:work` tidak jalan. Keduanya tidak menimbulkan error
+yang terlihat.
+
+Halaman admin yang bergantung pada Reverb akan membeku dengan cara yang
+sama: menampilkan angka lama sambil terlihat normal. Itu **lebih buruk**
+daripada tidak realtime, karena owner mengambil keputusan dari angka yang
+dia kira baru.
+
+Polling tidak bisa gagal diam-diam — kalau server mati, penanda waktunya
+berhenti maju dan itu terlihat. Dashboard admin tidak butuh reaksi
+sub-detik; tablet dan TV butuh, dan di sana Reverb tetap jalur yang benar.
+
+Aturan yang menyertainya: penyegaran **dilewati** kalau ada yang sedang
+mengetik atau ada form yang sudah disentuh. Menyegarkan halaman saat
+seseorang mengisi kas akhir akan menghapus ketikannya.
+
+### Yang belum bisa, dan kenapa
+
+| Diminta user | Status |
+|---|---|
+| Stok, harga | ✅ |
+| Kas (tutup shift) | ✅ |
+| **Pengeluaran** | ❌ **OD-029** — tabelnya belum ada |
+| **Promo** | ❌ belum ada di backend sama sekali |
+| Ubah station & tipe konsol | ❌ **OD-028** |
+| HPP produk | ❌ `UpdateFnbProductRequest` belum menerimanya |
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -1594,6 +1680,7 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 |---|---|---|---|
 | **OD-029 🔴** | **Pengeluaran kasir (petty cash) belum ada tabelnya.** Rumus rekonsiliasi laci yang diminta user adalah `Modal + Cash Rental + Cash F&B − Pengeluaran`, tapi suku terakhirnya tidak pernah dibangun. Perlu: siapa boleh mencatat, perlu persetujuan owner atau tidak, ada batas nominal, wajib keterangan? | **Fitur anti-bocor justru jadi sumber tuduhan palsu.** Kasir ambil Rp 20.000 untuk beli galon → sistem melaporkan kas minus Rp 20.000 dan kasir jujur terlihat mencuri. Diprioritaskan user 11 Okt | Sebelum dipakai untuk uang nyata |
 | **OD-030 🔴** | **Penjualan F&B tanpa sesi (walk-in).** Endpoint F&B sekarang `POST /sessions/{session}/fnb/orders` — WAJIB menempel ke sesi rental. Perlu: order berdiri sendiri, atau sesi "tanpa station"? Bagaimana masuk ke `shift.summary`? | Pembeli yang cuma beli rokok atau minuman dingin **tidak bisa dilayani sama sekali** — uangnya tidak tercatat di mana pun, dan itu lubang kas yang sama besarnya. Diprioritaskan user 11 Okt | Sebelum dipakai untuk uang nyata |
+| **OD-032** | **Promo / diskon** — user menyebutnya sebagai hal yang diatur dari Laravel (DEC-044), tapi backend **tidak punya apa pun**: tidak ada tabel promo, tidak ada endpoint diskon. `SessionItemType::DISCOUNT` ada tapi hanya diisi otomatis oleh potongan saldo member. Perlu: bentuk promonya apa (potongan rupiah? persen? paket gratis F&B?), siapa yang boleh memberi, dan apakah berlaku otomatis atau dipilih kasir | Disebut user 11 Okt sebagai kebutuhan, tapi belum pernah dirinci. Tanpa bentuknya, tidak ada yang bisa dibangun | Sebelum promo pertama dijalankan |
 | **OD-031** | **Kendali TV manual dari kasir** — lock/unlock darurat, kirim teks ke layar ("pesanan diantar", "sisa 5 menit"), broadcast semua TV, power on/off. Sekarang TV hanya bereaksi **otomatis** pada status sesi; kasir tidak bisa memerintah apa pun | Butuh event/perintah baru di `private-station.{code}` dan dukungan di Kotlin. Power on/off butuh CEC atau relay IoT — keputusan perangkat keras, bukan hanya software. Diprioritaskan user 11 Okt | Tahap 2 |
 | ~~OD-001~~ | ~~Overstay: EXPIRED tapi customer masih bermain~~ | **DIPUTUSKAN → DEC-023** (timer jalan terus, kelebihan ditagih di checkout) + **DEC-024** (sisa waktu hangus kecuali member). Perilaku lock/overlay TV saat EXPIRED tetap di OD-004 | — |
 | **OD-025** | **Harga berdasarkan waktu** — jam pagi, happy hour, jam malam. User: "nanti ada aplikasi minta... jadi kita custom harganya kalau lagi sepi." Paket 3 jam PS3 20.000 / PS4 25.000 di catatan adalah harga jam sepi, jadi sudah ada contoh nyatanya | Muncul dari DEC-036. Butuh jadwal tarif per tipe konsol, dan keputusan apa yang terjadi kalau sesi melewati pergantian jadwal | Tahap 3B |

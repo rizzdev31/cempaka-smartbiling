@@ -1,4 +1,4 @@
-<x-layouts.app title="Station & TV">
+<x-layouts.app title="Station & TV" :poll="10">
 
     <x-page-header
         title="Station & TV"

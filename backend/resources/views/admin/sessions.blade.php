@@ -1,4 +1,4 @@
-<x-layouts.app title="Sesi">
+<x-layouts.app title="Sesi" :poll="10">
 
     <x-page-header title="Sesi" subtitle="50 sesi terbaru. Angka pada chip dihitung dari seluruh riwayat." />
 

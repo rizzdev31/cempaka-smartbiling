@@ -1,4 +1,4 @@
-@props(['title' => 'Admin'])
+@props(['title' => 'Admin', 'poll' => 0])
 
 <!DOCTYPE html>
 <html lang="id" class="scroll-smooth">
@@ -108,6 +108,18 @@
                 <div class="w-9 h-9 rounded-full bg-inset border border-line flex items-center justify-center text-sm font-bold text-ink-soft shrink-0">
                     {{ $inisial }}
                 </div>
+                {{--
+                    Penanda penyegaran. Satu-satunya cara tahu halaman ini
+                    masih hidup — tanpa jam yang maju, data lama terlihat
+                    persis seperti data baru.
+                --}}
+                @if ($poll > 0)
+                    <span data-live-status="ok"
+                          class="hidden md:inline text-[11px] text-ink-soft tabular whitespace-nowrap mr-1">
+                        Tiap {{ $poll }} detik
+                    </span>
+                @endif
+
                 <div class="hidden lg:block leading-tight mr-1">
                     <div class="text-xs font-bold text-ink">{{ $me?->name }}</div>
                     <div class="text-[11px] text-ink-soft">{{ $me?->role->value }}</div>
@@ -147,7 +159,42 @@
     </div>
 </header>
 
-<main class="flex-1 w-full px-4 sm:px-6 lg:px-8 2xl:px-12 py-6 sm:py-8">
+{{--
+    Pesan hasil aksi. Di LUAR `#live` supaya tidak ikut terhapus saat
+    halaman menyegarkan diri beberapa detik kemudian.
+--}}
+@if (session('sukses') || $errors->any())
+    <div class="px-4 sm:px-6 lg:px-8 2xl:px-12 pt-4">
+        @if (session('sukses'))
+            <div role="status"
+                 class="flex items-start gap-3 p-3 rounded-block bg-playing-surface border border-playing/30">
+                <span class="text-playing shrink-0 mt-0.5"><x-icon name="bolt" class="w-4 h-4" /></span>
+                <p class="text-xs text-playing font-medium">{{ session('sukses') }}</p>
+            </div>
+        @endif
+
+        @if ($errors->any())
+            <div role="alert"
+                 class="flex items-start gap-3 p-3 rounded-block bg-danger-surface border border-danger/30">
+                <span class="text-danger shrink-0 mt-0.5"><x-icon name="warning" class="w-4 h-4" /></span>
+                <div class="text-xs text-danger leading-relaxed">
+                    @foreach ($errors->all() as $pesan)
+                        <p>{{ $pesan }}</p>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+    </div>
+@endif
+
+{{--
+    `#live` adalah bagian yang ditukar saat penyegaran otomatis.
+
+    Hanya isinya yang diganti, bukan seluruh halaman: header, nav, dan
+    pesan hasil aksi tetap di tempat, dan posisi gulir tidak melompat.
+--}}
+<main id="live" @if ($poll > 0) data-poll="{{ $poll }}" @endif
+      class="flex-1 w-full px-4 sm:px-6 lg:px-8 2xl:px-12 py-6 sm:py-8">
     {{ $slot }}
 </main>
 

@@ -59,7 +59,10 @@
                             <th scope="col" class="py-2 px-2 font-medium md:text-right">Durasi</th>
                             <th scope="col" class="py-2 px-2 font-medium md:text-right">Harga</th>
                             <th scope="col" class="py-2 px-2 font-medium md:text-right">Setara / jam</th>
-                            <th scope="col" class="py-2 px-2 font-medium md:text-right">Status</th>
+                            <th scope="col" class="py-2 px-2 font-medium md:text-right">Aktif</th>
+                            @if ($bolehUbah)
+                                <th scope="col" class="py-2 px-2 font-medium md:text-right"><span class="sr-only">Simpan</span></th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-line-soft">
@@ -77,24 +80,75 @@
                                     ? (int) round($p->price / ($p->duration_minutes / 60))
                                     : 0;
                             @endphp
+
                             <tr class="hover:bg-inset/60 transition-colors">
-                                <td data-label="Paket" class="py-2.5 px-2 font-semibold text-ink">{{ $p->name }}</td>
-                                <td data-label="Durasi" class="py-2.5 px-2 md:text-right text-ink-soft tabular">
-                                    {{ $p->duration_minutes }} menit
+                                @if ($bolehUbah)
+                                    {{--
+                                        Satu form per baris. `form` ditaruh di
+                                        LUAR tabel lewat atribut `form=` —
+                                        <form> tidak boleh jadi anak langsung
+                                        <tr>, dan browser akan memindahkannya
+                                        keluar tabel diam-diam kalau dicoba.
+                                    --}}
+                                    <form id="paket-{{ $p->id }}" method="POST"
+                                          action="{{ route('admin.packages.update', $p) }}" class="hidden">
+                                        @csrf @method('PATCH')
+                                    </form>
+                                @endif
+
+                                <td data-label="Paket" class="py-2.5 px-2">
+                                    @if ($bolehUbah)
+                                        <x-field name="name" :value="$p->name" form="paket-{{ $p->id }}" required
+                                                 class="min-w-[9rem] font-semibold" />
+                                    @else
+                                        <span class="font-semibold text-ink">{{ $p->name }}</span>
+                                    @endif
                                 </td>
-                                <td data-label="Harga" class="py-2.5 px-2 md:text-right font-bold text-ink">
-                                    <x-rupiah :value="$p->price" />
+
+                                <td data-label="Durasi" class="py-2.5 px-2 md:text-right">
+                                    @if ($bolehUbah)
+                                        <x-field name="duration_minutes" :value="$p->duration_minutes"
+                                                 form="paket-{{ $p->id }}" required
+                                                 class="w-24 text-right tabular ml-auto" />
+                                    @else
+                                        <span class="text-ink-soft tabular">{{ $p->duration_minutes }} menit</span>
+                                    @endif
                                 </td>
+
+                                <td data-label="Harga" class="py-2.5 px-2 md:text-right">
+                                    @if ($bolehUbah)
+                                        <x-money-input name="price" :value="$p->price"
+                                                       form="paket-{{ $p->id }}" required class="w-32 ml-auto" />
+                                    @else
+                                        <span class="font-bold text-ink"><x-rupiah :value="$p->price" /></span>
+                                    @endif
+                                </td>
+
                                 <td data-label="Setara / jam" class="py-2.5 px-2 md:text-right text-ink-soft">
                                     <x-rupiah :value="$perJam" />
                                 </td>
-                                <td data-label="Status" class="py-2.5 px-2 md:text-right">
-                                    @if ($p->is_active)
+
+                                <td data-label="Aktif" class="py-2.5 px-2 md:text-right">
+                                    @if ($bolehUbah)
+                                        <input type="checkbox" name="is_active" value="1" form="paket-{{ $p->id }}"
+                                               @checked($p->is_active)
+                                               class="w-4 h-4 rounded-chip accent-brand-600">
+                                    @elseif ($p->is_active)
                                         <x-badge tone="up">Aktif</x-badge>
                                     @else
                                         <x-badge tone="neutral">Nonaktif</x-badge>
                                     @endif
                                 </td>
+
+                                @if ($bolehUbah)
+                                    <td data-label="Simpan" class="py-2.5 px-2 md:text-right">
+                                        <button type="submit" form="paket-{{ $p->id }}"
+                                                class="px-3 py-1.5 text-[11px] font-semibold rounded-full
+                                                       text-card bg-brand-600 hover:bg-brand-700 transition-colors">
+                                            Simpan
+                                        </button>
+                                    </td>
+                                @endif
                             </tr>
                         @endforeach
                     </tbody>
@@ -109,9 +163,58 @@
         </x-card>
     @endforelse
 
+    {{-- ── Tambah paket ────────────────────────────────────────────── --}}
+    @if ($bolehUbah && $stationTypes->isNotEmpty())
+        <x-card class="mb-4" padding="p-4 sm:p-6">
+            <h2 class="text-base font-bold text-ink mb-4">Tambah Paket</h2>
+
+            <form method="POST" action="{{ route('admin.packages.store') }}"
+                  class="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-3 items-end">
+                @csrf
+
+                <label class="block">
+                    <span class="block text-[11px] font-semibold text-ink-soft mb-1">Tipe konsol</span>
+                    <select name="station_type_id" required
+                            class="w-full px-3 py-2 bg-inset border border-transparent rounded-chip text-xs text-ink
+                                   focus:outline-none focus:bg-card focus:border-brand-600 transition-all">
+                        @foreach ($stationTypes as $t)
+                            <option value="{{ $t->id }}" @selected(old('station_type_id') === $t->id)>{{ $t->name }}</option>
+                        @endforeach
+                    </select>
+                </label>
+
+                <x-field name="name" label="Nama paket" placeholder="2 Jam" required />
+                <x-field name="duration_minutes" label="Durasi (menit)" placeholder="120" required class="tabular" />
+                <x-money-input name="price" label="Harga" required />
+
+                <button type="submit"
+                        class="px-4 py-2 text-xs font-semibold rounded-full text-card bg-brand-600 hover:bg-brand-700 shadow-brand transition-colors">
+                    Tambah
+                </button>
+            </form>
+
+            {{-- `station_type_id` tidak bisa diubah setelah paket dibuat
+                 (DEC-040): memindahkan paket ke tipe lain membuat sesi lama
+                 seolah dijalankan di konsol berbeda. --}}
+            <p class="text-[11px] text-ink-soft mt-3">
+                Tipe konsol tidak bisa diubah setelah paket dibuat. Kalau salah, nonaktifkan dan buat yang baru.
+            </p>
+        </x-card>
+    @endif
+
     {{-- ── Harga F&B ───────────────────────────────────────────────── --}}
     <x-card padding="p-4 sm:p-6">
-        <h2 class="text-base font-bold text-ink mb-4">Harga F&amp;B</h2>
+        <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
+            <h2 class="text-base font-bold text-ink">Harga F&B</h2>
+            {{--
+                Pembagian izin yang berbeda dari paket, dan perlu disebut:
+                "Mie Goreng habis" kejadian harian yang harus bisa ditangani
+                operator sendiri, sementara harga tetap milik owner.
+            --}}
+            <p class="text-[11px] text-ink-soft max-w-md">
+                Stok dan ketersediaan boleh diubah admin. <span class="font-semibold text-ink">Harga hanya owner</span> (DEC-020).
+            </p>
+        </div>
 
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs table-stacked">
@@ -120,8 +223,10 @@
                         <th scope="col" class="py-2 px-2 font-medium">Nama</th>
                         <th scope="col" class="py-2 px-2 font-medium">Kategori</th>
                         <th scope="col" class="py-2 px-2 font-medium md:text-right">Harga</th>
-                        <th scope="col" class="py-2 px-2 font-medium md:text-right">HPP</th>
+                        <th scope="col" class="py-2 px-2 font-medium md:text-right">Stok</th>
+                        <th scope="col" class="py-2 px-2 font-medium md:text-right">Dijual</th>
                         <th scope="col" class="py-2 px-2 font-medium md:text-right">Margin</th>
+                        <th scope="col" class="py-2 px-2 font-medium md:text-right"><span class="sr-only">Simpan</span></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-line-soft">
@@ -131,15 +236,35 @@
                                 ? round(($p->price - $p->hpp) / $p->price * 100)
                                 : null;
                         @endphp
+
                         <tr class="hover:bg-inset/60 transition-colors">
+                            <form id="fnb-{{ $p->id }}" method="POST"
+                                  action="{{ route('admin.fnb-products.update', $p) }}" class="hidden">
+                                @csrf @method('PATCH')
+                            </form>
+
                             <td data-label="Nama" class="py-2.5 px-2 font-semibold text-ink">{{ $p->name }}</td>
                             <td data-label="Kategori" class="py-2.5 px-2 text-ink-soft">{{ $p->category }}</td>
-                            <td data-label="Harga" class="py-2.5 px-2 md:text-right font-bold text-ink">
-                                <x-rupiah :value="$p->price" />
+
+                            <td data-label="Harga" class="py-2.5 px-2 md:text-right">
+                                <x-money-input name="price" :value="$p->price" form="fnb-{{ $p->id }}" required
+                                               :disabled="! $bolehUbah" class="w-28 ml-auto disabled:opacity-60" />
                             </td>
-                            <td data-label="HPP" class="py-2.5 px-2 md:text-right text-ink-soft">
-                                @if ($p->hpp !== null)<x-rupiah :value="$p->hpp" />@else — @endif
+
+                            <td data-label="Stok" class="py-2.5 px-2 md:text-right">
+                                {{-- Kosong = tidak dilacak, BERBEDA dari 0
+                                     yang berarti habis (API.md §8). --}}
+                                <x-field name="stock" :value="$p->stock" form="fnb-{{ $p->id }}"
+                                         placeholder="tidak dilacak"
+                                         class="w-28 text-right tabular ml-auto" />
                             </td>
+
+                            <td data-label="Dijual" class="py-2.5 px-2 md:text-right">
+                                <input type="checkbox" name="is_available" value="1" form="fnb-{{ $p->id }}"
+                                       @checked($p->is_available)
+                                       class="w-4 h-4 rounded-chip accent-brand-600">
+                            </td>
+
                             <td data-label="Margin" class="py-2.5 px-2 md:text-right">
                                 {{-- Tanpa HPP, margin tidak bisa dihitung. "0%"
                                      akan terbaca sebagai rugi. --}}
@@ -151,13 +276,27 @@
                                     </x-badge>
                                 @endif
                             </td>
+
+                            <td data-label="Simpan" class="py-2.5 px-2 md:text-right">
+                                <button type="submit" form="fnb-{{ $p->id }}"
+                                        class="px-3 py-1.5 text-[11px] font-semibold rounded-full
+                                               text-card bg-brand-600 hover:bg-brand-700 transition-colors">
+                                    Simpan
+                                </button>
+                            </td>
                         </tr>
                     @empty
-                        <x-empty title="Belum ada produk F&B" icon="cup" colspan="5" />
+                        <x-empty title="Belum ada produk F&B" icon="cup" colspan="7" />
                     @endforelse
                 </tbody>
             </table>
         </div>
+
+        {{-- HPP belum bisa diubah: `UpdateFnbProductRequest` tidak
+             menerimanya. Disebutkan supaya orang tidak mencarinya. --}}
+        <p class="text-[11px] text-ink-soft mt-4">
+            HPP belum bisa diubah dari sini — endpoint-nya belum menerima field itu.
+        </p>
     </x-card>
 
 </x-layouts.app>

@@ -3,7 +3,7 @@
     $adaData = $maxDay > 1 || array_sum(array_column($revenue_by_day, 'value')) > 0;
 @endphp
 
-<x-layouts.app title="Dashboard">
+<x-layouts.app title="Dashboard" :poll="10">
 
     {{-- ── Judul + kontrol ─────────────────────────────────────────── --}}
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">

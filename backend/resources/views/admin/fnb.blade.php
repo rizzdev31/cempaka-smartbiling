@@ -1,4 +1,4 @@
-<x-layouts.app title="F&B">
+<x-layouts.app title="F&B" :poll="10">
 
     <x-page-header title="F&B" subtitle="Menu, stok, dan pesanan yang belum sampai ke meja." />
 
@@ -55,6 +55,47 @@
                             {{ $order->note }}
                         </p>
                     @endif
+
+                    @php
+                        /*
+                         * Hanya SATU langkah maju yang ditawarkan, bukan
+                         * seluruh daftar status. Dropdown berisi lima pilihan
+                         * mengundang lompatan yang tidak masuk akal
+                         * (PENDING → DELIVERED tanpa pernah dibuat), dan
+                         * service memang akan menolaknya — tapi baru setelah
+                         * ditekan.
+                         */
+                        $lanjut = match ($order->status->value) {
+                            'PENDING' => ['PROCESSING', 'Mulai buat'],
+                            'PROCESSING' => ['READY', 'Tandai siap'],
+                            'READY' => ['DELIVERED', 'Sudah diantar'],
+                            default => null,
+                        };
+                    @endphp
+
+                    <div class="flex items-center gap-2 mt-3">
+                        @if ($lanjut)
+                            <form method="POST" action="{{ route('admin.fnb-orders.status', $order) }}">
+                                @csrf
+                                <input type="hidden" name="status" value="{{ $lanjut[0] }}">
+                                <button type="submit"
+                                        class="px-3 py-1.5 text-[11px] font-semibold rounded-full
+                                               text-card bg-brand-600 hover:bg-brand-700 transition-colors">
+                                    {{ $lanjut[1] }}
+                                </button>
+                            </form>
+                        @endif
+
+                        <form method="POST" action="{{ route('admin.fnb-orders.status', $order) }}">
+                            @csrf
+                            <input type="hidden" name="status" value="CANCELLED">
+                            <button type="submit"
+                                    class="px-3 py-1.5 text-[11px] font-semibold rounded-full
+                                           text-ink-soft bg-inset hover:bg-danger-surface hover:text-danger transition-colors">
+                                Batalkan
+                            </button>
+                        </form>
+                    </div>
                 </div>
             @empty
                 <x-empty title="Tidak ada pesanan terbuka" icon="cup">

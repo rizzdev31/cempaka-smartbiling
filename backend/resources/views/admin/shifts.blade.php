@@ -3,7 +3,7 @@
     $tz = BusinessDay::timezone();
 @endphp
 
-<x-layouts.app title="Shift">
+<x-layouts.app title="Shift" :poll="15">
 
     <x-page-header title="Shift Kasir" subtitle="Serah terima laci kas. 30 shift terakhir yang sudah ditutup." />
 
@@ -58,6 +58,39 @@
                     Kalau ada uang yang diambil dari laci untuk belanja, selisihnya akan muncul di sini.
                 </p>
             </div>
+
+            {{-- ── Tutup shift ────────────────────────────────────────
+                 Jalur normalnya tetap dari tablet: orang yang memegang
+                 uangnya yang harus menghitungnya. Form ini untuk operator
+                 yang terlanjur pulang tanpa menutup. --}}
+            <details class="mt-4 group">
+                <summary class="text-xs font-semibold text-ink-soft cursor-pointer select-none
+                                hover:text-ink transition-colors list-none flex items-center gap-2">
+                    <x-icon name="chevron-down" class="w-3 h-3 transition-transform group-open:rotate-180" />
+                    Tutup shift ini dari web
+                </summary>
+
+                <div class="mt-3 p-4 rounded-block bg-inset">
+                    <p class="text-[11px] text-ink-soft mb-3 leading-relaxed">
+                        Hitung uang fisik di laci <span class="font-semibold text-ink">lebih dulu</span>,
+                        baru isi angkanya. Melihat tebakan sistem sebelum menghitung membuat angka
+                        yang ditulis mengikuti tebakan itu — dan selisih yang nyata jadi tidak pernah terlihat.
+                    </p>
+
+                    <form method="POST" action="{{ route('admin.shifts.close', $current) }}"
+                          class="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3 items-end">
+                        @csrf
+                        <x-money-input name="closing_cash" label="Uang fisik di laci" required />
+                        <x-field name="note" label="Catatan (opsional)" placeholder="kurang 5rb, kembalian" />
+
+                        <button type="submit"
+                                class="px-4 py-2 text-xs font-semibold rounded-full
+                                       text-card bg-brand-600 hover:bg-brand-700 shadow-brand transition-colors">
+                            Tutup shift
+                        </button>
+                    </form>
+                </div>
+            </details>
         </x-card>
     @else
         <x-card class="mb-6">
