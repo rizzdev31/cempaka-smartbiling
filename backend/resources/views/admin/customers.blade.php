@@ -1,6 +1,6 @@
 <x-layouts.app title="Customer">
 
-    <x-page-header title="Customer &amp; Member" subtitle="100 nama pertama. Pakai pencarian untuk yang lain.">
+    <x-page-header title="Customer & Member" subtitle="100 nama pertama. Pakai pencarian untuk yang lain.">
         <x-slot:actions>
             <form method="GET" action="{{ route('admin.customers') }}" class="relative">
                 <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-ink-faint">

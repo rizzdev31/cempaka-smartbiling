@@ -135,7 +135,7 @@
                 </div>
             @empty
                 <x-empty title="Belum ada menu" icon="cup">
-                    Tambahkan produk lewat seeder atau halaman Harga &amp; Paket.
+                    Tambahkan produk lewat seeder atau halaman Harga & Paket.
                 </x-empty>
             @endforelse
         </x-card>

@@ -162,6 +162,36 @@ class WebDesignTokensTest extends TestCase
         );
     }
 
+    public function test_prop_komponen_tidak_memakai_entity_html(): void
+    {
+        /*
+         * Blade meng-escape isi `{{ }}`. Prop yang sudah ditulis sebagai
+         * entity jadi ter-escape DUA KALI: `&amp;` keluar sebagai `&amp;amp;`
+         * dan halaman menampilkan "Harga &amp; Paket" apa adanya.
+         *
+         * Di dalam HTML mentah, `&amp;` justru yang benar. Jadi yang
+         * diperiksa hanya yang ada di dalam atribut `<x-...>`.
+         */
+        $pelanggar = [];
+
+        foreach ($this->bladeFiles() as $file) {
+            // Tag komponen `<x-nama ...>` yang atributnya memuat entity.
+            preg_match_all('/<x-[a-z0-9.:-]+[^>]*?(&(?:amp|lt|gt|quot|#\d+);)[^>]*>/i', file_get_contents($file), $m);
+
+            if ($m[0] !== []) {
+                $pelanggar[basename($file)] = array_values(array_unique($m[1]));
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $pelanggar,
+            "Entity HTML di dalam prop komponen — akan ter-escape dua kali.\n"
+            ."Tulis karakternya apa adanya (`&`, bukan `&amp;`).\n"
+            .json_encode($pelanggar, JSON_PRETTY_PRINT),
+        );
+    }
+
     public function test_layout_memanggil_direktif_fonts(): void
     {
         /*

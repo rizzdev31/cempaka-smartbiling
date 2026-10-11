@@ -1,6 +1,6 @@
 <x-layouts.app title="Harga & Paket">
 
-    <x-page-header title="Harga &amp; Paket" subtitle="Tarif rental per tipe konsol dan harga F&amp;B.">
+    <x-page-header title="Harga & Paket" subtitle="Tarif rental per tipe konsol dan harga F&B.">
         <x-slot:actions>
             @if ($bolehUbah)
                 <x-badge tone="brand">Anda boleh mengubah harga</x-badge>
@@ -153,7 +153,7 @@
                             </td>
                         </tr>
                     @empty
-                        <x-empty title="Belum ada produk F&amp;B" icon="cup" colspan="5" />
+                        <x-empty title="Belum ada produk F&B" icon="cup" colspan="5" />
                     @endforelse
                 </tbody>
             </table>

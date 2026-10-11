@@ -27,7 +27,7 @@
             <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 <x-stat label="Modal awal" :value="'Rp '.number_format($current->opening_cash, 0, ',', '.')" />
                 <x-stat label="Rental" :value="'Rp '.number_format($summary['rental'], 0, ',', '.')" />
-                <x-stat label="F&amp;B" :value="'Rp '.number_format($summary['fnb'], 0, ',', '.')" />
+                <x-stat label="F&B" :value="'Rp '.number_format($summary['fnb'], 0, ',', '.')" />
                 <x-stat label="Tunai masuk" :value="'Rp '.number_format($summary['cash'], 0, ',', '.')" />
                 <x-stat label="QRIS masuk" :value="'Rp '.number_format($summary['qris'], 0, ',', '.')" />
             </div>
