@@ -29,6 +29,48 @@ Urutan ini **sekali saja**. Lewat satu langkah dan yang gagal biasanya bukan
 langkah itu, tapi langkah berikutnya — dengan pesan yang tidak menunjuk ke
 penyebabnya.
 
+**0. PHP 8.4+ — periksa dulu**
+
+```bash
+php -v
+```
+
+`composer.json` menulis `^8.3`, tapi lock-nya sebenarnya menuntut
+**≥ 8.4.1** (`symfony/http-foundation` v8.1.8). Di bawah itu, setiap perintah
+berhenti dengan:
+
+```
+Composer detected issues in your platform: Your Composer dependencies
+require a PHP version ">= 8.4.1". You are running 8.2.12.
+```
+
+**Jangan diselesaikan dengan `composer update`.** Itu menulis ulang
+`composer.lock` dan menurunkan paket agar muat di PHP lama — sementara mesin
+lain tetap di 8.4. Hasilnya dua lingkungan yang berbeda diam-diam, dan bug
+yang hanya muncul di satu sisi.
+
+Kalau mesin Anda memakai XAMPP, PHP bawaannya biasanya masih lama. Pasang
+PHP 8.4 **berdampingan** (mis. `C:\php84`) — jangan menimpa `C:\xampp\php`,
+karena Apache memuat PHP dari sana lewat jalur absolut dan semua proyek
+`htdocs` ikut berubah.
+
+Lalu panggil yang baru secara eksplisit di proyek ini:
+
+```bash
+/c/php84/php.exe artisan migrate
+/c/php84/php.exe /c/ProgramData/ComposerSetup/bin/composer.phar install
+```
+
+> `composer` di Windows hanyalah shim yang memanggil `php` dari PATH — jadi
+> ia **ikut** PHP yang salah kalau dipanggil begitu saja. Itu sebabnya
+> `composer.phar` dijalankan sebagai argumen PHP di atas.
+
+Supaya tidak mengetik path panjang terus, tambahkan ke `~/.bashrc`:
+
+```bash
+alias php84='/c/php84/php.exe'
+```
+
 **1. Dependensi**
 
 ```bash
