@@ -17,7 +17,8 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); klien API + penemuan server otomatis (DEC-041) sudah ada tapi **aplikasi masih memakai data palsu**; **225 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal + penemuan server otomatis (DEC-041); **47 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti**, dan agent **belum bicara ke Laravel** |
-| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **280 test LULUS** (64 unit + 216 feature, 967 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 31 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
+| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **306 test LULUS** (1.060 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata |
+| **Admin Web** | **BARU 11 Okt (DEC-042).** Dashboard Blade di `/admin` — design system lengkap dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. Masih **data contoh**; **belum ada login web** dan itu wajib sebelum data nyata. Spec: `docs/UI-UX-SPEC-WEB.md` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -2620,3 +2621,104 @@ besar untuk ditebak).
 **Next step** — layar login Flutter + simpan token, lalu alihkan `main.dart`
 dari `FakeBillingRepository` ke `ApiBillingRepository`. Setelah itu
 `ServerConnector().connect()` bisa dipanggil di `main()` sekaligus.
+
+---
+
+### 2026-10-11 — [Admin Web] Dashboard pertama; design system dari referensi user
+
+User memberi `backend/resources/uireference.html` — dashboard SaaS "Boltshift"
+— dan meminta design system-nya dipelajari *"agar nantinya konsisten baik
+warna atau shape nya, dan fontnya menggunakan Plus Jakarta Sans."*
+
+**Bentrokan yang ditemukan sebelum menulis kode**
+
+Referensi itu melanggar hampir seluruh daftar larangan di `UI-UX-SPEC.md` §1:
+gradasi, shadow pada kartu, ikon di dalam lingkaran berwarna, radius besar
+seragam, `backdrop-blur`. Dan larangan itu bukan sekadar dokumen —
+`theme_discipline_test.dart` membaca source `lib/` dan menolaknya.
+
+Ditanyakan ke user, bukan diputuskan sendiri. Pilihannya: **teal Amor dengan
+bentuk referensi**, dan **dashboard dengan data contoh dulu**. Dicatat sebagai
+**DEC-042**; tablet dan TV **tidak disentuh sama sekali**.
+
+**Temuan yang membuat pemetaan warnanya bersih**
+
+Teal Amor ternyata persis skala `cyan` Tailwind — `AppColors.primary #0E7490`
+= `cyan-700`, `primaryFixedDim #155E75` = `cyan-800`. Jadi setiap biru di
+referensi bisa diganti satu-per-satu tanpa menebak warna antara.
+
+**Kontras dihitung sebelum warna ditetapkan, bukan sesudah**
+
+15 pasangan dihitung dengan rumus WCAG. Satu gagal: `#8e9caa`, nada label
+redup yang dipakai referensi untuk SEMUA label kecilnya, hanya **2,81:1**.
+Dipertahankan sebagai `ink-faint` untuk dekorasi (gridline, tick sumbu), dan
+semua label yang dibaca manusia memakai `ink-soft #5b6472` (5,98:1).
+
+**Files changed**
+
+| | |
+|---|---|
+| CSS | `resources/css/app.css` — `@theme` Tailwind v4 penuh |
+| Layout | `resources/views/components/layouts/app.blade.php` |
+| Komponen | `card`, `metric`, `icon-chip`, `icon`, `badge`, `pill`, `status-pill`, `gauge`, `rupiah`, `sample-banner` |
+| Halaman | `resources/views/admin/dashboard.blade.php` |
+| Data | `app/Support/Web/DashboardSampleData.php` |
+| Rute | `routes/web.php` — `/admin` |
+| Build | `vite.config.js` — font Instrument Sans → Plus Jakarta Sans 400–800 |
+| Docs | `UI-UX-SPEC-WEB.md` (baru), `DECISION-LOG.md` DEC-042, `CLAUDE.md` urutan baca, `SYNC.md` |
+
+**DB changes** — tidak ada.
+**API/Events** — tidak ada. Tahap 0 tidak tersentuh.
+
+**Tests** — backend **306 lulus** (+23), 1.060 assertion.
+`WebDesignTokensTest` adalah padanan `theme_discipline_test.dart`: menolak
+kelas warna bawaan Tailwind di Blade, hex mentah, `@fonts` yang hilang, 17
+pasangan kontras, dan **web yang menyimpang warna dari Flutter** (test itu
+membaca `tokens.dart` langsung).
+
+Test-nya dibuktikan bisa gagal: `bg-blue-600` disisipkan sementara ke
+`badge.blade.php` → gagal menyebut kelasnya; dipulihkan → lulus. Test yang
+tidak pernah dibuktikan gagal tidak menjaga apa pun.
+
+**Tiga bug nyata yang ketangkap saat memverifikasi di browser**
+
+1. **Gauge tidak tergambar** — hanya dua ujung busur yang muncul. Referensi
+   menggambar lingkaran PENUH, memutarnya 180°, lalu memotong separuhnya
+   dengan container yang lebih pendek dari SVG-nya; begitu tingginya berbeda
+   sedikit, puncak busur ikut terpotong. `viewBox` dipaskan ke setengah
+   lingkaran.
+2. **Angka gauge menimpa blok di bawahnya** — teks absolut tidak punya tinggi
+   di tata letak. Dipindah ke aliran normal dengan margin atas negatif.
+3. **Font tidak termuat sama sekali** — `@vite` TIDAK menautkan CSS font;
+   berkas itu punya manifest sendiri dan hanya keluar lewat direktif
+   `@fonts`. Halaman tetap tampil wajar dengan font sistem, jadi ini nyaris
+   tidak terlihat. Sekarang dikunci test.
+
+Satu dugaan yang **salah** dan tidak jadi "diperbaiki": label sumbu terlihat
+terpotong di screenshot. Pengukuran DOM menunjukkan `scrollWidth` =
+`clientWidth` dan teksnya utuh — itu artefak kompresi pada skala 0,59×.
+Memperbaiki yang tidak rusak akan menambah lebar gutter tanpa alasan.
+
+**Manual test**
+
+```bash
+cd backend && npm install && npm run build
+php artisan serve
+```
+
+Buka `http://localhost:8000/admin`.
+
+**Known issues**
+
+- **Belum ada login web.** Sanctum adalah token API untuk tablet, bukan
+  session web. Aman selama halamannya masih data contoh — tidak ada data asli
+  yang bocor karena tidak ada yang dibaca — tapi **wajib ada sebelum query
+  nyatanya masuk**.
+- Nav "Sesi / F&B / Harga & Paket / Laporan" sengaja diredupkan dan tidak
+  bisa diklik. Tautan mati lebih membingungkan daripada tombol yang jelas
+  belum aktif.
+- Responsif ponsel belum diuji di perangkat; tata letaknya menyusut sampai
+  satu kolom tapi itu baru diperiksa lewat emulasi lebar.
+
+**Next step** — login web berbasis session, lalu ganti `DashboardSampleData`
+dengan query nyata. Urutannya tidak boleh dibalik.

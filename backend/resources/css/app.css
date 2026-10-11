@@ -3,7 +3,187 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
+/*
+ * Design tokens Admin Web — DEC-042.
+ *
+ * Bentuk, tata letak, dan polanya dari `resources/uireference.html`.
+ * Warnanya dari merek yang sudah dipakai tablet dan TV (DEC-016/017), supaya
+ * owner yang membuka web dan tablet berdampingan melihat satu produk.
+ *
+ * ## Aturan
+ *
+ * Blade TIDAK BOLEH menulis hex mentah maupun kelas warna bawaan Tailwind
+ * (`bg-blue-600`, `text-gray-400`). Semua lewat token di sini. Ditegakkan
+ * `tests/Unit/WebDesignTokensTest.php` — padanan `theme_discipline_test.dart`
+ * di sisi Flutter.
+ *
+ * Alasannya bukan kerapian. Di tema terang, selisih satu nada pada garis
+ * kartu langsung terlihat, dan warna yang tersebar di 40 file Blade tidak
+ * bisa diverifikasi kontrasnya.
+ */
+
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    /*
+     * Satu family saja — berbeda dari Flutter yang memakai tiga. Web tidak
+     * punya timer yang berdetak maupun layar 10-foot, jadi tidak ada tugas
+     * yang menuntut Space Grotesk atau JetBrains Mono.
+     *
+     * Di-self-host lewat plugin font `vite.config.js`, bukan CDN Google:
+     * admin ini dibuka dari jaringan lokal yang bisa tanpa internet
+     * (DEC-002), dan font yang gagal diunduh membuat seluruh tata letak
+     * bergeser.
+     */
+    --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* ── Lapisan ──────────────────────────────────────────────────────
+     *
+     * Tiga tingkat, persis seperti referensi: halaman paling gelap, shell
+     * sedikit lebih terang, kartu putih. Itu yang memisahkan bidang di sini —
+     * bukan shadow.
+     */
+    --color-canvas: #e5e9f0;
+    --color-shell: #f8fafc;
+    --color-card: #ffffff;
+
+    /* Bidang cekung di dalam kartu: input, tombol sekunder, blok metrik. */
+    --color-inset: #f1f3f7;
+
+    /* Track bar & gauge — dekorasi, tidak pernah berisi teks. */
+    --color-track: #e2e8f0;
+
+    /* ── Teks ─────────────────────────────────────────────────────────
+     *
+     * Rasio diukur di atas kartu putih dengan rumus WCAG, diverifikasi
+     * `WebDesignTokensTest`.
+     */
+    --color-ink: #15181d;      /* 17,8:1 — teks utama */
+    --color-ink-soft: #5b6472; /* 6,0:1  — label & teks sekunder */
+
+    /*
+     * ⚠️ 2,8:1 — DI BAWAH AA. DEKORASI SAJA.
+     *
+     * Referensi memakai `text-gray-400` untuk semua label kecilnya ("Total
+     * Sales", "Last month: 2345", angka sumbu). Nada itu tidak terbaca pada
+     * ukuran 11–12px. Dipertahankan hanya untuk yang tidak perlu dibaca:
+     * gridline, tick sumbu non-aktif, ikon dekoratif. Apa pun yang dibaca
+     * manusia memakai `ink-soft`.
+     */
+    --color-ink-faint: #8e9caa;
+
+    /* ── Garis ────────────────────────────────────────────────────────── */
+    --color-line: #e8ebef;      /* tepi kartu */
+    --color-line-soft: #f1f3f5; /* pemisah di dalam kartu */
+
+    /* ── Aksen: teal Amor ─────────────────────────────────────────────
+     *
+     * Nomornya mengikuti PERAN di referensi, bukan skala Tailwind:
+     * 600 = aksi utama, 700 = hover. Dengan begitu kelas referensi bisa
+     * diterjemahkan satu-per-satu (`bg-blue-600` → `bg-brand-600`) tanpa
+     * menebak.
+     *
+     * Nilainya memang skala `cyan` Tailwind — `primary #0E7490` di
+     * `tokens.dart` persis `cyan-700`, dan `primaryFixedDim #155E75` persis
+     * `cyan-800`. Jadi web dan tablet memakai warna yang sama benar, bukan
+     * yang mirip.
+     */
+    --color-brand-50: #ecfeff;
+    --color-brand-100: #cffafe;
+    --color-brand-500: #0891b2;
+    --color-brand-600: #0e7490; /* putih di atasnya 5,4:1 */
+    --color-brand-700: #155e75; /* putih di atasnya 7,3:1 */
+
+    /*
+     * Hitam-pekat referensi, bukan hitam murni. Dipakai chip ikon netral dan
+     * pill nav aktif.
+     */
+    --color-pitch: #181d27;
+
+    /* ── Status ───────────────────────────────────────────────────────
+     *
+     * Maknanya WAJIB sama dengan tablet dan TV (UI-UX-SPEC §1). Operator yang
+     * belajar "hijau = sedang bermain" di tablet tidak boleh menemukan arti
+     * lain di web.
+     *
+     * Aturan `color-not-only` tetap berlaku: status selalu warna + ikon/titik
+     * + teks, tidak pernah warna saja.
+     */
+    --color-playing: #047857;         /* bermain */
+    --color-playing-surface: #ecfdf5;
+    --color-warning: #b45309;         /* hampir habis, uang */
+    --color-warning-surface: #fffbeb;
+    --color-danger: #b91c1c;          /* habis, error */
+    --color-danger-surface: #fee2e2;
+    --color-awaiting: #4338ca;        /* menunggu bayar */
+    --color-awaiting-surface: #eef2ff;
+    --color-checkout: #7e22ce;        /* checkout */
+    --color-checkout-surface: #faf5ff;
+    --color-idle: #475569;            /* offline, maintenance, dibatalkan */
+    --color-idle-surface: #f1f5f9;
+
+    /* ── Radius ───────────────────────────────────────────────────────
+     *
+     * Jauh lebih membulat daripada tablet (4/6/10/12), dan itu disengaja:
+     * ini ciri paling menonjol dari referensi. Tetap BERBEDA per peran —
+     * satu radius untuk segalanya adalah yang membuat UI terlihat tidak
+     * dirancang.
+     */
+    --radius-shell: 32px;  /* bungkus terluar halaman */
+    --radius-card: 24px;   /* kartu */
+    --radius-block: 16px;  /* blok di dalam kartu, bar chart */
+    --radius-chip: 6px;    /* avatar huruf, ikon kecil */
+
+    /* ── Shadow ───────────────────────────────────────────────────────
+     *
+     * Nilainya dari referensi. Birunya diganti teal supaya glow tidak
+     * menabrak palet.
+     */
+    --shadow-card: 0 4px 20px -2px rgb(18 38 63 / 0.04);
+    --shadow-tooltip: 0 12px 30px -4px rgb(18 38 63 / 0.12);
+    --shadow-brand: 0 8px 20px -6px rgb(14 116 144 / 0.35);
+}
+
+/*
+ * Angka bertabulasi — WAJIB untuk uang.
+ *
+ * Tanpa ini `1` lebih sempit dari `8`, jadi kolom Total di tabel bergoyang
+ * kiri-kanan antar baris. Alasan yang sama dengan timer di tablet
+ * (UI-UX-SPEC §3), dan perbedaan yang paling cepat terlihat antara tampilan
+ * amatir dan profesional.
+ */
+@utility tabular {
+    font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Kolom aktif pada bar chart: gradasi teal + garis diagonal.
+ *
+ * Garis diagonalnya bukan hiasan. Pada bar chart, satu kolom yang hanya
+ * berbeda WARNA dari tujuh kolom abu akan hilang bagi yang tidak bisa
+ * membedakan warna — aturan `color-not-only` (UI-UX-SPEC §2) berlaku untuk
+ * grafik juga, bukan hanya badge. Teksturnya yang menandainya.
+ */
+@utility bar-active {
+    background: linear-gradient(180deg, var(--color-brand-500) 0%, var(--color-brand-600) 100%);
+    position: relative;
+    overflow: hidden;
+
+    &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: repeating-linear-gradient(
+            45deg,
+            rgb(255 255 255 / 0.22),
+            rgb(255 255 255 / 0.22) 5px,
+            transparent 5px,
+            transparent 10px
+        );
+    }
+}
+
+body {
+    background-color: var(--color-canvas);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
 }

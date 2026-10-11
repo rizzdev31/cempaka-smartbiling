@@ -1428,6 +1428,82 @@ sama.
 
 ---
 
+## DEC-042 — Admin Web dimulai lebih awal; bentuk dari referensi, warna dari merek
+**Tanggal:** 11 Okt 2026 · **Status:** APPROVED · **Mengubah urutan:** DEC-001 · **Melengkapi:** DEC-016, DEC-017
+
+User memberi `backend/resources/uireference.html` — dashboard SaaS "Boltshift"
+— dan meminta: *"pelajari design systemnya agar nantinya konsisten baik warna
+atau shape nya, dan fontnya menggunakan Plus Jakarta Sans."*
+
+### Dua hal yang diputuskan
+
+**1. Admin Web dikerjakan sekarang, bukan di Tahap 3.**
+
+DEC-001 menempatkan Laravel Admin Web di Tahap 3, setelah Flutter dan Kotlin.
+Urutan itu digeser atas permintaan user, yang menilai backend-nya sudah
+stabil dan ingin melihat tampilannya. Yang dikerjakan sejauh ini hanya
+**satu halaman dengan data contoh** — tidak ada endpoint baru, tidak ada
+migration, dan tidak ada yang berubah di Tahap 0.
+
+**2. Bentuk dari referensi, warna dari merek yang sudah ada.**
+
+Ditawarkan tiga pilihan; user memilih **teal Amor dengan bentuk referensi**.
+Alasannya langsung terasa: owner membuka web dan tablet berdampingan, dan dua
+warna merek yang berbeda akan terbaca seperti dua aplikasi.
+
+Ternyata pemetaannya bersih — teal Amor **persis skala `cyan` Tailwind**:
+`AppColors.primary #0E7490` = `cyan-700`, `primaryFixedDim #155E75` =
+`cyan-800`. Jadi biru referensi bisa diganti satu-per-satu tanpa menebak
+warna antara.
+
+### Kenapa web boleh melanggar larangan di UI-UX-SPEC
+
+`UI-UX-SPEC.md` §1 melarang gradasi, shadow pada kartu, ikon di dalam
+lingkaran berwarna, dan radius besar seragam. Referensi memakai keempatnya.
+
+Larangan itu **tidak dicabut**. Ia lahir dari tablet 10 inci yang penuh kartu
+station, tempat setiap hiasan mengambil ruang dari informasi, dipakai operator
+delapan jam sehari. Admin Web dibuka di layar lebar, beberapa menit sekali,
+oleh satu orang yang mencari angka — di sana satu kartu sorot justru memberi
+halaman titik masuk.
+
+Web karena itu punya spec sendiri: `docs/UI-UX-SPEC-WEB.md`. **Tablet dan TV
+tidak berubah sama sekali**, dan `theme_discipline_test.dart` tetap berlaku
+penuh di sana.
+
+### Yang tetap sama di ketiga permukaan
+
+| Aturan | Kenapa tidak boleh berbeda |
+|---|---|
+| Makna warna status | Operator yang belajar "hijau = bermain" di tablet tidak boleh menemukan arti lain di web |
+| `color-not-only` | Status selalu warna + ikon/titik + teks |
+| Teks kecil ≥ 4,5:1 | |
+| Angka bertabulasi untuk uang | Kolom nominal tidak boleh bergoyang antar baris |
+| Font di-self-host | Jaringan lokal bisa tanpa internet (DEC-002) |
+
+### Satu penyimpangan yang dicatat
+
+`ink-faint #8e9caa` — nada label redup referensi — hanya **2,8:1**, di bawah
+AA. Dipertahankan **hanya untuk dekorasi** (gridline, tick sumbu). Semua label
+yang dibaca manusia memakai `ink-soft #5b6472` (6,0:1). Ini penyimpangan dari
+tampilan referensi, dan disengaja: pada 11px, nada aslinya tidak terbaca.
+
+### Yang menegakkannya
+
+`backend/tests/Unit/WebDesignTokensTest.php` — padanan
+`theme_discipline_test.dart`. Menolak kelas warna bawaan Tailwind di Blade,
+hex mentah, `@fonts` yang hilang, dan **web yang menyimpang warna dari
+Flutter** (test itu membaca `tokens.dart` langsung).
+
+### Yang belum ada, dan mengikat langkah berikutnya
+
+**Login web belum ada.** Sanctum yang dipakai tablet adalah token API, bukan
+session web. Selama halaman masih memakai `DashboardSampleData` itu aman —
+tidak ada data asli yang bocor karena tidak ada yang dibaca. **Begitu query
+nyatanya masuk, login wajib lebih dulu.**
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**

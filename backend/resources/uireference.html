@@ -1,0 +1,462 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Boltshift - Sales Overview Dashboard</title>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Font Setup -->
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+            },
+            dashboard: {
+              bg: '#eef2f6',
+              card: '#ffffff',
+              muted: '#8e9caa',
+            }
+          },
+          boxShadow: {
+            card: '0 4px 20px -2px rgba(18, 38, 63, 0.04)',
+            tooltip: '0 12px 30px -4px rgba(18, 38, 63, 0.12)',
+          }
+        }
+      }
+    }
+  </script>
+<!-- Custom CSS for specialized patterns and charts -->
+<style data-purpose="custom-styling">
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #e5e9f0;
+    }
+    
+    /* Diagonal striped pattern for the active August bar */
+    .bg-striped-blue {
+      background: linear-gradient(180deg, #3b82f6 0%, #60a5fa 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .bg-striped-blue::after {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-image: repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.22),
+        rgba(255, 255, 255, 0.22) 5px,
+        transparent 5px,
+        transparent 10px
+      );
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 flex items-center justify-center">
+<!-- BEGIN: Main Dashboard Shell -->
+<div class="w-full max-w-[1240px] bg-[#f8fafc] rounded-[32px] p-6 md:p-8 shadow-2xl border border-white/60 mx-auto" data-purpose="dashboard-container">
+<!-- BEGIN: Top Navigation Bar -->
+<header class="flex items-center justify-between pb-6 border-b border-gray-100 mb-8" data-purpose="top-navigation">
+<!-- Brand Logo -->
+<div class="flex items-center space-x-3">
+<div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+<svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+<path d="M13 2L3 14h7v8l10-12h-7l0-8z"></path>
+</svg>
+</div>
+<span class="text-xl font-bold text-gray-900 tracking-tight">Boltshift</span>
+</div>
+<!-- Navigation Tabs -->
+<nav aria-label="Main Navigation" class="hidden md:flex items-center space-x-1">
+<a class="px-5 py-2 text-sm font-semibold rounded-full bg-black text-white shadow-sm transition-all" href="#">
+          Dashboard
+        </a>
+<a class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors" href="#">
+          Analytics
+        </a>
+<a class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors" href="#">
+          Analytics
+        </a>
+<a class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors" href="#">
+          Analytics
+        </a>
+<a class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors" href="#">
+          Analytics
+        </a>
+</nav>
+<!-- Right Header Actions (Notifications, Settings, Profile) -->
+<div class="flex items-center space-x-3">
+<!-- Notification Button -->
+<button aria-label="Notifications" class="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+<!-- Settings Button -->
+<button aria-label="Settings" class="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+<path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+<!-- Profile Avatar & Details -->
+<div class="flex items-center space-x-2 pl-2">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-gray-200">
+<img alt="oripio Studio Profile Avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuALXD2WsnWaEExPSLIx6LYfNdsr8q26S_zYf3re_AztbUUp796H-QOAUnch18eJiUS1RlHkyI_oYPMEpbNe-ZExOtCSrZvVwGkaVI03JfBlHVy_Fe4LWkXrbf6rcdKIcbdQ8cZRQAWnmYuzvQA2iKT1jI_6s0d4ZpjVAsaQezBGcV4fI9_zJfs1Rt-8riscAp6qzUifGwbVh_B4VJqeEOanuLsHnU-YNH8pqyRkOFGXClEM0ahAV6j3">
+</div>
+<div class="hidden lg:block text-left">
+<div class="text-xs font-bold text-gray-900 leading-tight">oripio Studio</div>
+<div class="text-[11px] text-gray-400 leading-tight">oripio@helo.mail</div>
+</div>
+</div>
+</div>
+</header>
+<!-- END: Top Navigation Bar -->
+<!-- BEGIN: Header Section (Title + Controls) -->
+<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4" data-purpose="header-section">
+<div>
+<h1 class="text-2xl font-extrabold text-gray-900 tracking-tight">Sales Overview</h1>
+<p class="text-xs text-gray-400 mt-1">Your current sales summary and activity</p>
+</div>
+<!-- Action Controls -->
+<div class="flex items-center space-x-3">
+<!-- Date Selector Dropdown -->
+<button class="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200/80 rounded-full hover:bg-gray-50 flex items-center space-x-2 shadow-sm transition-colors" type="button">
+<span class="">This Month</span>
+<svg class="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+<!-- Export Action -->
+<button class="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200/80 rounded-full hover:bg-gray-50 flex items-center space-x-2 shadow-sm transition-colors" type="button">
+<svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="">Export</span>
+</button>
+<!-- Filter Pill Button -->
+<button class="px-4 py-2 text-xs font-semibold text-white bg-blue-600 rounded-full hover:bg-blue-700 flex items-center space-x-2 shadow-md shadow-blue-500/25 transition-colors" type="button">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="">Filter</span>
+</button>
+</div>
+</div>
+<!-- END: Header Section -->
+<!-- BEGIN: Metric Summary Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8" data-purpose="metric-summary-cards">
+<!-- Metric Card 1: Total Sales (Blue Highlight) -->
+<div class="relative bg-gradient-to-br from-blue-600 via-blue-600 to-blue-700 rounded-3xl p-5 text-white shadow-lg shadow-blue-600/15 flex flex-col justify-between overflow-hidden">
+<div class="flex items-start justify-between">
+<span class="text-xs font-medium text-blue-100">Total Sales</span>
+<div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-blue-600 shadow-sm">
+<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+<path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"></path>
+</svg>
+</div>
+</div>
+<div class="mt-4">
+<div class="flex items-baseline space-x-2">
+<span class="text-3xl font-extrabold tracking-tight">2500</span>
+<span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-white/20 text-white backdrop-blur-sm">
+              ↑ 4.9%
+            </span>
+</div>
+<p class="text-[11px] text-blue-200 mt-2 font-medium">Last month: 2345</p>
+</div>
+</div>
+<!-- Metric Card 2: New Customer -->
+<div class="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<span class="text-xs font-medium text-gray-500">New Customer</span>
+<div class="w-10 h-10 rounded-full bg-[#181d27] flex items-center justify-center text-white">
+<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+<path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"></path>
+</svg>
+</div>
+</div>
+<div class="mt-4">
+<div class="flex items-baseline space-x-2">
+<span class="text-3xl font-extrabold text-gray-900 tracking-tight">110</span>
+<span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600">
+              ↑ 7.5%
+            </span>
+</div>
+<p class="text-[11px] text-gray-400 mt-2">Last month: 89</p>
+</div>
+</div>
+<!-- Metric Card 3: Return Products -->
+<div class="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<span class="text-xs font-medium text-gray-500">Return Products</span>
+<div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white">
+<svg class="w-4 h-4 fill-none stroke-current" stroke-width="2" viewBox="0 0 24 24">
+<path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</div>
+<div class="mt-4">
+<div class="flex items-baseline space-x-2">
+<span class="text-3xl font-extrabold text-gray-900 tracking-tight">72</span>
+<span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-pink-50 text-pink-500">
+              ↓ 6.0%
+            </span>
+</div>
+<p class="text-[11px] text-gray-400 mt-2">Last month: 60</p>
+</div>
+</div>
+<!-- Metric Card 4: Total Revenue -->
+<div class="bg-white rounded-3xl p-5 border border-gray-100 shadow-sm flex flex-col justify-between">
+<div class="flex items-start justify-between">
+<span class="text-xs font-medium text-gray-500">Total Revenue</span>
+<div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white">
+<span class="text-base font-bold">$</span>
+</div>
+</div>
+<div class="mt-4">
+<div class="flex items-baseline space-x-1">
+<span class="text-3xl font-extrabold text-gray-900 tracking-tight">$8,220.64</span>
+</div>
+<p class="text-[11px] text-gray-400 mt-2">Last month: <span class="text-gray-500">$620.00</span></p>
+</div>
+</div>
+</div>
+<!-- END: Metric Summary Cards -->
+<!-- BEGIN: Middle Charts Section -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8" data-purpose="charts-section">
+<!-- Left Column: Performance Overview Bar Chart -->
+<div class="lg:col-span-8 bg-white rounded-3xl p-6 border border-gray-100 shadow-sm relative flex flex-col justify-between" data-purpose="performance-overview-card">
+<!-- Performance Overview Header -->
+<div class="flex items-center justify-between mb-6">
+<h2 class="text-base font-bold text-gray-900">Performance Overview</h2>
+<button class="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-50 border border-gray-200/60 rounded-full hover:bg-gray-100 flex items-center space-x-1 transition-colors" type="button">
+<span class="">This Week</span>
+<svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</div>
+<!-- Chart Grid & Columns Area -->
+<div class="relative h-64 w-full flex flex-col justify-between pt-2">
+<!-- Background Grid lines with Y-Axis -->
+<div class="absolute inset-0 flex flex-col justify-between pointer-events-none pr-2">
+<!-- 40k -->
+<div class="flex items-center w-full">
+<span class="text-[11px] font-medium text-gray-400 w-8">40k</span>
+<div class="flex-1 border-b border-dashed border-gray-100 ml-2"></div>
+</div>
+<!-- 30k -->
+<div class="flex items-center w-full">
+<span class="text-[11px] font-medium text-gray-400 w-8">30k</span>
+<div class="flex-1 border-b border-dashed border-gray-100 ml-2"></div>
+</div>
+<!-- 20k -->
+<div class="flex items-center w-full">
+<span class="text-[11px] font-medium text-gray-400 w-8">20k</span>
+<div class="flex-1 border-b border-dashed border-gray-100 ml-2"></div>
+</div>
+<!-- 10k -->
+<div class="flex items-center w-full">
+<span class="text-[11px] font-medium text-gray-400 w-8">10k</span>
+<div class="flex-1 border-b border-dashed border-gray-100 ml-2"></div>
+</div>
+<!-- 0k -->
+<div class="flex items-center w-full">
+<span class="text-[11px] font-medium text-gray-400 w-8">0k</span>
+<div class="flex-1 border-b border-gray-100 ml-2"></div>
+</div>
+</div>
+<!-- Bar Columns Container -->
+<div class="relative z-10 h-[calc(100%-20px)] ml-10 flex items-end justify-between px-2">
+<!-- May -->
+<div class="flex flex-col items-center w-12 h-full justify-end">
+<div class="w-full bg-[#f1f3f7] rounded-2xl h-[80%] hover:bg-gray-200 transition-colors"></div>
+</div>
+<!-- Jun -->
+<div class="flex flex-col items-center w-12 h-full justify-end">
+<div class="w-full bg-[#f1f3f7] rounded-2xl h-[45%] hover:bg-gray-200 transition-colors"></div>
+</div>
+<!-- Jul -->
+<div class="flex flex-col items-center w-12 h-full justify-end">
+<div class="w-full bg-[#f1f3f7] rounded-2xl h-[40%] hover:bg-gray-200 transition-colors"></div>
+</div>
+<!-- Aug (Active Column with Tooltip) -->
+<div class="relative flex flex-col items-center w-12 h-full justify-end">
+<!-- Floating Tooltip Card -->
+<div class="absolute -top-6 -left-28 bg-white rounded-2xl p-3 shadow-tooltip border border-gray-100 w-36 z-20 pointer-events-none">
+<div class="text-[11px] font-bold text-gray-900 mb-1.5">August 2026</div>
+<div class="flex items-center justify-between text-[10px] text-gray-500 mb-1">
+<span class="flex items-center"><span class="w-1.5 h-1.5 rounded-full bg-gray-300 mr-1.5"></span>Total Sales</span>
+<span class="font-bold text-gray-800">440</span>
+</div>
+<div class="flex items-center justify-between text-[10px] text-gray-500">
+<span class="flex items-center"><span class="w-1.5 h-1.5 rounded-full bg-blue-600 mr-1.5"></span>Total Revenue</span>
+<span class="font-bold text-gray-800">$4.5k</span>
+</div>
+</div>
+<!-- Top Pin Dot -->
+<div class="w-2.5 h-2.5 rounded-full bg-white border-2 border-blue-600 absolute top-[45%] z-20"></div>
+<!-- Striped Active Bar -->
+<div class="w-full bg-striped-blue rounded-2xl h-[52%] shadow-md shadow-blue-500/20"></div>
+</div>
+<!-- Sep -->
+<div class="flex flex-col items-center w-12 h-full justify-end">
+<div class="w-full bg-[#f1f3f7] rounded-2xl h-[38%] hover:bg-gray-200 transition-colors"></div>
+</div>
+<!-- Oct -->
+<div class="flex flex-col items-center w-12 h-full justify-end">
+<div class="w-full bg-[#f1f3f7] rounded-2xl h-[55%] hover:bg-gray-200 transition-colors"></div>
+</div>
+<!-- Nov -->
+<div class="flex flex-col items-center w-12 h-full justify-end">
+<div class="w-full bg-[#f1f3f7] rounded-2xl h-[78%] hover:bg-gray-200 transition-colors"></div>
+</div>
+<!-- Dec -->
+<div class="flex flex-col items-center w-12 h-full justify-end">
+<div class="w-full bg-[#f1f3f7] rounded-2xl h-[42%] hover:bg-gray-200 transition-colors"></div>
+</div>
+</div>
+<!-- X-Axis Labels -->
+<div class="ml-10 flex justify-between px-2 pt-2 text-[11px] font-medium text-gray-400">
+<span class="w-12 text-center">May</span>
+<span class="w-12 text-center">Jun</span>
+<span class="w-12 text-center">Jul</span>
+<span class="w-12 text-center font-bold text-gray-800">Aug</span>
+<span class="w-12 text-center">Sep</span>
+<span class="w-12 text-center">Oct</span>
+<span class="w-12 text-center">Nov</span>
+<span class="w-12 text-center">Dec</span>
+</div>
+</div>
+</div>
+<!-- Right Column: Sales Overview Gauge Meter -->
+<div class="lg:col-span-4 bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between" data-purpose="sales-gauge-card">
+<!-- Header -->
+<div class="flex items-center justify-between mb-2">
+<h2 class="text-base font-bold text-gray-900">Sales Overview</h2>
+<button aria-label="More options" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:bg-gray-50 transition-colors" type="button">
+<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+<path d="M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"></path>
+</svg>
+</button>
+</div>
+<!-- Semi-Circular Radial Meter -->
+<div class="relative flex flex-col items-center justify-center my-3"><div class="relative w-64 h-36 flex items-end justify-center overflow-hidden"><svg class="w-60 h-60" viewBox="0 0 240 240"><defs><linearGradient id="gaugeGrad" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#bfdbfe"></stop><stop offset="40%" stop-color="#60a5fa"></stop><stop offset="80%" stop-color="#2563eb"></stop><stop offset="100%" stop-color="#1d4ed8"></stop></linearGradient></defs><g transform="rotate(-180 120 120)"><circle cx="120" cy="120" r="88" fill="none" stroke="#e2e8f0" stroke-width="16" stroke-linecap="round" stroke-dasharray="6 9" stroke-dashoffset="0"></circle><circle cx="120" cy="120" r="88" fill="none" stroke="url(#gaugeGrad)" stroke-width="16" stroke-linecap="round" stroke-dasharray="6 9" stroke-dashoffset="0" style="stroke-dasharray: 6 9; stroke-dashoffset: 0;" clip-path="url(#activeClip)"></circle></g><clipPath id="activeClip"><path d="M 0 120 A 120 120 0 0 1 205 60 L 120 120 Z"></path></clipPath></svg><div class="absolute bottom-2 flex flex-col items-center"><span class="text-3xl font-extrabold text-gray-900 tracking-tight">70.8%</span><span class="text-[11px] font-semibold text-gray-400 mt-0.5">Sales Growth</span></div></div></div>
+<!-- Gauge Bottom Split Metrics -->
+<div class="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-gray-50">
+<!-- Number of Sales -->
+<div class="bg-gray-50/70 rounded-2xl p-3">
+<span class="text-[11px] font-medium text-gray-400 block">Number of Sales</span>
+<div class="flex items-center space-x-1.5 mt-1">
+<span class="text-lg font-bold text-gray-900">2,343</span>
+<span class="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-500 text-white">
+                4.5% ↗
+              </span>
+</div>
+</div>
+<!-- Total Revenue -->
+<div class="bg-gray-50/70 rounded-2xl p-3">
+<span class="text-[11px] font-medium text-gray-400 block">Total Revenue</span>
+<div class="flex items-center space-x-1.5 mt-1">
+<span class="text-lg font-bold text-gray-900">$30.9k</span>
+<span class="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#181d27] text-white">
+                4.5% ↗
+              </span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- END: Middle Charts Section -->
+<!-- BEGIN: Recent Orders Section -->
+<div class="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm" data-purpose="recent-orders-container">
+<!-- Recent Orders Header with Search & Filter -->
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+<h2 class="text-base font-bold text-gray-900">Recent orders</h2>
+<div class="flex items-center space-x-3">
+<!-- Search Input -->
+<div class="relative">
+<span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</span>
+<input class="w-56 pl-9 pr-4 py-1.5 bg-gray-50/80 border border-transparent rounded-full text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-gray-200 transition-all" placeholder="Search products..." type="text">
+</div>
+<!-- Sort Dropdown -->
+<button class="px-3.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-50/80 rounded-full hover:bg-gray-100 flex items-center space-x-1.5 transition-colors" type="button">
+<svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="">Sort by</span>
+<svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</div>
+</div>
+<!-- Orders Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left text-xs" id="recent-orders-table">
+<thead>
+<tr class="text-gray-400 font-semibold border-b border-gray-100 pb-3">
+<th class="py-3 px-2 w-8" scope="col">
+<input class="rounded border-gray-300 text-blue-600 focus:ring-0 w-3.5 h-3.5" type="checkbox">
+</th>
+<th class="py-3 px-3 font-medium" scope="col">Product info</th>
+<th class="py-3 px-3 font-medium" scope="col">Order Id</th>
+<th class="py-3 px-3 font-medium" scope="col">Date</th>
+<th class="py-3 px-3 font-medium" scope="col">Customer</th>
+<th class="py-3 px-3 font-medium" scope="col">Category</th>
+<th class="py-3 px-3 font-medium" scope="col">Status</th>
+<th class="py-3 px-3 font-medium" scope="col">Items</th>
+<th class="py-3 px-3 font-medium" scope="col">Total</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-gray-50">
+<!-- Sample Table Row -->
+<tr class="hover:bg-gray-50/60 transition-colors">
+<td class="py-3 px-2">
+<input class="rounded border-gray-300 text-blue-600 focus:ring-0 w-3.5 h-3.5" type="checkbox">
+</td>
+<td class="py-3 px-3 font-semibold text-gray-900 flex items-center space-x-2">
+<div class="w-6 h-6 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[10px]">
+                  B
+                </div>
+<span class="">Bolt UI Kit Pro</span>
+</td>
+<td class="py-3 px-3 text-gray-500 font-medium">#ORD-8492</td>
+<td class="py-3 px-3 text-gray-500">Aug 24, 2026</td>
+<td class="py-3 px-3 text-gray-800 font-medium">Sarah Jenkins</td>
+<td class="py-3 px-3 text-gray-500">Templates</td>
+<td class="py-3 px-3">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-600">
+                  Completed
+                </span>
+</td>
+<td class="py-3 px-3 text-gray-500">1x</td>
+<td class="py-3 px-3 font-bold text-gray-900">$189.00</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- END: Recent Orders Section -->
+</div>
+<!-- END: Main Dashboard Shell -->
+
+
+</body></html>

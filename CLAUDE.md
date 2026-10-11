@@ -16,7 +16,8 @@
 | 3 | `docs/ROADMAP.md` | tahap mana yang sedang dikerjakan |
 | 4 | `docs/PROGRESS.md` | apa yang sudah/belum selesai, known issue |
 | 5 | `docs/PRD-V2.md` | detail requirement (WHAT/WHY) |
-| 6 | `docs/UI-UX-SPEC.md` | sebelum menyentuh UI apa pun |
+| 6 | `docs/UI-UX-SPEC.md` | sebelum menyentuh UI tablet / TV |
+| 7 | `docs/UI-UX-SPEC-WEB.md` | sebelum menyentuh Admin Web — spec terpisah (DEC-042) |
 
 Kalau ada bagian PRD yang ambigu atau bentrok → **stop di bagian itu, tanya keputusan.** Jangan berasumsi.
 
