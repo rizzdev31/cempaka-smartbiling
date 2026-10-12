@@ -4,6 +4,7 @@ namespace Tests\Feature\Web;
 
 use App\Enums\FnbOrderStatus;
 use App\Enums\UserRole;
+use App\Models\Customer;
 use App\Models\FnbOrder;
 use App\Models\Package;
 use App\Models\Shift;
@@ -298,6 +299,63 @@ class AdminActionsTest extends TestCase
         $this->actingAs($owner)
             ->post(route('admin.shifts.close', $shift), ['closing_cash' => 100_000])
             ->assertSessionHasErrors('closing_cash');
+    }
+
+    // ── Memperbaiki data customer (DEC-049) ───────────────────────────
+
+    public function test_memperbaiki_nama_customer_dari_web(): void
+    {
+        $customer = Customer::query()->create(['name' => 'Sti', 'phone' => '081200000009']);
+
+        $this->actingAs($this->owner())
+            ->patch(route('admin.customers.update', $customer), [
+                'name' => 'Siti',
+                'phone' => $customer->phone,
+                'note' => 'langganan malam',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertSame('Siti', $customer->fresh()->name);
+        $this->assertDatabaseHas('audit_logs', ['action' => AuditAction::CUSTOMER_UPDATED]);
+    }
+
+    public function test_form_ubah_customer_muncul_dari_parameter_edit(): void
+    {
+        /*
+         * Formnya dipilih lewat `?edit=<id>`, bukan JavaScript. Kalau
+         * parameter itu tidak lagi dibaca, tombol "Ubah" di tiap baris
+         * berubah jadi tautan yang tidak melakukan apa-apa — dan itu
+         * terlihat seperti halaman yang rusak, bukan fitur yang hilang.
+         */
+        $customer = Customer::query()->create(['name' => 'Siti Rahayu']);
+
+        $this->actingAs($this->owner())
+            ->get(route('admin.customers', ['edit' => $customer->id]))
+            ->assertOk()
+            ->assertSee('Perbaiki Data Customer')
+            ->assertSee('Siti Rahayu');
+    }
+
+    public function test_halaman_customer_tanpa_parameter_edit_tidak_menampilkan_form_ubah(): void
+    {
+        Customer::query()->create(['name' => 'Siti']);
+
+        $this->actingAs($this->owner())
+            ->get(route('admin.customers'))
+            ->assertOk()
+            ->assertDontSee('Perbaiki Data Customer');
+    }
+
+    public function test_setelah_disimpan_form_ubah_tertutup_sendiri(): void
+    {
+        // Form yang tetap terbuka setelah disimpan mengundang penyimpanan
+        // kedua yang tidak disengaja.
+        $customer = Customer::query()->create(['name' => 'Siti']);
+
+        $this->actingAs($this->owner())
+            ->patch(route('admin.customers.update', $customer), ['name' => 'Siti Rahayu'])
+            ->assertRedirect(route('admin.customers', ['q' => '']));
     }
 
     // ── Station & tipe konsol (DEC-048) ───────────────────────────────

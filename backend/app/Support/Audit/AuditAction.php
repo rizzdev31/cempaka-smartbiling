@@ -50,6 +50,9 @@ final class AuditAction
     /** DEC-027 — operator boleh mendaftarkan, tapi tidak boleh tidak terlacak. */
     public const CUSTOMER_CREATED = 'customer.created';
 
+    /** DEC-049 — nama salah ketik & nomor HP keliru bisa diperbaiki. */
+    public const CUSTOMER_UPDATED = 'customer.updated';
+
     public const MEMBERSHIP_CREATED = 'customer.membership.created';
 
     /*

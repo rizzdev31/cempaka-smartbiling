@@ -746,3 +746,38 @@ Station dan tipe konsol dipegang setiap sesi yang pernah berjalan di
 atasnya. Menghapusnya membuang dasar harga dari riwayat yang sudah dibayar.
 Yang pensiun: `status: "DISABLED"` untuk station, `is_active: false` untuk
 tipe.
+
+---
+
+## v1 · DRAFT 20 — 2026-10-12
+
+Data customer akhirnya bisa diperbaiki.
+
+**ADDED — API** · Flutter · Admin Web · **DEC-049**
+- `PATCH /customers/{id}` — `name`, `phone`, `note`. Izin `customer.create`
+  (sama dengan membuat), **tanpa** `Idempotency-Key`: ini bukan pembuatan
+  data baru.
+
+Semua field `sometimes`. `phone` tetap unik, tapi aturannya mengabaikan
+baris itu sendiri — mengirim nomor yang tidak diubah tidak boleh ditolak.
+
+**Saldo, membership, dan riwayat sesi tidak ikut berubah** saat nama atau
+nomor diubah. Semuanya menempel ke `customer_id`.
+
+**Kenapa izinnya bukan permission baru**
+
+Orang yang paling mungkin menyadari nama salah ketik adalah operator yang
+baru saja mengetiknya. Permission terpisah berarti dia harus mencari admin,
+dan salah ketiknya akan dibiarkan — yang persis keadaan sebelum ini.
+
+**Untuk Flutter:** layar member sekarang bisa punya tombol "perbaiki data".
+Tidak wajib, tapi ia menutup kasus nyata — nomor HP yang kurang satu angka
+membuat struk WA tidak pernah sampai, dan sebelum ini satu-satunya jalan
+keluar adalah membuat customer kedua.
+
+**Audit** · Admin Web
+- Action baru `customer.updated`, menyimpan nilai sebelum dan sesudah.
+- `customer.created` sekarang **juga** tercatat saat customer ditambahkan
+  dari Admin Web. Sebelumnya jalur web melewatkannya sepenuhnya — bukan
+  perubahan kontrak, tapi laporan audit sebelum tanggal ini tidak lengkap
+  untuk customer yang dibuat dari web.

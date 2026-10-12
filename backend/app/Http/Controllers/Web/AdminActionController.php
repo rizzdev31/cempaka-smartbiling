@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\StoreExpenseRequest;
 use App\Http\Requests\Api\V1\StoreFnbProductRequest;
 use App\Http\Requests\Api\V1\StoreStationRequest;
 use App\Http\Requests\Api\V1\StoreStationTypeRequest;
+use App\Http\Requests\Api\V1\UpdateCustomerRequest;
 use App\Http\Requests\Api\V1\UpdateStationRequest;
 use App\Http\Requests\Api\V1\UpdateStationTypeRequest;
 use App\Models\Customer;
@@ -17,6 +18,7 @@ use App\Models\Package;
 use App\Models\Shift;
 use App\Models\Station;
 use App\Models\StationType;
+use App\Services\CustomerService;
 use App\Services\FnbService;
 use App\Services\MasterDataService;
 use App\Services\MembershipService;
@@ -51,6 +53,7 @@ class AdminActionController
         private readonly FnbService $fnb,
         private readonly ShiftService $shifts,
         private readonly MembershipService $memberships,
+        private readonly CustomerService $customers,
     ) {}
 
     /**
@@ -245,11 +248,20 @@ class AdminActionController
             'phone.unique' => 'Nomor telepon ini sudah terdaftar atas nama lain.',
         ], ['name' => 'nama']);
 
-        $customer = Customer::query()->create([
+        /*
+         * Lewat Service, bukan `Customer::create()` langsung — DEC-049.
+         *
+         * Versi sebelumnya menulis sendiri, dan ikut melewatkan audit log
+         * yang dicatat jalur API. Akibatnya customer yang ditambahkan dari
+         * Admin Web tidak punya jejak siapa yang menambahkannya, dan itu
+         * tidak menimbulkan error apa pun — hanya pertanyaan yang tidak bisa
+         * dijawab berbulan-bulan kemudian.
+         */
+        $customer = $this->customers->create([
             'name' => $data['name'],
             'phone' => $data['phone'] ?? null,
             'note' => $data['note'] ?? null,
-        ]);
+        ], $request->user());
 
         if ($request->boolean('jadikan_member')) {
             $this->jalankan(
@@ -264,6 +276,26 @@ class AdminActionController
     }
 
     /** Jadikan member customer yang sudah ada. */
+    /**
+     * Perbaiki data customer — DEC-049.
+     *
+     * Setelah berhasil, kembali ke daftar TANPA `?edit=` supaya formnya
+     * tertutup sendiri. Form yang tetap terbuka setelah disimpan mengundang
+     * penyimpanan kedua yang tidak disengaja, dan di layar sempit
+     * membuatnya terlihat seolah belum tersimpan.
+     */
+    public function updateCustomer(UpdateCustomerRequest $request, Customer $customer): RedirectResponse
+    {
+        $this->jalankan(
+            fn () => $this->customers->update($customer, $request->validated(), $request->user()),
+            'name',
+        );
+
+        return redirect()
+            ->route('admin.customers', ['q' => $request->query('q', '')])
+            ->with('sukses', "Data {$customer->fresh()->name} diperbarui.");
+    }
+
     public function storeMembership(Request $request, Customer $customer): RedirectResponse
     {
         $this->jalankan(

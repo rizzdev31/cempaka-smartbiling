@@ -342,6 +342,20 @@ class AdminController
         return view('admin.customers', [
             'customers' => $customers,
             'q' => $q,
+
+            /*
+             * Customer yang sedang diperbaiki — DEC-049. Dipilih lewat
+             * `?edit=<id>`, bukan JavaScript.
+             *
+             * Form ubah di dalam sel tabel akan terjepit selebar kolomnya,
+             * dan di bawah 768px tabel ini berubah jadi kartu bertumpuk —
+             * panel mengambang di dalamnya tidak punya tempat. Satu form di
+             * atas daftar, diisi dari baris yang dipilih, bekerja sama di
+             * setiap lebar dan tanpa satu baris skrip pun.
+             */
+            'editing' => $request->filled('edit')
+                ? Customer::query()->find($request->string('edit')->toString())
+                : null,
             'saldo' => $customers->isEmpty() ? collect() : DB::table('customer_credits')
                 ->whereIn('customer_id', $customers->pluck('id'))
                 ->groupBy('customer_id')

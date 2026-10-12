@@ -3541,3 +3541,73 @@ di tablet baru ikut berubah setelah dimuat ulang).
 **Next step** — master data sisanya yang belum bisa diubah dari web: paket
 belum bisa dinonaktifkan per tipe secara massal, dan customer belum bisa
 diedit sama sekali (hanya ditambah).
+
+---
+
+## 12 Okt 2026 (lanjutan 2) — Data customer bisa diperbaiki (DEC-049)
+
+**Satu kalimat:** nama salah ketik tidak lagi permanen — dan jalur web
+akhirnya ikut tercatat di audit.
+
+### Dua hal, satu perbaikan
+
+**Yang diminta:** customer hanya bisa dibuat, tidak pernah bisa diubah.
+Nama salah ketik dan nomor HP yang kurang satu angka permanen, dan keduanya
+baru ketahuan saat struk gagal terkirim atau saat orangnya datang lagi dan
+tidak ditemukan di pencarian.
+
+**Yang ditemukan sambil mengerjakannya:**
+`AdminActionController::storeCustomer()` memanggil `Customer::create()`
+sendiri. Jalur API mencatat audit setelahnya; jalur web **tidak mencatat
+apa pun**. Customer yang ditambahkan dari Admin Web tidak punya jejak siapa
+yang menambahkannya — tanpa error, hanya pertanyaan yang tidak bisa dijawab
+berbulan-bulan kemudian.
+
+Keduanya ditutup `CustomerService`: satu pintu, satu jejak. Ini kejadian
+**kedua** di repo ini — yang pertama izin paket yang hilang di jalur web
+(DEC-044). Polanya sama persis: controller yang menulis ke model sendiri
+melewatkan sesuatu yang tidak kelihatan hilang.
+
+### Form ubah di atas daftar, bukan di dalam barisnya
+
+Panel di dalam sel tabel akan terjepit selebar kolomnya, dan di bawah 768px
+tabel ini berubah jadi kartu bertumpuk — panel mengambang di dalamnya tidak
+punya tempat.
+
+Yang dipakai: tombol "Ubah" tiap baris adalah tautan GET ke `?edit=<id>`,
+dan halaman menampilkan satu form di atas daftar. Tanpa JavaScript, bekerja
+sama di setiap lebar, tidak ada keadaan buka/tutup yang bisa macet. Setelah
+disimpan, redirect tanpa `?edit=` supaya formnya tertutup sendiri.
+
+### Satu test yang ada bukan karena kodenya meragukan
+
+`test_mengubah_nama_tidak_memindahkan_saldo_atau_membership`. Pertanyaannya
+pantas muncul — "kalau nama bisa diubah, saldonya ikut pindah tidak?" — dan
+pertanyaan seperti itu tidak boleh dijawab dengan tebakan oleh orang
+berikutnya yang membaca kode ini.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `CustomerService.php`, `UpdateCustomerRequest.php` |
+| Diubah | `Api/V1/CustomerController.php`, `Web/AdminActionController.php`, `Web/AdminController.php`, `AuditAction.php` (+`customer.updated`), `routes/{api,web}.php`, `admin/customers.blade.php` |
+
+**DB changes** — tidak ada.
+
+**API/Events** — `PATCH /customers/{id}` (tanpa `Idempotency-Key`: bukan
+pembuatan data). Audit action baru `customer.updated`. CHANGELOG DRAFT 20.
+
+**Tests** — **495 lulus** (+11), 1.541 assertion.
+
+**Manual test** — nama diubah lewat form di browser 1366px: tersimpan,
+`?edit=` hilang dari URL, form tertutup sendiri, membership SILVER dan
+saldo tidak berubah. Data dev dikembalikan setelahnya.
+
+**Known issues** — membership masih tidak bisa dinonaktifkan dari mana pun.
+Itu bukan sekadar UI: perlu keputusan apa yang terjadi pada saldo yang
+tersisa, dan belum pernah dibahas.
+
+**Next step** — tanya user soal nonaktif membership + saldo, atau lanjut ke
+sisa katalog kasir yang belum punya backend sama sekali (promo OD-032,
+pause, booking, top-up, poin).

@@ -369,6 +369,26 @@ keputusannya sudah lewat. Non-member selalu `0`.
 (opsional, unik), `note`. **Boleh dipanggil operator sejak DEC-027** — PRD §6
 yang membatasinya ke Admin/Owner sudah di-override.
 
+### `PATCH /customers/{id}` — DEC-049
+
+Izin `customer.create` (sama dengan membuat). Memperbaiki nama salah ketik
+dan nomor HP yang keliru; sebelum ini keduanya permanen.
+
+```json
+{ "name": "Siti Rahayu", "phone": "081234567890", "note": "langganan malam" }
+```
+
+Semua field `sometimes` — yang tidak dikirim tidak berubah. `phone` tetap
+unik, tapi aturannya **mengabaikan baris ini sendiri**: menyimpan form
+tanpa mengubah nomor tidak boleh ditolak dengan "nomor ini sudah terdaftar
+atas nama lain".
+
+**Saldo, membership, dan riwayat sesi tidak ikut berubah.** Semuanya
+menempel ke `customer_id`, bukan ke nama atau nomornya.
+
+Nilai lama tersimpan di audit (`customer.updated`), jadi perubahan yang
+keliru bisa dikembalikan.
+
 ### `POST /customers/{id}/membership`
 `Idempotency-Key` **wajib**. Permission `customer.create` (DEC-027).
 

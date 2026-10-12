@@ -129,6 +129,15 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
     Route::post('/customers', [CustomerController::class, 'store'])
         ->middleware(['can:customer.create', 'idempotency']);
 
+    /*
+     * Memperbaiki data customer — DEC-049. Izinnya `customer.create`, bukan
+     * permission baru: orang yang paling mungkin menyadari nama salah ketik
+     * adalah operator yang baru saja mengetiknya. Permission terpisah
+     * berarti dia harus mencari admin, dan salah ketiknya akan dibiarkan.
+     */
+    Route::patch('/customers/{customer}', [CustomerController::class, 'update'])
+        ->middleware('can:customer.create');
+
     Route::post('/customers/{customer}/membership', [CustomerController::class, 'storeMembership'])
         ->middleware(['can:customer.create', 'idempotency']);
 

@@ -123,6 +123,10 @@ Route::middleware(['auth', 'admin.web'])
         Route::post('/customer/{customer}/member', 'storeMembership')
             ->middleware('can:customer.create')->name('customers.membership');
 
+        // DEC-049 — izin disalin persis dari `PATCH /api/v1/customers/{id}`.
+        Route::patch('/customer/{customer}', 'updateCustomer')
+            ->middleware('can:customer.create')->name('customers.update');
+
         Route::post('/fnb/pesanan/{order}/status', 'updateFnbStatus')
             ->middleware('can:fnb.manage')->name('fnb-orders.status');
 

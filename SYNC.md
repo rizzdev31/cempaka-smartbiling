@@ -4,7 +4,7 @@
 > setiap ada perubahan backend. Kalau tidak ada nama Anda di bagian
 > "Perlu dikerjakan", tidak ada yang perlu Anda lakukan.
 
-**Terakhir diperbarui:** 12 Oktober 2026 · **Kontrak:** `v1 DRAFT 19`
+**Terakhir diperbarui:** 12 Oktober 2026 · **Kontrak:** `v1 DRAFT 20`
 
 > **Perubahan batas kerja (10 Okt):** user mencabut aturan "backend saja".
 > Claude sekarang juga menyentuh `operator-app/` dan `tv-agent/`.
@@ -16,8 +16,8 @@
 
 | Bagian | Status |
 |---|---|
-| **Backend (Laravel)** | Tahap 0 **SELESAI**. 39 endpoint, 9 event realtime, 484 test lulus |
-| **Admin Web (Blade)** | Login + **10 halaman** di `/admin`, data nyata, **penuh layar**, **menyegarkan otomatis**. Bisa ubah harga, stok, status F&B, shift, pengeluaran kasir, **dan menambah/mengubah station & tipe konsol** (DEC-044 s/d 048) |
+| **Backend (Laravel)** | Tahap 0 **SELESAI**. 40 endpoint, 9 event realtime, 495 test lulus |
+| **Admin Web (Blade)** | Login + **10 halaman** di `/admin`, data nyata, **penuh layar**, **menyegarkan otomatis**. Bisa ubah harga, stok, status F&B, shift, pengeluaran kasir, **dan menambah/mengubah station, tipe konsol, serta data customer** (DEC-044 s/d 049) |
 | **Operator app (Flutter)** | Layar sudah jadi. Klien API **sudah ada** (`lib/data/api/`) dan alamat server sudah bisa ditemukan otomatis, tapi aplikasi **masih memakai data palsu** — belum dialihkan dan belum ada login |
 | **TV Agent (Kotlin)** | Kiosk + timer jalan, dan sudah bisa **menemukan** server, tapi **belum bicara** dengan Laravel — masih menerima perintah langsung dari tablet |
 
@@ -54,7 +54,7 @@ paling penting:
 | `items[0]` selalu rental | Postpaid **tidak punya** baris rental sampai checkout |
 | Operator tidak boleh daftarkan member | **Boleh** — tombolnya harus muncul |
 
-Detail lengkap: `docs/contracts/CHANGELOG.md` DRAFT 6 s/d 19.
+Detail lengkap: `docs/contracts/CHANGELOG.md` DRAFT 6 s/d 20.
 
 ---
 
@@ -224,7 +224,9 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 | Tanggal | Isi |
 |---|---|
+| 12 Okt 2026 | **DEC-049** — data customer bisa diperbaiki (`PATCH /customers/{id}`). Jalur web yang selama ini menambah customer **tanpa audit** ikut diperbaiki |
 | 12 Okt 2026 | **DEC-048** — station & tipe konsol bisa ditambah/diubah dari web. Permission baru `station.manage`. Kode station terkunci selama TV terdaftar; tipe terkunci selama ada sesi berjalan |
+| 12 Okt 2026 | **DEC-047** — F&B walk-in (OD-030) **ditutup tanpa dibangun**. User: tidak bisa beli F&B saja, minimal sewa; teman yang ikut beli masuk ke sesi yang menyewa. `fnb_orders.session_id` tetap NOT NULL |
 | 12 Okt 2026 | **DEC-046** — pengeluaran kasir dicatat (`POST /shifts/{id}/expenses`), `expected_cash` dihitung server. Rekonsiliasi laci berhenti menuduh kasir jujur. Bug: seluruh halaman bisa digeser menyamping di laptop 1366px — titik tukar nav dipindah ke 2xl |
 | 11 Okt 2026 | **DEC-045** — Laravel punya SEMUA akses: mulai sesi, bayar, extend, swap, F&B, checkout, batal, buka shift |
 | 11 Okt 2026 | 7 celah "backend ada, UI belum" ditutup: detail sesi, struk WA, pembayaran, daftar member, tambah menu, HPP. `POST /fnb/products` baru (DRAFT 17) |

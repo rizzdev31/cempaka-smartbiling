@@ -4,21 +4,21 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Requests\Api\V1\StoreCustomerRequest;
 use App\Http\Requests\Api\V1\StoreMembershipRequest;
+use App\Http\Requests\Api\V1\UpdateCustomerRequest;
 use App\Models\Customer;
+use App\Services\CustomerService;
 use App\Services\MembershipService;
 use App\Support\Api\ApiResponse;
-use App\Support\Audit\AuditAction;
-use App\Support\Audit\AuditLogger;
 use App\Support\Presenters\CustomerPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-/** Customer & membership — API.md §6, DEC-027. */
+/** Customer & membership — API.md §6, DEC-027, DEC-049. */
 class CustomerController
 {
     public function __construct(
         private readonly MembershipService $memberships,
-        private readonly AuditLogger $audit,
+        private readonly CustomerService $customers,
     ) {}
 
     /** `GET /customers?q=<nama|telepon>` — kotak cari di layar Start Session. */
@@ -46,16 +46,29 @@ class CustomerController
 
     public function store(StoreCustomerRequest $request): JsonResponse
     {
-        $customer = Customer::query()->create($request->validated());
-
-        // DEC-027: operator boleh mendaftarkan, tapi tidak boleh tidak terlacak.
-        $this->audit->forUser($request->user(), AuditAction::CUSTOMER_CREATED, [
-            'subject_type' => 'customer',
-            'subject_id' => $customer->id,
-            'after' => ['name' => $customer->name, 'phone' => $customer->phone],
-        ]);
+        $customer = $this->customers->create($request->validated(), $request->user());
 
         return ApiResponse::data(CustomerPresenter::one($customer), 201);
+    }
+
+    /**
+     * `PATCH /customers/{customer}` — DEC-049.
+     *
+     * Nama salah ketik dan nomor HP yang kurang satu angka baru ketahuan
+     * saat struk gagal terkirim atau saat orangnya datang lagi dan tidak
+     * ditemukan di pencarian. Sebelum ini keduanya permanen.
+     *
+     * Izinnya `customer.create`, bukan permission baru: orang yang boleh
+     * membuat catatannya adalah orang yang paling mungkin menyadari
+     * salahnya — operator di kasir, sedetik setelah mengetik. Permission
+     * terpisah berarti dia harus mencari admin, dan dalam praktiknya
+     * salah ketik itu akan dibiarkan.
+     */
+    public function update(UpdateCustomerRequest $request, Customer $customer): JsonResponse
+    {
+        $customer = $this->customers->update($customer, $request->validated(), $request->user());
+
+        return ApiResponse::data(CustomerPresenter::one($customer->fresh('membership')));
     }
 
     /** `POST /customers/{id}/membership` — DEC-027, DEC-029. */

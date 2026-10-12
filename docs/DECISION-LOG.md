@@ -1880,6 +1880,62 @@ lagi, dan kode pendaftaran yang tertinggal di layar adalah kode yang bisa
 dipakai orang lain.
 
 ---
+## DEC-049 — Data customer bisa diperbaiki, dan jalur web akhirnya ikut tercatat
+**Tanggal:** 12 Okt 2026 · **Status:** APPROVED
+
+Bagian dari permintaan yang sama dengan DEC-048: *"ingat buat semua datanya
+bisa di edit di halaman laravelnya dan tersimpan nantinya."*
+
+### Yang hilang
+
+Customer hanya bisa **dibuat**, tidak pernah bisa diubah. Nama salah ketik
+dan nomor HP yang kurang satu angka permanen — dan keduanya baru ketahuan
+saat struk gagal terkirim ke WhatsApp, atau saat orangnya datang lagi dan
+tidak ditemukan di pencarian.
+
+### Lubang kedua, yang ditemukan sambil mengerjakannya
+
+`AdminActionController::storeCustomer()` memanggil `Customer::create()`
+sendiri. Jalur API mencatat audit setelahnya; **jalur web tidak mencatat
+apa pun**. Customer yang ditambahkan dari Admin Web tidak punya jejak siapa
+yang menambahkannya, dan itu tidak menimbulkan error — hanya pertanyaan
+yang tidak bisa dijawab berbulan-bulan kemudian.
+
+Diperbaiki dengan `CustomerService`: satu pintu, satu jejak. Dua pintu yang
+menulis sendiri-sendiri selalu berakhir dengan salah satunya lupa — ini
+kejadian keduanya di repo ini.
+
+### Izinnya `customer.create`, bukan permission baru
+
+Orang yang paling mungkin menyadari nama salah ketik adalah operator yang
+baru saja mengetiknya, sedetik setelahnya. Permission terpisah berarti dia
+harus mencari admin — dan dalam praktiknya salah ketiknya akan dibiarkan,
+yang persis keadaan sebelum keputusan ini.
+
+Namanya memang jadi kurang pas (`customer.create` yang juga mengizinkan
+update). Mengganti namanya berarti perubahan kontrak di
+`data.user.permissions` untuk keuntungan kosmetik.
+
+### Yang TIDAK ikut berubah saat nama diubah
+
+Saldo, membership, dan riwayat sesi. Semuanya menempel ke `customer_id`,
+bukan ke nama atau nomornya. Ada test khusus untuk ini — bukan karena
+kodenya meragukan, tapi karena pertanyaannya pantas muncul dan tidak boleh
+dijawab dengan tebakan.
+
+### Form ubah di atas daftar, bukan di dalam barisnya
+
+Panel di dalam sel tabel akan terjepit selebar kolomnya, dan di bawah 768px
+tabel ini berubah jadi kartu bertumpuk (`table-stacked`) — panel mengambang
+di dalamnya tidak punya tempat.
+
+Yang dipakai: tombol "Ubah" tiap baris adalah **tautan GET** ke
+`?edit=<id>`, dan halaman menampilkan satu form di atas daftar. Tanpa
+JavaScript, bekerja sama di setiap lebar, dan tidak ada keadaan buka/tutup
+yang bisa macet. Setelah disimpan, redirect tanpa `?edit=` supaya formnya
+tertutup sendiri.
+
+---
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**

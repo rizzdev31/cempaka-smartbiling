@@ -15,11 +15,58 @@
         </x-slot:actions>
     </x-page-header>
 
+    {{-- ── Perbaiki data customer — DEC-049 ────────────────────────
+         Muncul menggantikan form tambah saat ada `?edit=`. Dua form
+         sekaligus di satu halaman membuat orang mengisi yang salah. --}}
+    @if ($editing)
+        <x-card id="ubah" class="mb-4 border-brand-600" padding="p-4 sm:p-6">
+            <div class="flex items-start justify-between gap-3 flex-wrap mb-4">
+                <div>
+                    <h2 class="text-base font-bold text-ink">Perbaiki Data Customer</h2>
+                    <p class="text-xs text-ink-soft mt-0.5">
+                        Mengubah nama atau nomor <span class="font-semibold text-ink">tidak</span>
+                        memindahkan saldo, membership, atau riwayat sesi — semuanya menempel ke
+                        catatan ini, bukan ke namanya.
+                    </p>
+                </div>
+                <a href="{{ route('admin.customers', ['q' => $q]) }}"
+                   class="px-3 py-1.5 text-[11px] font-semibold rounded-full text-ink-soft bg-inset
+                          hover:bg-line-soft transition-colors shrink-0">
+                    Batal
+                </a>
+            </div>
+
+            <form method="POST" action="{{ route('admin.customers.update', ['customer' => $editing, 'q' => $q]) }}"
+                  class="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3 items-end">
+                @csrf
+                @method('PATCH')
+
+                <x-field name="name" label="Nama" :value="$editing->name" required />
+                <x-field name="phone" label="No. HP (opsional)" :value="$editing->phone"
+                         placeholder="0812-3456-7890" />
+                <x-field name="note" label="Catatan (opsional)" :value="$editing->note" />
+
+                <button type="submit"
+                        class="px-4 py-2 text-xs font-semibold rounded-full text-card bg-brand-600
+                               hover:bg-brand-700 shadow-brand transition-colors">
+                    Simpan perubahan
+                </button>
+            </form>
+
+            <p class="text-[11px] text-ink-soft mt-3">
+                Nilai lamanya tercatat di
+                <a href="{{ route('admin.audit', ['action' => 'customer.updated']) }}"
+                   class="font-semibold text-brand-600 hover:underline">Audit → customer.updated</a>,
+                jadi perubahan yang keliru masih bisa dikembalikan.
+            </p>
+        </x-card>
+    @endif
+
     {{-- ── Daftar customer baru ────────────────────────────────────
          Operator juga bisa dari tablet (DEC-027). Yang di sini untuk kasus
          lain: member yang mendaftar lewat telepon, atau yang datanya
          telanjur ditulis di kertas. --}}
-    <x-card class="mb-4" padding="p-4 sm:p-6">
+    <x-card class="mb-4 {{ $editing ? 'opacity-60' : '' }}" padding="p-4 sm:p-6">
         <h2 class="text-base font-bold text-ink mb-4">Tambah Customer</h2>
 
         <form method="POST" action="{{ route('admin.customers.store') }}"
@@ -82,16 +129,27 @@
                                 --}}
                                 <x-rupiah :value="$saldo[$c->id] ?? 0" />
                             </td>
-                            <td data-label="Aksi" class="py-3 px-3 md:text-right">
-                                @unless ($c->membership?->is_active)
-                                    <form method="POST" action="{{ route('admin.customers.membership', $c) }}">
-                                        @csrf
-                                        <button type="submit"
-                                                class="px-3 py-1.5 text-[11px] font-semibold rounded-full text-card bg-brand-600 hover:bg-brand-700 transition-colors">
-                                            Jadikan member
-                                        </button>
-                                    </form>
-                                @endunless
+                            <td data-label="Aksi" class="py-3 px-3">
+                                <div class="flex items-center gap-2 md:justify-end flex-wrap">
+                                    {{-- Tautan GET, bukan panel: form ubahnya
+                                         ada di atas daftar supaya tidak
+                                         terjepit selebar kolom ini (DEC-049). --}}
+                                    <a href="{{ route('admin.customers', ['q' => $q, 'edit' => $c->id]) }}#ubah"
+                                       class="px-3 py-1.5 text-[11px] font-semibold rounded-full
+                                              text-ink-soft bg-inset hover:bg-line-soft transition-colors">
+                                        Ubah
+                                    </a>
+
+                                    @unless ($c->membership?->is_active)
+                                        <form method="POST" action="{{ route('admin.customers.membership', $c) }}">
+                                            @csrf
+                                            <button type="submit"
+                                                    class="px-3 py-1.5 text-[11px] font-semibold rounded-full text-card bg-brand-600 hover:bg-brand-700 transition-colors">
+                                                Jadikan member
+                                            </button>
+                                        </form>
+                                    @endunless
+                                </div>
                             </td>
                         </tr>
                     @empty
