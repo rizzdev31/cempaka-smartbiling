@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Enums\StationStatus;
 use App\Events\MasterDataUpdated;
 use App\Exceptions\ApiException;
 use App\Models\FnbProduct;
 use App\Models\Package;
+use App\Models\Station;
 use App\Models\StationType;
 use App\Models\User;
 use App\Support\Api\ErrorCode;
@@ -174,6 +176,246 @@ class MasterDataService
         MasterDataUpdated::dispatch('fnb_product', 'updated', $product->id);
 
         return $product->fresh();
+    }
+
+    /*
+     |--------------------------------------------------------------------
+     | Station & tipe konsol — DEC-048 (menutup OD-028)
+     |--------------------------------------------------------------------
+     |
+     | Yang membedakan bagian ini dari paket dan menu: station bukan angka,
+     | ia barang fisik yang sedang dipakai orang. Hampir semua aturan di
+     | bawah ada karena mengubah master data station saat ada yang sedang
+     | bermain merusak sesuatu yang tidak menimbulkan error.
+     */
+
+    public function createStation(array $input, User $actor): Station
+    {
+        /*
+         * Membuat station = OWNER.
+         *
+         * Bukan karena harganya — station tidak punya harga. Karena station
+         * baru lahir dengan `enrollment_code`, dan kode itulah yang
+         * membuat sebuah TV bisa bergabung ke sistem. Siapa pun yang bisa
+         * membuat station bisa membuat kode pendaftaran sebanyak yang dia
+         * mau.
+         */
+        if (! $actor->role->canManagePricing()) {
+            throw ApiException::forbidden('Hanya owner yang boleh menambah station.');
+        }
+
+        $this->pastikanTipeAda($input['station_type_id'] ?? null);
+
+        $station = DB::transaction(function () use ($input, $actor) {
+            $station = Station::query()->create($input + [
+                'status' => StationStatus::ACTIVE->value,
+                'enrollment_code' => Station::generateEnrollmentCode(),
+            ]);
+
+            $this->audit->forUser($actor, AuditAction::STATION_CREATED, [
+                'subject_type' => 'station',
+                'subject_id' => $station->id,
+                'after' => $this->snapshotStation($station),
+            ]);
+
+            return $station;
+        });
+
+        MasterDataUpdated::dispatch('station', 'created', $station->id);
+
+        return $station->fresh('stationType');
+    }
+
+    public function updateStation(Station $station, array $input, User $actor): Station
+    {
+        /*
+         * Dua kelompok field dengan aturan berbeda.
+         *
+         * `status`, `name`, `sort_order` → admin boleh. "PS3 nomor 4 rusak"
+         * kejadian harian, dan menguncinya untuk owner berarti station rusak
+         * tetap ditawarkan ke customer sampai owner sempat membukanya.
+         *
+         * `code`, `station_type_id` → owner saja. Keduanya identitas unit
+         * yang membawa tarif, bukan keadaannya hari ini.
+         */
+        foreach (['code', 'station_type_id'] as $field) {
+            if (array_key_exists($field, $input)
+                && (string) $input[$field] !== (string) $station->getAttribute($field)
+                && ! $actor->role->canManagePricing()) {
+                throw ApiException::forbidden(
+                    $field === 'code'
+                        ? 'Hanya owner yang boleh mengubah kode station.'
+                        : 'Hanya owner yang boleh mengubah tipe konsol station.',
+                );
+            }
+        }
+
+        $this->pastikanTipeAda($input['station_type_id'] ?? null);
+
+        $sesiBerjalan = $station->currentSession();
+
+        /*
+         * Kode station adalah nama channel realtime (`private-station.{code}`)
+         * dan satu-satunya hal yang menghubungkan TV terdaftar dengan
+         * station-nya. TV yang sudah berlangganan channel lama tidak akan
+         * error saat kodenya berubah — ia hanya diam selamanya, sampai ada
+         * yang menyadari layarnya tidak pernah berganti.
+         */
+        if (array_key_exists('code', $input)
+            && $input['code'] !== $station->code
+            && $station->device()->exists()) {
+            throw ApiException::conflict(
+                ErrorCode::STATION_HAS_DEVICE,
+                'Kode station tidak bisa diubah selama TV-nya masih terdaftar — TV akan berhenti menerima perintah tanpa pesan error apa pun.',
+            );
+        }
+
+        /*
+         * Tipe konsol menentukan paket mana yang sah untuk station ini
+         * (DEC-019) dan ke mana sesi boleh dipindahkan (DEC-021). Mengubahnya
+         * saat ada yang bermain membuat sesi berjalan menunjuk ke tipe yang
+         * bukan dasar harganya.
+         */
+        if (array_key_exists('station_type_id', $input)
+            && (string) $input['station_type_id'] !== (string) $station->station_type_id
+            && $sesiBerjalan !== null) {
+            throw ApiException::conflict(
+                ErrorCode::STATION_HAS_ACTIVE_SESSION,
+                'Tipe konsol tidak bisa diubah selama masih ada sesi berjalan di station ini.',
+            );
+        }
+
+        $station = DB::transaction(function () use ($station, $input, $actor) {
+            $sebelum = $this->snapshotStation($station);
+
+            $station->fill($input)->save();
+
+            $this->audit->forUser($actor, AuditAction::STATION_UPDATED, [
+                'subject_type' => 'station',
+                'subject_id' => $station->id,
+                'before' => $sebelum,
+                'after' => $this->snapshotStation($station->fresh()),
+            ]);
+
+            return $station;
+        });
+
+        MasterDataUpdated::dispatch('station', 'updated', $station->id);
+
+        return $station->fresh('stationType');
+    }
+
+    public function createStationType(array $input, User $actor): StationType
+    {
+        // Tipe konsol adalah PEMBAWA TARIF (DEC-019): paket menempel ke sini.
+        // Membuatnya berarti membuka tempat untuk daftar harga baru.
+        if (! $actor->role->canManagePricing()) {
+            throw ApiException::forbidden('Hanya owner yang boleh menambah tipe konsol — tipe adalah pembawa tarif.');
+        }
+
+        $type = DB::transaction(function () use ($input, $actor) {
+            $type = StationType::query()->create($input + ['is_active' => true]);
+
+            $this->audit->forUser($actor, AuditAction::STATION_TYPE_CREATED, [
+                'subject_type' => 'station_type',
+                'subject_id' => $type->id,
+                'after' => $this->snapshotStationType($type),
+            ]);
+
+            return $type;
+        });
+
+        MasterDataUpdated::dispatch('station_type', 'created', $type->id);
+
+        return $type;
+    }
+
+    public function updateStationType(StationType $type, array $input, User $actor): StationType
+    {
+        if (! $actor->role->canManagePricing()) {
+            throw ApiException::forbidden('Hanya owner yang boleh mengubah tipe konsol.');
+        }
+
+        /*
+         * Menonaktifkan tipe yang masih dipakai station aktif akan
+         * menyembunyikan seluruh paketnya dari layar Start Session —
+         * station-nya tetap terlihat kosong dan bisa diklik, lalu tidak ada
+         * satu pun paket yang bisa dipilih. Kasir akan mengira sistemnya
+         * rusak.
+         */
+        $menonaktifkan = array_key_exists('is_active', $input) && ! $input['is_active'] && $type->is_active;
+
+        if ($menonaktifkan) {
+            $terpakai = $type->stations()->where('status', StationStatus::ACTIVE->value)->count();
+
+            if ($terpakai > 0) {
+                throw ApiException::conflict(
+                    ErrorCode::STATION_NOT_AVAILABLE,
+                    "Tipe ini masih dipakai {$terpakai} station aktif. Pindahkan atau nonaktifkan station-nya dulu.",
+                );
+            }
+        }
+
+        $type = DB::transaction(function () use ($type, $input, $actor) {
+            $sebelum = $this->snapshotStationType($type);
+
+            $type->fill($input)->save();
+
+            $this->audit->forUser($actor, AuditAction::STATION_TYPE_UPDATED, [
+                'subject_type' => 'station_type',
+                'subject_id' => $type->id,
+                'before' => $sebelum,
+                'after' => $this->snapshotStationType($type->fresh()),
+            ]);
+
+            return $type;
+        });
+
+        MasterDataUpdated::dispatch('station_type', 'updated', $type->id);
+
+        return $type->fresh();
+    }
+
+    /**
+     * Tipe konsol boleh kosong (station baru dipasang, konsolnya belum
+     * datang), tapi kalau diisi harus ada. ID yang tidak dikenal akan
+     * tersimpan sebagai relasi menggantung tanpa error apa pun.
+     */
+    private function pastikanTipeAda(?string $id): void
+    {
+        if ($id === null || $id === '') {
+            return;
+        }
+
+        if (! StationType::query()->whereKey($id)->exists()) {
+            throw ApiException::unprocessable(
+                ErrorCode::VALIDATION_FAILED,
+                'Tipe konsol tidak ditemukan.',
+                ['station_type_id' => 'Tipe konsol tidak dikenal.'],
+            );
+        }
+    }
+
+    private function snapshotStation(Station $station): array
+    {
+        return [
+            'code' => $station->code,
+            'name' => $station->name,
+            'station_type_id' => $station->station_type_id,
+            'status' => $station->status instanceof StationStatus
+                ? $station->status->value
+                : (string) $station->status,
+            'sort_order' => (int) $station->sort_order,
+        ];
+    }
+
+    private function snapshotStationType(StationType $type): array
+    {
+        return [
+            'name' => $type->name,
+            'sort_order' => (int) $type->sort_order,
+            'is_active' => (bool) $type->is_active,
+        ];
     }
 
     private function snapshotPackage(Package $package): array

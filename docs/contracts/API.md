@@ -247,6 +247,65 @@ sebelum ada token apa pun.
 }
 ```
 
+### `POST /stations` · `PATCH /stations/{id}` — DEC-048
+
+Route butuh `station.manage` (**permission baru**, admin ke atas). Service
+memisahkan lebih jauh:
+
+| Field | Siapa |
+|---|---|
+| `status`, `name`, `sort_order` | admin ke atas — "PS3 nomor 4 rusak" kejadian harian |
+| `code`, `station_type_id`, dan **membuat station baru** | **owner saja** |
+
+```json
+{ "code": "ST07", "name": "PS5 Ruang VIP", "station_type_id": "uuid", "sort_order": 7 }
+```
+
+- `code` hanya `[A-Za-z0-9_-]`. **Tidak boleh ada titik**: ia dipakai sebagai
+  nama channel realtime (`private-station.{code}`), dan titik adalah pemisah
+  segmen di sana. Kode bertitik menghasilkan channel yang tidak pernah bisa
+  dilanggani — tanpa error.
+- `station_type_id` boleh `null`: station bisa dipasang sebelum konsolnya datang.
+- Station baru otomatis punya `enrollment_code` sendiri. Tidak ada endpoint
+  terpisah untuk membuatnya.
+- `POST` butuh `Idempotency-Key`.
+
+Dua penolakan yang penting diketahui client:
+
+| Kondisi | Error |
+|---|---|
+| Ubah `code` saat TV masih terdaftar | `409 STATION_HAS_DEVICE` — TV berlangganan channel kode lama; kalau diubah ia diam selamanya tanpa error |
+| Ubah `station_type_id` saat ada sesi berjalan | `409 STATION_HAS_ACTIVE_SESSION` — sesi berjalan akan menunjuk tarif yang bukan dasar harganya |
+
+`name` tetap boleh diubah walaupun TV sudah terdaftar. Yang berbahaya
+kodenya, bukan namanya.
+
+**Tidak ada `DELETE`.** Station dipegang setiap sesi yang pernah berjalan di
+atasnya; menghapusnya membuang dasar harga dari riwayat yang sudah dibayar.
+Station yang pensiun: `status: "DISABLED"`.
+
+### `GET /station-types` · `POST /station-types` · `PATCH /station-types/{id}` — DEC-048
+
+Tipe konsol adalah **pembawa tarif** (DEC-019) — paket menempel ke sini.
+Seluruhnya **owner saja**.
+
+```json
+{ "data": [ { "id": "uuid", "name": "PS5 Pro", "sort_order": 1,
+              "is_active": true, "station_count": 3 } ] }
+```
+
+- `name` teks bebas: "PS5 Pro", "VIP Room", "Simulator Balap". Enum akan
+  memaksa rilis aplikasi baru setiap kali pemilik membeli jenis mesin lain.
+- Namanya unik **tanpa memperhatikan besar-kecil huruf**. "PS5" dan "ps5"
+  sebagai dua tipe akan memecah daftar harga jadi dua.
+- `station_count` dipakai layar pengaturan untuk memberi tahu akibat
+  menonaktifkan tipe **sebelum** tombolnya ditekan.
+- `only_active` default `true`.
+- Menonaktifkan tipe yang masih dipakai station **aktif** → `409
+  STATION_NOT_AVAILABLE`. Kalau dibolehkan, station-nya tetap terlihat kosong
+  dan bisa diklik, lalu tidak ada satu pun paket yang bisa dipilih.
+- **Tidak ada `DELETE`.**
+
 ### `POST /packages` · `PATCH /packages/{id}` *(owner saja)*
 
 DEC-020 — hanya owner. `POST` butuh `Idempotency-Key`.

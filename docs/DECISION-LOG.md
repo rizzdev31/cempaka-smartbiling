@@ -1667,7 +1667,7 @@ seseorang mengisi kas akhir akan menghapus ketikannya.
 | Kas (tutup shift) | ✅ |
 | **Pengeluaran** | ✅ **DEC-046** — tabel `cash_expenses`, ikut hitungan laci |
 | **Promo** | ❌ belum ada di backend sama sekali |
-| Ubah station & tipe konsol | ❌ **OD-028** |
+| Ubah station & tipe konsol | ✅ **DEC-048** — tambah station, ubah nama/kode/tipe/status, tambah tipe konsol |
 | HPP produk | ❌ `UpdateFnbProductRequest` belum menerimanya |
 
 ---
@@ -1775,6 +1775,111 @@ Menyatukan keduanya akan membuat laporan laba terlihat ada padahal
 komponennya belum lengkap.
 
 ---
+## DEC-047 — Tidak ada F&B tanpa sesi. OD-030 ditutup tanpa dibangun
+**Tanggal:** 12 Okt 2026 · **Status:** APPROVED · **Menutup:** OD-030
+
+User, ditanya langsung bagaimana bentuk penjualan F&B walk-in:
+
+> *"tidak bisa beli fnb saja. minimal ya sewa. kecuali dia bersama temannya
+> yang sewa tapi dianya yang beli fnb. atau berkelompok ya boleh boleh saja."*
+
+### Keputusannya
+
+**F&B selalu menempel ke sesi rental.** Tidak ada order berdiri sendiri,
+tidak ada sesi tanpa station. `POST /sessions/{session}/fnb/orders` yang
+sudah ada memang bentuk yang benar — bukan keterbatasan yang perlu ditambal.
+
+Kasus "temannya yang beli" sudah tertangani tanpa kode baru: order menempel
+ke **sesi**, bukan ke orang. Siapa pun dalam satu rombongan yang membayar,
+pesanannya masuk ke sesi yang menyewa meja itu.
+
+### Kenapa ini dicatat, bukan sekadar dihapus dari daftar
+
+OD-030 ditulis sebagai lubang kas: "pembeli yang cuma beli rokok tidak bisa
+dilayani sama sekali — uangnya tidak tercatat di mana pun". Analisis itu
+benar secara teknis dan **salah secara bisnis**: di AMOR memang tidak ada
+pembeli seperti itu. Warung rokok bukan model usahanya.
+
+Tanpa catatan ini, analisis yang sama akan muncul lagi enam bulan lagi,
+lengkap dengan desain tabelnya.
+
+### Yang ikut gugur
+
+- `fnb_orders.session_id` **tetap NOT NULL**. Jangan dilonggarkan.
+- Pembayaran tetap punya satu induk: sesi. Tidak ada cabang kedua.
+- `shift.summary.fnb` tetap dihitung dari item pada sesi milik shift itu —
+  tidak ada sumber F&B lain yang perlu dijumlahkan.
+
+---
+## DEC-048 — Station & tipe konsol bisa ditambah dan diubah dari web
+**Tanggal:** 12 Okt 2026 · **Status:** APPROVED · **Menutup:** OD-028
+
+User: *"aku mau kamu buat untuk edit di owner ini lebih flexsibel atau bisa
+custom sesuai hati. kayak tambah ps. nah ini bisa custome namanya,
+tipenya, dll. begitu juga berlaku ke semua halnya."*
+
+### Siapa boleh apa (jawaban OD-028)
+
+Dua tingkat, bukan satu. Permission baru `station.manage` dipegang **admin
+ke atas**; yang lebih dalam ditegakkan Service.
+
+| Tindakan | Siapa | Kenapa |
+|---|---|---|
+| Ubah `status` (Aktif / Perbaikan / Nonaktif) | admin | "PS3 nomor 4 rusak" kejadian harian. Dikunci untuk owner = station rusak tetap ditawarkan ke customer sampai owner sempat membuka laptopnya |
+| Ubah `name`, `sort_order` | admin | label, bukan identitas |
+| **Buat station baru** | **owner** | station lahir dengan `enrollment_code`; siapa pun yang bisa membuat station bisa membuat kode pendaftaran TV sebanyak yang dia mau |
+| **Ubah `code`** | **owner** | kode = alamat channel realtime |
+| **Ubah tipe konsol station** | **owner** | tipe = pembawa tarif (DEC-019) |
+| **Tipe konsol: buat / ubah / nonaktifkan** | **owner** | membuat tipe berarti membuka tempat untuk daftar harga baru |
+
+Polanya sama dengan menu F&B: `can:` di route, lalu Service memisahkan per
+field. Route yang dikunci owner sepenuhnya akan membuat admin menunggu
+hanya untuk menandai satu station rusak.
+
+### Tiga kunci yang mencegah kerusakan diam
+
+Ketiganya ada karena akibatnya **tidak menimbulkan error**:
+
+1. **Kode terkunci selama TV terdaftar.** TV berlangganan
+   `private-station.{code}` saat boot. Kode yang berubah membuatnya diam
+   selamanya — tidak ada error, tidak ada yang tahu sampai seseorang
+   menyadari layarnya tidak pernah berganti. → `409 STATION_HAS_DEVICE`.
+2. **Tipe terkunci selama ada sesi berjalan.** Tipe menentukan paket mana
+   yang sah (DEC-019) dan ke mana sesi boleh dipindahkan (DEC-021).
+   Menukarnya saat ada yang bermain membuat sesi berjalan menunjuk tarif
+   yang bukan dasar harganya. → `409 STATION_HAS_ACTIVE_SESSION`.
+3. **Tipe tidak bisa dinonaktifkan selagi dipakai station aktif.** Kalau
+   boleh, station-nya tetap terlihat kosong dan bisa diklik, lalu tidak ada
+   satu pun paket yang bisa dipilih. Kasir akan mengira sistemnya rusak.
+
+Yang DIBOLEHKAN, dan sengaja: mengubah `name` station yang TV-nya sudah
+terdaftar. Yang berbahaya kodenya, bukan namanya — mengunci keduanya
+membuat station yang sudah dipasang TV tidak bisa dirapikan sama sekali.
+
+### Kode station tidak boleh mengandung titik
+
+`private-station.{code}` memakai titik sebagai pemisah segmen. "ST.07"
+menghasilkan channel yang tidak pernah bisa dilanggani siapa pun — tanpa
+error. Validasinya `^[A-Za-z0-9_-]+$`.
+
+### Tidak ada hapus, hanya nonaktif
+
+Station dipegang setiap sesi yang pernah berjalan di atasnya; tipe dipegang
+paket, station, dan sesi. Menghapusnya berarti membuang dasar harga dari
+riwayat yang **sudah dibayar** — dan riwayat itu adalah catatan uangnya.
+
+Station yang tidak dipakai lagi: status `DISABLED`, hilang dari kasir,
+riwayatnya utuh.
+
+### Kode pendaftaran TV ditampilkan di kartu station
+
+Hanya selama belum ada TV yang memakainya. Sebelum ini kodenya cuma ada di
+database — station yang baru dibuat tidak punya cara dipasangkan ke TV sama
+sekali. Setelah TV terdaftar kodenya hilang dari layar: tidak ada gunanya
+lagi, dan kode pendaftaran yang tertinggal di layar adalah kode yang bisa
+dipakai orang lain.
+
+---
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
@@ -1782,7 +1887,7 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | ID | Pertanyaan | Kenapa penting | Blokir tahap |
 |---|---|---|---|
 | ~~OD-029~~ | ~~Pengeluaran kasir (petty cash) belum ada tabelnya~~ | **DIPUTUSKAN → DEC-046** (tabel `cash_expenses`, menempel ke shift, keterangan wajib, tidak bisa dihapus, ikut `expectedCash()`) | — |
-| **OD-030 🔴** | **Penjualan F&B tanpa sesi (walk-in).** Endpoint F&B sekarang `POST /sessions/{session}/fnb/orders` — WAJIB menempel ke sesi rental. Perlu: order berdiri sendiri, atau sesi "tanpa station"? Bagaimana masuk ke `shift.summary`? | Pembeli yang cuma beli rokok atau minuman dingin **tidak bisa dilayani sama sekali** — uangnya tidak tercatat di mana pun, dan itu lubang kas yang sama besarnya. Diprioritaskan user 11 Okt | Sebelum dipakai untuk uang nyata |
+| ~~OD-030~~ | ~~Penjualan F&B tanpa sesi (walk-in)~~ | **DIPUTUSKAN → DEC-047** — tidak ada. F&B selalu menempel ke sesi; teman yang ikut beli masuk ke sesi yang menyewa. Tidak ada yang perlu dibangun | — |
 | **OD-033** | **Siapa boleh mengubah HPP?** Untuk sekarang dikunci **owner**, sama seperti harga jual. HPP bukan angka yang dibayar customer, jadi secara teknis ia bisa saja cukup `fnb.manage` — tapi ia menentukan margin di setiap laporan laba | Dipilih yang lebih ketat dulu: melonggarkan nanti jauh lebih murah daripada menarik kembali akses yang terlanjur diberikan. Kalau owner sering tidak ada saat belanja, aturannya perlu dilonggarkan | Saat laporan laba dipakai |
 | **OD-032** | **Promo / diskon** — user menyebutnya sebagai hal yang diatur dari Laravel (DEC-044), tapi backend **tidak punya apa pun**: tidak ada tabel promo, tidak ada endpoint diskon. `SessionItemType::DISCOUNT` ada tapi hanya diisi otomatis oleh potongan saldo member. Perlu: bentuk promonya apa (potongan rupiah? persen? paket gratis F&B?), siapa yang boleh memberi, dan apakah berlaku otomatis atau dipilih kasir | Disebut user 11 Okt sebagai kebutuhan, tapi belum pernah dirinci. Tanpa bentuknya, tidak ada yang bisa dibangun | Sebelum promo pertama dijalankan |
 | **OD-031** | **Kendali TV manual dari kasir** — lock/unlock darurat, kirim teks ke layar ("pesanan diantar", "sisa 5 menit"), broadcast semua TV, power on/off. Sekarang TV hanya bereaksi **otomatis** pada status sesi; kasir tidak bisa memerintah apa pun | Butuh event/perintah baru di `private-station.{code}` dan dukungan di Kotlin. Power on/off butuh CEC atau relay IoT — keputusan perangkat keras, bukan hanya software. Diprioritaskan user 11 Okt | Tahap 2 |
@@ -1790,7 +1895,7 @@ Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 | **OD-025** | **Harga berdasarkan waktu** — jam pagi, happy hour, jam malam. User: "nanti ada aplikasi minta... jadi kita custom harganya kalau lagi sepi." Paket 3 jam PS3 20.000 / PS4 25.000 di catatan adalah harga jam sepi, jadi sudah ada contoh nyatanya | Muncul dari DEC-036. Butuh jadwal tarif per tipe konsol, dan keputusan apa yang terjadi kalau sesi melewati pergantian jadwal | Tahap 3B |
 | **OD-026** | **Durasi paket "free 2 minuman"** (PS3 40.000, PS4 50.000). Harganya sudah pasti, jamnya belum disebut | Muncul dari DEC-036. Tanpa durasi, paketnya tidak bisa dimasukkan ke sistem sama sekali | Saat paket F&B dibuat |
 | **OD-027** | Kode pendaftaran TV **tidak kedaluwarsa dan bisa dipakai berulang** (DEC-038). Perlu sekali pakai + masa berlaku, atau cukup begini? | Risikonya kecil di WiFi lokal: butuh akses jaringan, station harus belum dipegang TV lain, dan tokennya cuma bisa heartbeat. Perlu ditinjau ulang saat pindah VPS | Tahap 3A |
-| **OD-028** | Siapa yang boleh mengubah **station** (nama, status MAINTENANCE) dan **tipe konsol**? Keduanya bukan harga, jadi aturan owner-only DEC-020 tidak otomatis berlaku | Muncul dari DEC-040. Menandai station rusak adalah kejadian operasional harian — kalau dikunci untuk owner, station rusak tetap tampil bisa dipakai | Tahap 3B |
+| ~~OD-028~~ | ~~Siapa yang boleh mengubah station dan tipe konsol?~~ | **DIPUTUSKAN → DEC-048** — permission baru `station.manage` (admin ke atas) untuk status/nama; membuat station, mengubah kode & tipe, dan seluruh tipe konsol tetap owner | — |
 | **OD-002 🔴** | **Jadi lebih mendesak sejak DEC-034** — Postpaid tidak lagi punya batas waktu, jadi kerugian kalau customer kabur tidak terbatas. Deposit? batas maksimum? catat identitas? — deposit? batas maksimum open tab? catat identitas? | PRD §12 memperbolehkan Postpaid tapi tidak punya mitigasi kerugian. | Tahap 1 |
 | ~~OD-003~~ | ~~Extend pricing & extend setelah EXPIRED~~ | **DIPUTUSKAN → DEC-007** | — |
 | ~~OD-004~~ | ~~Perilaku warning di TV~~ | **DIPUTUSKAN → DEC-030** (overlay kecil di kanan atas). Bunyi & bisa-ditutup belum, default: tanpa suara, tidak bisa ditutup | — |

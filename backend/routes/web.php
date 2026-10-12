@@ -99,6 +99,24 @@ Route::middleware(['auth', 'admin.web'])
         Route::post('/fnb/produk', 'storeFnbProduct')
             ->middleware('can:pricing.manage')->name('fnb-products.store');
 
+        /*
+         * Station & tipe konsol — DEC-048. Izin disalin persis dari
+         * `routes/api.php`: `station.manage` di route (admin ke atas), lalu
+         * Service yang menolak membuat station, mengubah kodenya, atau
+         * mengubah tipenya kalau pemanggilnya bukan owner.
+         */
+        Route::post('/station', 'storeStation')
+            ->middleware('can:station.manage')->name('stations.store');
+
+        Route::patch('/station/{station}', 'updateStation')
+            ->middleware('can:station.manage')->name('stations.update');
+
+        Route::post('/tipe-konsol', 'storeStationType')
+            ->middleware('can:station.manage')->name('station-types.store');
+
+        Route::patch('/tipe-konsol/{type}', 'updateStationType')
+            ->middleware('can:station.manage')->name('station-types.update');
+
         Route::post('/customer', 'storeCustomer')
             ->middleware('can:customer.create')->name('customers.store');
 

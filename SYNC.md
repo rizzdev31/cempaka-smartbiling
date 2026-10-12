@@ -4,7 +4,7 @@
 > setiap ada perubahan backend. Kalau tidak ada nama Anda di bagian
 > "Perlu dikerjakan", tidak ada yang perlu Anda lakukan.
 
-**Terakhir diperbarui:** 12 Oktober 2026 · **Kontrak:** `v1 DRAFT 18`
+**Terakhir diperbarui:** 12 Oktober 2026 · **Kontrak:** `v1 DRAFT 19`
 
 > **Perubahan batas kerja (10 Okt):** user mencabut aturan "backend saja".
 > Claude sekarang juga menyentuh `operator-app/` dan `tv-agent/`.
@@ -16,8 +16,8 @@
 
 | Bagian | Status |
 |---|---|
-| **Backend (Laravel)** | Tahap 0 **SELESAI**. 34 endpoint, 9 event realtime, 450 test lulus |
-| **Admin Web (Blade)** | Login + **10 halaman** di `/admin`, data nyata, **penuh layar**, **menyegarkan otomatis**. Bisa ubah harga, stok, status F&B, buka/tutup shift, **catat pengeluaran kasir** (DEC-044/045/046) |
+| **Backend (Laravel)** | Tahap 0 **SELESAI**. 39 endpoint, 9 event realtime, 484 test lulus |
+| **Admin Web (Blade)** | Login + **10 halaman** di `/admin`, data nyata, **penuh layar**, **menyegarkan otomatis**. Bisa ubah harga, stok, status F&B, shift, pengeluaran kasir, **dan menambah/mengubah station & tipe konsol** (DEC-044 s/d 048) |
 | **Operator app (Flutter)** | Layar sudah jadi. Klien API **sudah ada** (`lib/data/api/`) dan alamat server sudah bisa ditemukan otomatis, tapi aplikasi **masih memakai data palsu** — belum dialihkan dan belum ada login |
 | **TV Agent (Kotlin)** | Kiosk + timer jalan, dan sudah bisa **menemukan** server, tapi **belum bicara** dengan Laravel — masih menerima perintah langsung dari tablet |
 
@@ -33,7 +33,7 @@
 | 2 | **Alihkan `main.dart`** dari `FakeBillingRepository` ke `ApiBillingRepository` | Satu baris, tapi sampai itu dilakukan aplikasi tetap memakai data palsu |
 | 3 | Panggil `ServerConnector().connect()` saat `main()` | Kodenya sudah ada tapi **belum dipanggil otomatis** — sekarang baru jalan kalau tombolnya ditekan |
 | 4 | Klien Reverb + reconnect | Tablet tidak tahu apa pun yang terjadi di tablet/TV lain |
-| 5 | Dengarkan `master.updated` → muat ulang `GET /packages` | Harga yang diubah owner tidak akan terlihat |
+| 5 | Dengarkan `master.updated` → muat ulang daftarnya. `resource` sekarang bisa `package`, `fnb_product`, `station`, `station_type` (DEC-048) — **abaikan** nilai yang tidak dikenal, jangan error | Harga, menu, dan station yang diubah owner tidak akan terlihat di tablet sampai aplikasinya dimuat ulang |
 | 6 | **Pakai `expected_cash` dari server** di layar tutup shift — jangan menjumlahkan `opening_cash + cash` sendiri | **DEC-046.** Rumusnya sekarang `modal + tunai − pengeluaran`. Tablet yang menjumlahkan sendiri akan menampilkan angka yang berbeda dari yang dipakai server saat `close()`, dan kasir yang menyetor sesuai layar justru tercatat punya selisih |
 | 7 | Layar **catat pengeluaran** (`POST /shifts/{id}/expenses`) | Yang memegang laci adalah kasir di tablet. Sekarang satu-satunya pintunya ada di Admin Web — artinya kasir harus memanggil owner hanya untuk mencatat Rp 20.000 beli galon |
 
@@ -54,7 +54,7 @@ paling penting:
 | `items[0]` selalu rental | Postpaid **tidak punya** baris rental sampai checkout |
 | Operator tidak boleh daftarkan member | **Boleh** — tombolnya harus muncul |
 
-Detail lengkap: `docs/contracts/CHANGELOG.md` DRAFT 6 s/d 16.
+Detail lengkap: `docs/contracts/CHANGELOG.md` DRAFT 6 s/d 19.
 
 ---
 
@@ -216,7 +216,6 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 - Paket yang sudah termasuk F&B (DEC-037) — menunggu durasi paket minuman
 - Harga per jam sepi / happy hour (OD-025)
-- Ubah station & tipe konsol (OD-028)
 - Booking, payment gateway, laporan — semuanya Tahap 3
 
 ---
@@ -225,6 +224,7 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 | Tanggal | Isi |
 |---|---|
+| 12 Okt 2026 | **DEC-048** — station & tipe konsol bisa ditambah/diubah dari web. Permission baru `station.manage`. Kode station terkunci selama TV terdaftar; tipe terkunci selama ada sesi berjalan |
 | 12 Okt 2026 | **DEC-046** — pengeluaran kasir dicatat (`POST /shifts/{id}/expenses`), `expected_cash` dihitung server. Rekonsiliasi laci berhenti menuduh kasir jujur. Bug: seluruh halaman bisa digeser menyamping di laptop 1366px — titik tukar nav dipindah ke 2xl |
 | 11 Okt 2026 | **DEC-045** — Laravel punya SEMUA akses: mulai sesi, bayar, extend, swap, F&B, checkout, batal, buka shift |
 | 11 Okt 2026 | 7 celah "backend ada, UI belum" ditutup: detail sesi, struk WA, pembayaran, daftar member, tambah menu, HPP. `POST /fnb/products` baru (DRAFT 17) |

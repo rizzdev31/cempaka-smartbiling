@@ -6,11 +6,17 @@ use App\Enums\FnbOrderStatus;
 use App\Exceptions\ApiException;
 use App\Http\Requests\Api\V1\StoreExpenseRequest;
 use App\Http\Requests\Api\V1\StoreFnbProductRequest;
+use App\Http\Requests\Api\V1\StoreStationRequest;
+use App\Http\Requests\Api\V1\StoreStationTypeRequest;
+use App\Http\Requests\Api\V1\UpdateStationRequest;
+use App\Http\Requests\Api\V1\UpdateStationTypeRequest;
 use App\Models\Customer;
 use App\Models\FnbOrder;
 use App\Models\FnbProduct;
 use App\Models\Package;
 use App\Models\Shift;
+use App\Models\Station;
+use App\Models\StationType;
 use App\Services\FnbService;
 use App\Services\MasterDataService;
 use App\Services\MembershipService;
@@ -105,6 +111,67 @@ class AdminActionController
         $package = $this->jalankan(fn () => $this->masterData->createPackage($data, $request->user()), 'price');
 
         return back()->with('sukses', "Paket “{$package->name}” ditambahkan.");
+    }
+
+    /*
+     |--------------------------------------------------------------------
+     | Station & tipe konsol — DEC-048
+     |--------------------------------------------------------------------
+     |
+     | Validasinya memakai FormRequest yang SAMA dengan API, bukan aturan
+     | yang diketik ulang. Aturan `code` tanpa titik ada karena kode station
+     | adalah nama channel realtime; aturan yang disalin akan melunak di
+     | salah satu pintu tanpa ada yang menyadarinya.
+     */
+
+    public function storeStation(StoreStationRequest $request): RedirectResponse
+    {
+        $station = $this->jalankan(
+            fn () => $this->masterData->createStation($request->validated(), $request->user()),
+            'code',
+        );
+
+        return back()->with(
+            'sukses',
+            "Station {$station->code} ditambahkan. Kode pendaftaran TV-nya: {$station->enrollment_code}",
+        );
+    }
+
+    public function updateStation(UpdateStationRequest $request, Station $station): RedirectResponse
+    {
+        $this->jalankan(
+            fn () => $this->masterData->updateStation($station, $request->validated(), $request->user()),
+            'code',
+        );
+
+        return back()->with('sukses', "Station {$station->fresh()->code} diperbarui.");
+    }
+
+    public function storeStationType(StoreStationTypeRequest $request): RedirectResponse
+    {
+        $type = $this->jalankan(
+            fn () => $this->masterData->createStationType($request->validated(), $request->user()),
+            'name',
+        );
+
+        return back()->with('sukses', "Tipe konsol “{$type->name}” ditambahkan. Buat paketnya di Harga & Paket.");
+    }
+
+    public function updateStationType(UpdateStationTypeRequest $request, StationType $type): RedirectResponse
+    {
+        /*
+         * Checkbox yang tidak dicentang tidak dikirim browser, jadi
+         * `is_active` harus dibaca eksplisit — kalau tidak, menonaktifkan
+         * tipe mustahil dan tombolnya terlihat rusak.
+         */
+        $data = $request->validated() + ['is_active' => $request->boolean('is_active')];
+
+        $this->jalankan(
+            fn () => $this->masterData->updateStationType($type, $data, $request->user()),
+            'name',
+        );
+
+        return back()->with('sukses', "Tipe konsol “{$type->fresh()->name}” diperbarui.");
     }
 
     public function updateFnbProduct(Request $request, FnbProduct $product): RedirectResponse

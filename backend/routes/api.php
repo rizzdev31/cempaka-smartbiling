@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\SessionPaymentController;
 use App\Http\Controllers\Api\V1\SessionSwapController;
 use App\Http\Controllers\Api\V1\ShiftController;
 use App\Http\Controllers\Api\V1\StationController;
+use App\Http\Controllers\Api\V1\StationTypeController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -144,6 +145,31 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
 
     Route::get('/packages', [PackageController::class, 'index'])
         ->middleware('can:package.read');
+
+    Route::get('/station-types', [StationTypeController::class, 'index'])
+        ->middleware('can:station.read');
+
+    /*
+     * Station & tipe konsol bisa ditambah dan diubah — DEC-048 (OD-028).
+     *
+     * Route-nya `can:station.manage` (admin ke atas), lalu SERVICE yang
+     * memisahkan lebih jauh: membuat station, mengubah `code`, dan mengubah
+     * tipe konsolnya butuh owner. Dipisah begitu karena menandai station
+     * rusak adalah kejadian harian, sedangkan mengubah identitasnya tidak.
+     *
+     * Tipe konsol sepenuhnya owner: ia pembawa tarif (DEC-019).
+     */
+    Route::post('/stations', [StationController::class, 'store'])
+        ->middleware(['can:station.manage', 'idempotency']);
+
+    Route::patch('/stations/{station}', [StationController::class, 'update'])
+        ->middleware('can:station.manage');
+
+    Route::post('/station-types', [StationTypeController::class, 'store'])
+        ->middleware(['can:station.manage', 'idempotency']);
+
+    Route::patch('/station-types/{type}', [StationTypeController::class, 'update'])
+        ->middleware('can:station.manage');
 
     /*
      * Mengubah tarif — owner saja (DEC-020). Setiap perubahan memicu

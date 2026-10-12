@@ -61,6 +61,15 @@ final class AuditAction
 
     public const PACKAGE_UPDATED = 'package.updated';
 
+    /** DEC-048 — station & tipe konsol bisa ditambah/diubah dari web. */
+    public const STATION_CREATED = 'station.created';
+
+    public const STATION_UPDATED = 'station.updated';
+
+    public const STATION_TYPE_CREATED = 'station_type.created';
+
+    public const STATION_TYPE_UPDATED = 'station_type.updated';
+
     public const FNB_PRODUCT_CREATED = 'fnb.product.created';
 
     public const FNB_PRODUCT_UPDATED = 'fnb.product.updated';

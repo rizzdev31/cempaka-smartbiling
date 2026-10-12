@@ -44,6 +44,20 @@ enum Permission: string
 
     case DEVICE_READ = 'device.read';
 
+    /**
+     * DEC-048 — menambah & mengubah station dan tipe konsol.
+     *
+     * Dipegang ADMIN ke atas, bukan owner saja. "PS3 nomor 4 rusak, jangan
+     * dipakai dulu" adalah kejadian harian; menguncinya untuk owner berarti
+     * station rusak tetap ditawarkan ke customer sampai owner sempat membuka
+     * laptopnya.
+     *
+     * Yang tetap OWNER saja ditegakkan Service, bukan route: MEMBUAT station
+     * baru, mengubah `code`-nya, dan mengubah tipe konsolnya. Ketiganya
+     * mengubah identitas unit yang membawa tarif — bukan keadaannya hari ini.
+     */
+    case STATION_MANAGE = 'station.manage';
+
     /** DEC-020 — hanya OWNER. */
     case PRICING_MANAGE = 'pricing.manage';
 

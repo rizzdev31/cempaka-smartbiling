@@ -3441,3 +3441,103 @@ pembeli yang cuma beli rokok belum bisa dilayani sama sekali.
 
 **Next step** — OD-030 (F&B walk-in), lalu station & tipe konsol yang bisa
 ditambah-ubah dari halaman owner (OD-028).
+
+---
+
+## 12 Okt 2026 (lanjutan) — Station & tipe konsol bisa diurus sendiri (DEC-048)
+
+**Satu kalimat:** menambah PS baru tidak lagi butuh seeder atau SQL.
+
+User: *"aku mau kamu buat untuk edit di owner ini lebih flexsibel atau bisa
+custom sesuai hati. kayak tambah ps. nah ini bisa custome namanya,
+tipenya, dll."*
+
+### Apa yang sekarang bisa dilakukan dari halaman Station & TV
+
+Tambah station (kode, nama, tipe konsol, urutan). Ubah nama, status, kode,
+tipe. Tambah tipe konsol dengan nama bebas — "PS5 Pro", "VIP Room",
+"Simulator Balap". Nonaktifkan tipe yang tidak dipakai lagi.
+
+Kode pendaftaran TV sekarang **terlihat di kartu station**, selama belum ada
+TV yang memakainya. Sebelum ini kodenya cuma ada di database — station yang
+baru dibuat tidak punya cara dipasangkan ke TV sama sekali.
+
+### Izinnya dua tingkat, bukan satu
+
+Permission baru `station.manage` dipegang **admin ke atas**: menandai "PS3
+nomor 4 rusak" adalah kejadian harian, dan menguncinya untuk owner berarti
+station rusak tetap ditawarkan ke customer sampai owner sempat membuka
+laptopnya.
+
+Yang tetap owner, ditegakkan **Service** bukan route: membuat station,
+mengubah `code`, mengubah tipe konsol, dan seluruh urusan tipe konsol.
+Polanya sama persis dengan menu F&B — route longgar, field dikunci.
+
+### Tiga kunci yang mencegah kerusakan diam
+
+Ketiganya ada karena akibatnya **tidak menimbulkan error apa pun**:
+
+1. **Kode terkunci selama TV terdaftar.** TV berlangganan
+   `private-station.{code}` saat boot; kode yang berubah membuatnya diam
+   selamanya. Tidak ada yang tahu sampai seseorang menyadari layarnya tidak
+   pernah berganti.
+2. **Tipe terkunci selama ada sesi berjalan.** Sesi berjalan akan menunjuk
+   tarif yang bukan dasar harganya.
+3. **Tipe tidak bisa dinonaktifkan selagi dipakai station aktif.** Station-nya
+   tetap terlihat kosong dan bisa diklik, lalu tidak ada satu pun paket yang
+   bisa dipilih — kasir akan mengira sistemnya rusak.
+
+Yang sengaja DIBOLEHKAN: mengubah nama station yang TV-nya sudah terdaftar.
+Yang berbahaya kodenya, bukan namanya.
+
+Kode station juga tidak boleh mengandung titik — `private-station.{code}`
+memakai titik sebagai pemisah segmen.
+
+### Tidak ada hapus
+
+Station dan tipe dipegang setiap sesi yang pernah berjalan di atasnya.
+Menghapusnya membuang dasar harga dari riwayat yang sudah dibayar. Yang
+pensiun: `DISABLED` untuk station, `is_active: false` untuk tipe.
+
+### Satu test dibuktikan dengan merusak kodenya
+
+`test_mengirim_kode_yang_sama_bukan_perubahan` lulus sejak pertama, dan itu
+mencurigakan — 26 test baru yang semuanya hijau tanpa satu pun merah dulu
+biasanya berarti ada yang tidak benar-benar diuji. Perbandingan "nilai baru
+≠ nilai lama" dihapus sementara: test-nya langsung gagal dengan 403. Aturan
+itu nyata, bukan hiasan — form web mengirim seluruh field termasuk yang
+tidak disentuh, jadi tanpa perbandingan itu admin tidak akan bisa menyimpan
+perubahan nama sama sekali.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `StationTypeController.php`, `Store/UpdateStationRequest.php`, `Store/UpdateStationTypeRequest.php`, `admin/partials/tipe-konsol.blade.php`, `tests/Feature/Api/StationManageTest.php` |
+| Diubah | `MasterDataService.php` (+4 method), `Permission.php`, `UserRole.php`, `AuditAction.php` (+4), `StationController.php`, `MasterDataUpdated.php`, `Web/AdminActionController.php`, `Web/AdminController.php`, `routes/{api,web}.php`, `admin/stations.blade.php` |
+
+**DB changes** — **tidak ada**. Skema `stations` dan `station_types` sudah
+mendukung semuanya sejak awal; yang hilang cuma jalannya.
+
+**API/Events** — `POST/PATCH /stations`, `GET/POST/PATCH /station-types`.
+Permission baru `station.manage` di `data.user.permissions` (additive).
+`master.updated` sekarang bisa membawa `resource: station | station_type`.
+`master.updated` akhirnya didokumentasikan di REALTIME.md — selama ini cuma
+ada di CHANGELOG, padahal API.md sudah menunjuk ke sana. CHANGELOG DRAFT 19.
+
+**Tests** — **484 lulus** (+34), 1.512 assertion.
+
+**Manual test** — station ST07 dibuat lewat form di browser: pesan suksesnya
+menyebut kode pendaftaran `YSVEJP`, jumlah station pada tipe PS4 naik dari 3
+ke 4, kartunya muncul di grid. Station ujinya lalu dihapus dari database dev.
+Lebar 375/768/1366 diperiksa dengan semua panel terbuka: tidak ada yang
+meluber.
+
+**Known issues** — Flutter belum tahu apa-apa soal ini: ia tidak punya layar
+pengaturan station, dan `master.updated` dengan `resource: station` akan
+diabaikan begitu saja (itu perilaku yang benar, tapi berarti daftar station
+di tablet baru ikut berubah setelah dimuat ulang).
+
+**Next step** — master data sisanya yang belum bisa diubah dari web: paket
+belum bisa dinonaktifkan per tipe secara massal, dan customer belum bisa
+diedit sama sekali (hanya ditambah).

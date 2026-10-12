@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Enums\FnbOrderStatus;
 use App\Enums\PaymentMethod;
+use App\Enums\Permission;
 use App\Enums\SessionItemType;
 use App\Enums\SessionStatus;
 use App\Enums\StationStatus;
@@ -210,6 +211,33 @@ class AdminController
         return view('admin.stations', [
             'stations' => $stations,
             'aktif' => $aktif,
+
+            /*
+             * DEC-048 — dua tingkat izin, bukan satu.
+             *
+             * `station.manage` (admin ke atas) boleh menandai station rusak;
+             * `pricing.manage` (owner) boleh menambah station, mengubah
+             * kodenya, dan mengubah tipe konsolnya. Service menolak yang
+             * kedua kalau dilanggar — kedua tanda ini hanya menyembunyikan
+             * tombolnya supaya tidak ada yang mengisi form lalu ditolak.
+             */
+            'bolehKelola' => auth()->user()?->role->hasPermission(Permission::STATION_MANAGE) ?? false,
+            'bolehOwner' => auth()->user()?->role->canManagePricing() ?? false,
+
+            // Tipe konsol + berapa station memakainya. Jumlahnya dipakai
+            // untuk menjelaskan akibat menonaktifkan tipe SEBELUM ditekan.
+            'tipe' => StationType::query()
+                ->withCount('stations')
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get(),
+
+            'pilihanTipe' => StationType::query()
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->pluck('name', 'id')
+                ->all(),
             /*
              * Konstanta yang SAMA dengan yang dikirim API lewat
              * `meta.offline_threshold_seconds`. Menulis 120 di sini akan

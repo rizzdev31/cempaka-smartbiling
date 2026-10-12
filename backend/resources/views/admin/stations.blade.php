@@ -4,6 +4,8 @@
         title="Station & TV"
         :subtitle="'Status TV dihitung dari heartbeat terakhir. Lewat '.$offlineThreshold.' detik tanpa kabar = offline.'" />
 
+    @include('admin.partials.tipe-konsol')
+
     {{--
         Kartu, bukan tabel.
 
@@ -147,6 +149,63 @@
                     </x-action-panel>
                 @endif
 
+                {{-- ── Ubah station — DEC-048 ─────────────────────── --}}
+                @if ($bolehKelola)
+                    <x-action-panel title="Ubah station">
+                        <form method="POST" action="{{ route('admin.stations.update', $station) }}"
+                              class="space-y-3 mt-3">
+                            @csrf
+                            @method('PATCH')
+
+                            <x-field name="name" label="Nama" :value="$station->name" required />
+
+                            {{--
+                                Status boleh diubah admin: "PS3 nomor 4 rusak"
+                                kejadian harian. Station non-ACTIVE tidak bisa
+                                menerima sesi baru, tapi sesi yang sedang
+                                berjalan TIDAK ikut dihentikan.
+                            --}}
+                            <x-select-field name="status" label="Status"
+                                            :selected="$station->status->value"
+                                            :options="[
+                                                'ACTIVE' => 'Aktif — boleh menerima sesi',
+                                                'MAINTENANCE' => 'Perbaikan — tidak menerima sesi baru',
+                                                'DISABLED' => 'Nonaktif — disembunyikan dari kasir',
+                                            ]" />
+
+                            @if ($bolehOwner)
+                                {{-- Kode dan tipe = identitas unit pembawa
+                                     tarif. Owner saja, dan Service menolak
+                                     kalau tanda ini dilewati. --}}
+                                <x-field name="code" label="Kode station" :value="$station->code" required />
+
+                                <x-select-field name="station_type_id" label="Tipe konsol"
+                                                :selected="$station->station_type_id"
+                                                :options="$pilihanTipe"
+                                                placeholder="Belum ditentukan" />
+
+                                <x-field name="sort_order" label="Urutan tampil" type="number"
+                                         :value="$station->sort_order" />
+
+                                @if ($device)
+                                    <p class="text-[11px] text-warning leading-relaxed">
+                                        TV sudah terdaftar di station ini, jadi kodenya terkunci.
+                                        Kode station adalah alamat channel realtime-nya — TV yang
+                                        kodenya berubah berhenti menerima perintah tanpa pesan error apa pun.
+                                    </p>
+                                @endif
+                                @if ($sesi)
+                                    <p class="text-[11px] text-warning leading-relaxed">
+                                        Ada sesi berjalan, jadi tipe konsol terkunci sampai sesinya selesai.
+                                    </p>
+                                @endif
+                            @endif
+
+                            <x-action-submit>Simpan station</x-action-submit>
+                        </form>
+                    </x-action-panel>
+                @endif
+
                 @if ($device)
                     <div class="pt-3 border-t border-line-soft text-[11px] text-ink-soft flex flex-wrap gap-x-3 gap-y-1">
                         <span class="tabular">{{ $device->device_uid }}</span>
@@ -154,17 +213,66 @@
                         @if ($device->app_version)<span>v{{ $device->app_version }}</span>@endif
                         @if ($device->revoked_at)<span class="text-danger font-semibold">token dicabut</span>@endif
                     </div>
+                @elseif ($bolehKelola)
+                    {{--
+                        Kode pendaftaran ditampilkan HANYA selama belum ada TV
+                        yang memakainya. Tanpa ini, station yang baru dibuat
+                        tidak punya cara dipasangkan ke TV — kodenya hanya ada
+                        di database.
+
+                        Begitu TV-nya terdaftar, kodenya hilang dari layar:
+                        tidak ada gunanya lagi, dan kode pendaftaran yang
+                        tertinggal di layar adalah kode yang bisa dipakai orang
+                        lain.
+                    --}}
+                    <div class="pt-3 border-t border-line-soft flex items-baseline justify-between gap-3">
+                        <span class="text-[11px] text-ink-soft">Kode pendaftaran TV</span>
+                        <span class="text-sm font-extrabold text-ink tabular tracking-widest">
+                            {{ $station->enrollment_code ?? '—' }}
+                        </span>
+                    </div>
                 @endif
             </x-card>
         @empty
             <div class="col-span-full">
                 <x-card>
                     <x-empty title="Belum ada station" icon="tv">
-                        Jalankan seeder, atau tambahkan station dari database.
+                        Tambahkan station pertama di kartu paling bawah.
                     </x-empty>
                 </x-card>
             </div>
         @endforelse
+
+        {{-- ── Tambah station — DEC-048 ───────────────────────────────
+             Kartu terakhir di grid, bukan tombol di header: posisinya
+             mengikuti urutan baca, dan bentuknya langsung memberi tahu apa
+             yang akan bertambah. --}}
+        @if ($bolehOwner)
+            <x-card padding="p-5" class="border-dashed">
+                <x-action-panel title="Tambah station" :open="$stations->isEmpty()">
+                    <form method="POST" action="{{ route('admin.stations.store') }}" class="space-y-3 mt-3">
+                        @csrf
+
+                        <x-field name="code" label="Kode station" placeholder="ST07" required />
+                        <x-field name="name" label="Nama" placeholder="PS5 Ruang VIP" required />
+
+                        <x-select-field name="station_type_id" label="Tipe konsol"
+                                        :options="$pilihanTipe"
+                                        placeholder="Belum ditentukan" />
+
+                        <x-field name="sort_order" label="Urutan tampil" type="number" value="0" />
+
+                        <p class="text-[11px] text-ink-soft leading-relaxed">
+                            Kode dipakai sebagai alamat channel realtime, jadi hanya huruf, angka,
+                            tanda hubung, dan garis bawah — tanpa titik atau spasi. Setelah dibuat,
+                            kode pendaftaran TV-nya muncul di kartu station ini.
+                        </p>
+
+                        <x-action-submit>Tambah station</x-action-submit>
+                    </form>
+                </x-action-panel>
+            </x-card>
+        @endif
     </div>
 
 </x-layouts.app>

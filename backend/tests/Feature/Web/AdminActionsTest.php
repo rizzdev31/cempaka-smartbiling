@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Models\FnbOrder;
 use App\Models\Package;
 use App\Models\Shift;
+use App\Models\Station;
 use App\Models\User;
 use App\Support\Audit\AuditAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -297,6 +298,126 @@ class AdminActionsTest extends TestCase
         $this->actingAs($owner)
             ->post(route('admin.shifts.close', $shift), ['closing_cash' => 100_000])
             ->assertSessionHasErrors('closing_cash');
+    }
+
+    // ── Station & tipe konsol (DEC-048) ───────────────────────────────
+
+    public function test_owner_menambah_station_dari_web(): void
+    {
+        $tipe = $this->stationType('VIP Room');
+
+        $this->actingAs($this->owner())
+            ->post(route('admin.stations.store'), [
+                'code' => 'ST09',
+                'name' => 'PS5 Ruang VIP',
+                'station_type_id' => $tipe->id,
+                'sort_order' => 9,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertDatabaseHas('stations', ['code' => 'ST09', 'name' => 'PS5 Ruang VIP']);
+        $this->assertDatabaseHas('audit_logs', ['action' => AuditAction::STATION_CREATED]);
+    }
+
+    public function test_pesan_sukses_menyebut_kode_pendaftaran_tv(): void
+    {
+        /*
+         * Tanpa ini, station yang baru dibuat tidak punya cara dipasangkan
+         * ke TV — kodenya hanya ada di database, dan orang yang menambahnya
+         * tidak punya alasan untuk mencari ke sana.
+         */
+        $this->actingAs($this->owner())
+            ->post(route('admin.stations.store'), ['code' => 'ST10', 'name' => 'Pojok'])
+            ->assertRedirect();
+
+        $kode = Station::query()->where('code', 'ST10')->value('enrollment_code');
+
+        $this->assertStringContainsString($kode, session('sukses'));
+    }
+
+    public function test_admin_menandai_station_perbaikan_dari_web(): void
+    {
+        $station = $this->station($this->stationType());
+
+        $this->actingAs($this->admin())
+            ->patch(route('admin.stations.update', $station), [
+                'name' => $station->name,
+                'status' => 'MAINTENANCE',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertSame('MAINTENANCE', $station->fresh()->status->value);
+    }
+
+    public function test_admin_tidak_bisa_mengubah_kode_station_dari_web(): void
+    {
+        /*
+         * Celah yang sama dengan harga paket: route-nya `station.manage`
+         * (admin boleh), dan satu-satunya yang menahan `code` adalah
+         * Service. Kalau controller web suatu saat menulis ke model sendiri,
+         * pembatasan ini hilang tanpa error apa pun.
+         */
+        $station = $this->station($this->stationType(), ['code' => 'ST01']);
+
+        $this->actingAs($this->admin())
+            ->patch(route('admin.stations.update', $station), [
+                'name' => $station->name,
+                'status' => 'ACTIVE',
+                'code' => 'ST99',
+            ])
+            ->assertSessionHasErrors('code');
+
+        $this->assertSame('ST01', $station->fresh()->code);
+    }
+
+    public function test_owner_menambah_tipe_konsol_dari_web(): void
+    {
+        $this->actingAs($this->owner())
+            ->post(route('admin.station-types.store'), ['name' => 'Simulator Balap', 'sort_order' => 3])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertDatabaseHas('station_types', ['name' => 'Simulator Balap', 'is_active' => true]);
+    }
+
+    public function test_tipe_yang_masih_dipakai_tidak_bisa_dinonaktifkan_dari_web(): void
+    {
+        $tipe = $this->stationType();
+        $this->station($tipe);
+
+        $this->actingAs($this->owner())
+            ->patch(route('admin.station-types.update', $tipe), ['name' => $tipe->name])
+            ->assertSessionHasErrors('name');
+
+        $this->assertTrue($tipe->fresh()->is_active);
+    }
+
+    public function test_tipe_bisa_dinonaktifkan_lewat_checkbox_yang_tidak_dicentang(): void
+    {
+        /*
+         * Checkbox yang tidak dicentang TIDAK dikirim browser. Tanpa
+         * pembacaan eksplisit di controller, menonaktifkan tipe mustahil dan
+         * tombolnya terlihat rusak tanpa pesan apa pun.
+         */
+        $tipe = $this->stationType('Belum Dipakai');
+
+        $this->actingAs($this->owner())
+            ->patch(route('admin.station-types.update', $tipe), ['name' => $tipe->name])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertFalse($tipe->fresh()->is_active);
+    }
+
+    public function test_operator_tidak_bisa_menyentuh_station_dari_web(): void
+    {
+        $station = $this->station($this->stationType());
+
+        $this->actingAs($this->operator(['role' => UserRole::OPERATOR]))
+            ->patch(route('admin.stations.update', $station), ['status' => 'DISABLED'])
+            ->assertRedirect('/login');
     }
 
     // ── Pengeluaran kasir (DEC-046) ───────────────────────────────────

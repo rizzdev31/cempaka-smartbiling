@@ -696,3 +696,53 @@ punya selisih. Selisih seperti itu tidak akan pernah bisa dijelaskan.
 Flutter yang sudah menampilkan "kas seharusnya" **wajib** berhenti
 menjumlahkan sendiri dan memakai `expected_cash`. Tidak breaking: field
 lama tidak berubah, hanya bertambah.
+
+---
+
+## v1 · DRAFT 19 — 2026-10-12
+
+Station dan tipe konsol tidak lagi hanya bisa diubah lewat seeder.
+
+**ADDED — API** · Admin Web · Flutter (opsional) · **DEC-048** (menutup OD-028)
+- `POST /stations`, `PATCH /stations/{id}`
+- `GET /station-types`, `POST /station-types`, `PATCH /station-types/{id}`
+
+**ADDED — permission** · semua client
+- `station.manage` masuk ke `data.user.permissions` untuk **ADMIN** dan
+  **OWNER**. Additive — tidak ada permission yang hilang, dan client yang
+  mengabaikannya tetap bekerja.
+
+**Pembagian izin yang tidak terlihat dari daftar route**
+
+`can:station.manage` di route (admin ke atas), lalu Service menolak kalau
+pemanggilnya bukan owner untuk: **membuat station**, mengubah `code`, dan
+mengubah `station_type_id`. Tipe konsol owner sepenuhnya.
+
+Polanya sama dengan `PATCH /fnb/products` — route longgar, field dikunci.
+Client yang menyembunyikan tombol berdasarkan permission saja akan
+menampilkan form yang sebagian field-nya ditolak; pakai `role` untuk
+field-field itu.
+
+**Tiga `409` baru yang perlu ditangani**
+
+| Kondisi | Error |
+|---|---|
+| Ubah `code` saat TV terdaftar | `STATION_HAS_DEVICE` |
+| Ubah tipe saat ada sesi berjalan | `STATION_HAS_ACTIVE_SESSION` |
+| Nonaktifkan tipe yang dipakai station aktif | `STATION_NOT_AVAILABLE` |
+
+Ketiganya memakai error code yang **sudah ada** — tidak ada code baru yang
+perlu ditambahkan ke penanganan client.
+
+**CHANGED — `master.updated`** · Flutter
+- `resource` sekarang bisa bernilai `station` dan `station_type`, selain
+  `package` dan `fnb_product`. Client yang hanya mengenali dua nilai lama
+  harus **mengabaikan** yang tidak dikenal, bukan error — dan sebaiknya
+  memuat ulang `GET /stations` saat menerima `station`.
+
+**TIDAK ADA `DELETE`, dan itu permanen**
+
+Station dan tipe konsol dipegang setiap sesi yang pernah berjalan di
+atasnya. Menghapusnya membuang dasar harga dari riwayat yang sudah dibayar.
+Yang pensiun: `status: "DISABLED"` untuk station, `is_active: false` untuk
+tipe.
