@@ -328,7 +328,15 @@ class AdminController
     public function shifts(): View
     {
         return view('admin.shifts', [
-            'current' => Shift::query()->with('operator')->whereNull('closed_at')->first(),
+            /*
+             * `expenses.actor` ikut dimuat: daftar pengeluaran selalu
+             * ditampilkan bersama shiftnya (DEC-046), dan tanpa eager load
+             * halaman ini mengeluarkan satu query per baris belanja.
+             */
+            'current' => Shift::query()
+                ->with(['operator', 'expenses' => fn ($q) => $q->with('actor')->latest()])
+                ->whereNull('closed_at')
+                ->first(),
             'history' => Shift::query()
                 ->with('operator')
                 ->whereNotNull('closed_at')

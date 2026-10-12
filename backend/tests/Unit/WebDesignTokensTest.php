@@ -224,6 +224,35 @@ class WebDesignTokensTest extends TestCase
         $this->assertStringContainsString('px-4 sm:px-6 lg:px-8', $layout, 'Padding tepi harus ikut membesar.');
     }
 
+    public function test_dua_nav_bertukar_di_lebar_yang_sama(): void
+    {
+        /*
+         * Header punya DUA nav: satu sebaris dengan merek di layar lebar,
+         * satu lagi di baris sendiri yang bisa digeser di layar sempit.
+         * Keduanya harus bertukar di titik yang SAMA.
+         *
+         * Kalau tidak: di antara kedua titik itu halaman muncul tanpa
+         * navigasi sama sekali (keduanya tersembunyi), atau dengan dua
+         * baris menu sekaligus. Dua-duanya hanya terlihat kalau kebetulan
+         * ada yang membuka halaman di lebar itu.
+         *
+         * Nilainya `2xl`, bukan `xl`, dan itu HASIL PENGUKURAN: merek 215px
+         * + sembilan menu 896px + blok akun 293px = 1428px. Di laptop
+         * 1366px barisnya meluber dan seluruh halaman bisa digeser ke
+         * samping. Kalau menunya bertambah, ukur lagi — jangan menebak.
+         */
+        $layout = file_get_contents(self::VIEWS.'/components/layouts/app.blade.php');
+        $kelas = preg_replace('/\{\{--.*?--\}\}/s', '', $layout);
+
+        $this->assertStringContainsString('hidden 2xl:flex', $kelas, 'Nav sebaris harus muncul mulai 2xl.');
+        $this->assertStringContainsString('2xl:hidden', $kelas, 'Nav baris kedua harus hilang mulai 2xl.');
+
+        // Titik tukar yang lama. Ketinggalan satu saja = ada lebar layar
+        // yang tidak punya navigasi.
+        $this->assertStringNotContainsString('hidden xl:flex', $kelas);
+        $this->assertDoesNotMatchRegularExpression('/(?<![a-z0-9])xl:hidden/', $kelas);
+    }
+
     public function test_layout_memanggil_direktif_fonts(): void
     {
         /*

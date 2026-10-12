@@ -1665,7 +1665,7 @@ seseorang mengisi kas akhir akan menghapus ketikannya.
 |---|---|
 | Stok, harga | ✅ |
 | Kas (tutup shift) | ✅ |
-| **Pengeluaran** | ❌ **OD-029** — tabelnya belum ada |
+| **Pengeluaran** | ✅ **DEC-046** — tabel `cash_expenses`, ikut hitungan laci |
 | **Promo** | ❌ belum ada di backend sama sekali |
 | Ubah station & tipe konsol | ❌ **OD-028** |
 | HPP produk | ❌ `UpdateFnbProductRequest` belum menerimanya |
@@ -1719,13 +1719,69 @@ Sekarang penyegaran juga dilewati selama ada `<details open>` di dalam
 `#live`. Test tidak menemukannya, karena test tidak menunggu sepuluh detik.
 
 ---
+## DEC-046 — Pengeluaran kasir dicatat, dan ikut dalam hitungan laci
+**Tanggal:** 12 Okt 2026 · **Status:** APPROVED · **Menutup:** OD-029
+
+User, 11 Okt: *"lalu buat Pengeluaran kasir OD-029."*
+
+### Masalahnya bukan "fiturnya kurang"
+
+Rekonsiliasi laci seharusnya:
+
+```
+Kas seharusnya = Modal awal + Tunai masuk − Pengeluaran
+```
+
+Suku terakhirnya tidak pernah dibangun. Akibatnya bukan sekadar angka yang
+kurang lengkap: kasir yang mengambil Rp 20.000 dari laci untuk beli galon
+membuat sistem melaporkan kas **kurang** Rp 20.000 saat tutup shift — dan
+selisih itu masuk audit log dengan namanya tertera.
+
+Fitur anti-bocor yang justru jadi sumber tuduhan palsu. Itu yang ditutup di
+sini.
+
+### Keputusannya
+
+| Pertanyaan OD-029 | Jawaban |
+|---|---|
+| Menempel ke apa? | **Shift**, bukan tanggal. Yang dibandingkan dengan uang fisik adalah isi satu laci pada satu shift |
+| Siapa boleh mencatat? | **Pemegang shift, atau admin ke atas** — aturan yang sama persis dengan menutup shift |
+| Perlu persetujuan owner? | **Tidak.** Persetujuan per belanja akan membuat kasir menunda pencatatan sampai owner sempat membalas, dan pengeluaran yang diingat belakangan selalu lebih kecil dari yang sebenarnya |
+| Batas nominal? | **Tidak ada.** Batas hanya memindahkan belanja besar ke luar catatan |
+| Keterangan wajib? | **Wajib, minimal 3 huruf.** Pengeluaran tanpa keterangan persis yang tidak bisa dijelaskan saat laporan diperiksa |
+| Kategori? | Daftar tertutup 6 pilihan + "Lainnya". Teks bebas membuat "es batu", "Es Batu", dan "esbatu" jadi tiga kelompok di laporan |
+| Bisa dihapus? | **Tidak.** Pengeluaran yang bisa dihapus adalah jalan keluar paling mudah dari selisih kas. Salah catat diselesaikan di catatan tutup shift |
+| Boleh ke shift yang sudah ditutup? | **Tidak.** Itu mengubah selisih yang sudah ditandatangani orang lain — pintu belakang untuk menutupi selisih setelah ketahuan |
+
+### Satu rumus, bukan dua
+
+`ShiftService::expectedCash()` adalah satu-satunya tempat rumus itu ditulis.
+Dipakai `close()`, `ShiftPresenter` (tablet), dan halaman Shift.
+
+Ini bukan soal kerapian. Rumus yang disalin ke layar akan melenceng dari
+rumus yang dipakai saat tutup shift, dan kasir yang menyetor uang **sesuai
+angka di layar** justru tercatat punya selisih. Selisih itu tidak akan
+pernah bisa dijelaskan oleh siapa pun.
+
+Halaman Shift juga menampilkan sukunya satu per satu dengan angkanya
+(`Rp 200.000 modal awal + Rp 0 tunai masuk − Rp 67.000 pengeluaran`), supaya
+kasir bisa mengulang hitungannya di kertas tanpa memanggil siapa pun.
+
+### Yang masih di luar
+
+HPP dan laba bersih tetap belum tersentuh. Pengeluaran kasir adalah uang
+keluar dari **laci**, bukan biaya operasional bulanan (listrik, sewa, gaji).
+Menyatukan keduanya akan membuat laporan laba terlihat ada padahal
+komponennya belum lengkap.
+
+---
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 
 | ID | Pertanyaan | Kenapa penting | Blokir tahap |
 |---|---|---|---|
-| **OD-029 🔴** | **Pengeluaran kasir (petty cash) belum ada tabelnya.** Rumus rekonsiliasi laci yang diminta user adalah `Modal + Cash Rental + Cash F&B − Pengeluaran`, tapi suku terakhirnya tidak pernah dibangun. Perlu: siapa boleh mencatat, perlu persetujuan owner atau tidak, ada batas nominal, wajib keterangan? | **Fitur anti-bocor justru jadi sumber tuduhan palsu.** Kasir ambil Rp 20.000 untuk beli galon → sistem melaporkan kas minus Rp 20.000 dan kasir jujur terlihat mencuri. Diprioritaskan user 11 Okt | Sebelum dipakai untuk uang nyata |
+| ~~OD-029~~ | ~~Pengeluaran kasir (petty cash) belum ada tabelnya~~ | **DIPUTUSKAN → DEC-046** (tabel `cash_expenses`, menempel ke shift, keterangan wajib, tidak bisa dihapus, ikut `expectedCash()`) | — |
 | **OD-030 🔴** | **Penjualan F&B tanpa sesi (walk-in).** Endpoint F&B sekarang `POST /sessions/{session}/fnb/orders` — WAJIB menempel ke sesi rental. Perlu: order berdiri sendiri, atau sesi "tanpa station"? Bagaimana masuk ke `shift.summary`? | Pembeli yang cuma beli rokok atau minuman dingin **tidak bisa dilayani sama sekali** — uangnya tidak tercatat di mana pun, dan itu lubang kas yang sama besarnya. Diprioritaskan user 11 Okt | Sebelum dipakai untuk uang nyata |
 | **OD-033** | **Siapa boleh mengubah HPP?** Untuk sekarang dikunci **owner**, sama seperti harga jual. HPP bukan angka yang dibayar customer, jadi secara teknis ia bisa saja cukup `fnb.manage` — tapi ia menentukan margin di setiap laporan laba | Dipilih yang lebih ketat dulu: melonggarkan nanti jauh lebih murah daripada menarik kembali akses yang terlanjur diberikan. Kalau owner sering tidak ada saat belanja, aturannya perlu dilonggarkan | Saat laporan laba dipakai |
 | **OD-032** | **Promo / diskon** — user menyebutnya sebagai hal yang diatur dari Laravel (DEC-044), tapi backend **tidak punya apa pun**: tidak ada tabel promo, tidak ada endpoint diskon. `SessionItemType::DISCOUNT` ada tapi hanya diisi otomatis oleh potongan saldo member. Perlu: bentuk promonya apa (potongan rupiah? persen? paket gratis F&B?), siapa yang boleh memberi, dan apakah berlaku otomatis atau dipilih kasir | Disebut user 11 Okt sebagai kebutuhan, tapi belum pernah dirinci. Tanpa bentuknya, tidak ada yang bisa dibangun | Sebelum promo pertama dijalankan |

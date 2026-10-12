@@ -24,12 +24,25 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            {{--
+                Enam angka, dan jumlahnya memang enam di setiap lebar: 2
+                kolom × 3 baris di ponsel, 3 × 2 di tablet, 6 × 1 di laptop.
+                Grid yang membagi enam jadi lima lalu satu akan meninggalkan
+                satu blok menggantung sendiri di baris kedua.
+            --}}
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 <x-stat label="Modal awal" :value="'Rp '.number_format($current->opening_cash, 0, ',', '.')" />
                 <x-stat label="Rental" :value="'Rp '.number_format($summary['rental'], 0, ',', '.')" />
                 <x-stat label="F&B" :value="'Rp '.number_format($summary['fnb'], 0, ',', '.')" />
                 <x-stat label="Tunai masuk" :value="'Rp '.number_format($summary['cash'], 0, ',', '.')" />
                 <x-stat label="QRIS masuk" :value="'Rp '.number_format($summary['qris'], 0, ',', '.')" />
+
+                {{-- Satu-satunya angka yang MENGURANGI laci. Diberi tanda
+                     minus, bukan hanya warna: warna hilang saat dicetak dan
+                     tidak terbaca oleh sebagian orang. --}}
+                <x-stat label="Pengeluaran kasir"
+                        :tone="$summary['expense'] > 0 ? 'danger' : 'ink'"
+                        :value="($summary['expense'] > 0 ? '− Rp ' : 'Rp ').number_format($summary['expense'], 0, ',', '.')" />
             </div>
 
             {{--
@@ -40,23 +53,117 @@
                 <div class="flex items-baseline justify-between gap-3 flex-wrap">
                     <span class="text-xs font-semibold text-brand-600">Kas seharusnya di laci sekarang</span>
                     <span class="text-xl font-extrabold text-brand-600 tabular">
-                        Rp {{ number_format($current->opening_cash + $summary['cash'], 0, ',', '.') }}
+                        Rp {{ number_format(\App\Services\ShiftService::expectedCash($current, $summary), 0, ',', '.') }}
                     </span>
                 </div>
-                <p class="text-[11px] text-brand-600 mt-2 leading-relaxed">
-                    Modal awal + tunai masuk. QRIS tidak ikut — uangnya tidak ada di laci.
-                </p>
+
                 {{--
-                    ⚠️ OD-029. Rumus yang benar menurut user adalah
-                    `Modal + Cash − Pengeluaran`, dan suku terakhirnya belum
-                    pernah dibangun. Disebutkan di sini, bukan disembunyikan:
-                    kasir yang membandingkan angka ini dengan laci harus tahu
-                    kenapa selisihnya bisa muncul tanpa ada yang mencuri.
+                    Rumusnya ditulis lengkap dengan angkanya, bukan hanya
+                    namanya.
+
+                    Angka ini yang dibandingkan dengan uang fisik, dan saat
+                    selisihnya muncul pertanyaan pertamanya selalu "dari mana
+                    angka ini". Kasir yang bisa mengulang hitungannya di
+                    kertas tidak perlu memanggil siapa pun.
+
+                    Sukunya DISALIN dari `ShiftService::expectedCash()`, dan
+                    totalnya diambil dari fungsi itu — bukan dijumlahkan
+                    ulang di sini. Dua penjumlahan untuk satu angka berarti
+                    layar bisa menampilkan rumus yang tidak menghasilkan
+                    totalnya sendiri.
                 --}}
-                <p class="text-[11px] text-warning mt-2 leading-relaxed font-medium">
-                    Belum dikurangi pengeluaran kasir — pencatatannya belum ada (OD-029).
-                    Kalau ada uang yang diambil dari laci untuk belanja, selisihnya akan muncul di sini.
+                <p class="text-[11px] text-brand-600/90 mt-2 leading-relaxed tabular">
+                    Rp {{ number_format($current->opening_cash, 0, ',', '.') }} modal awal
+                    + Rp {{ number_format($summary['cash'], 0, ',', '.') }} tunai masuk
+                    − Rp {{ number_format($summary['expense'], 0, ',', '.') }} pengeluaran.
                 </p>
+                <p class="text-[11px] text-brand-600 mt-1 leading-relaxed">
+                    QRIS tidak ikut — uangnya tidak pernah masuk laci.
+                </p>
+            </div>
+
+            {{-- ── Pengeluaran kasir ───────────────────────────── DEC-046 ──
+                 Uang yang keluar dari laci saat shift berjalan: es batu,
+                 galon, iuran sampah. Sebelum ini tidak ada tempatnya, dan
+                 kasir yang mengambil Rp 20.000 untuk belanja terlihat
+                 kekurangan Rp 20.000 saat tutup shift. --}}
+            <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+
+                <x-action-panel title="Catat pengeluaran dari laci" tone="warning"
+                                :open="$errors->hasAny(['amount', 'category', 'note'])">
+                    <p class="text-[11px] text-ink-soft mb-3 leading-relaxed">
+                        Catat <span class="font-semibold text-ink">saat uangnya diambil</span>,
+                        bukan saat tutup shift. Pengeluaran yang diingat belakangan
+                        selalu lebih kecil dari yang sebenarnya.
+                    </p>
+
+                    <form method="POST" action="{{ route('admin.shifts.expense', $current) }}" class="space-y-3">
+                        @csrf
+
+                        {{-- Nominal dan kategori sejajar di satu baris: keduanya
+                             pendek, dan menumpuknya membuat form terasa panjang
+                             tanpa alasan. Turun sendiri di bawah 22rem. --}}
+                        <div class="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-3">
+                            <x-money-input name="amount" label="Nominal" required />
+                            <x-select-field name="category" label="Kategori" required
+                                            :options="array_combine(\App\Models\CashExpense::kategori(), \App\Models\CashExpense::kategori())" />
+                        </div>
+
+                        <x-field name="note" label="Keterangan" required
+                                 placeholder="beli es batu 2 balok" />
+
+                        {{-- Warna tombolnya mengikuti kepala panelnya. Tombol
+                             teal di bawah judul kuning membuat panelnya terbaca
+                             sebagai dua potong yang kebetulan bertumpuk. --}}
+                        <x-action-submit tone="warning">Catat pengeluaran</x-action-submit>
+                    </form>
+                </x-action-panel>
+
+                {{-- Daftarnya di sebelah formnya, bukan tersembunyi di balik
+                     panel lain: yang paling sering dicari adalah "sudah
+                     tercatat belum", dan jawabannya harus terlihat tanpa
+                     mengklik apa pun. --}}
+                <div class="rounded-block border border-line p-4">
+                    <div class="flex items-baseline justify-between gap-3 mb-3">
+                        <h3 class="text-xs font-bold text-ink">Pengeluaran shift ini</h3>
+                        <span class="text-[11px] font-semibold text-ink-soft tabular">
+                            {{ $current->expenses->count() }} catatan
+                        </span>
+                    </div>
+
+                    @forelse ($current->expenses as $e)
+                        <div class="flex items-start justify-between gap-3 py-2
+                                    {{ ! $loop->last ? 'border-b border-line-soft' : '' }}">
+                            <div class="min-w-0">
+                                <p class="text-xs font-semibold text-ink truncate">{{ $e->note }}</p>
+                                <p class="text-[11px] text-ink-soft mt-0.5">
+                                    {{ $e->category }}
+                                    · {{ $e->created_at->timezone($tz)->format('H:i') }}
+                                    · {{ $e->actor?->name ?? '—' }}
+                                </p>
+                            </div>
+                            <span class="text-xs font-bold text-danger tabular shrink-0">
+                                − <x-rupiah :value="$e->amount" />
+                            </span>
+                        </div>
+                    @empty
+                        <p class="text-[11px] text-ink-soft leading-relaxed">
+                            Belum ada. Kalau ada uang yang diambil dari laci untuk belanja,
+                            catat di sini supaya tidak terhitung sebagai kas yang hilang.
+                        </p>
+                    @endforelse
+
+                    {{-- Tidak ada tombol hapus, dan itu disengaja. Pengeluaran
+                         yang bisa dihapus adalah jalan keluar paling mudah dari
+                         selisih kas — persis yang ingin dicegah. Salah catat
+                         diselesaikan di catatan tutup shift. --}}
+                    @if ($current->expenses->isNotEmpty())
+                        <p class="text-[11px] text-ink-faint mt-3 leading-relaxed">
+                            Catatan yang sudah masuk tidak bisa dihapus. Kalau ada yang salah,
+                            tulis koreksinya di catatan saat tutup shift.
+                        </p>
+                    @endif
+                </div>
             </div>
 
             {{-- ── Tutup shift ────────────────────────────────────────

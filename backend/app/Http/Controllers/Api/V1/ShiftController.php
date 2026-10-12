@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Requests\Api\V1\CloseShiftRequest;
 use App\Http\Requests\Api\V1\OpenShiftRequest;
+use App\Http\Requests\Api\V1\StoreExpenseRequest;
 use App\Models\Shift;
 use App\Services\ShiftService;
 use App\Support\Api\ApiResponse;
@@ -72,6 +73,30 @@ class ShiftController
      * `GET /shifts/current` — dipakai saat app dibuka ulang, bersama
      * `GET /auth/me`, untuk tahu apakah kasir masih di tengah shift.
      */
+    /**
+     * `POST /shifts/{shift}/expenses` — DEC-046.
+     *
+     * Hanya ke shift yang masih terbuka, dan hanya oleh pemegangnya atau
+     * admin. Keduanya ditegakkan Service.
+     */
+    public function storeExpense(StoreExpenseRequest $request, Shift $shift): JsonResponse
+    {
+        $expense = $this->shifts->recordExpense($shift, $request->validated(), $request->user());
+
+        $shift = $shift->fresh();
+
+        return ApiResponse::data([
+            'id' => $expense->id,
+            'amount' => (int) $expense->amount,
+            'category' => $expense->category,
+            'note' => $expense->note,
+            'created_at' => $expense->created_at->toIso8601ZuluString(),
+            // Ringkasan ikut dikirim: setelah mencatat pengeluaran, angka
+            // yang langsung dicari adalah "jadi berapa sekarang isi laci".
+            'shift' => ShiftPresenter::one($shift, $this->shifts->summary($shift)),
+        ], status: 201);
+    }
+
     public function current(Request $request): JsonResponse
     {
         $shift = $request->user()->activeShift();

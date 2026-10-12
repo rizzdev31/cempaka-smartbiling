@@ -105,6 +105,13 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
         ->middleware(['can:shift.manage', 'idempotency']);
 
     /*
+     * Pengeluaran kasir — DEC-046. Hanya ke shift yang masih terbuka, dan
+     * hanya oleh pemegangnya atau admin; keduanya ditegakkan Service.
+     */
+    Route::post('/shifts/{shift}/expenses', [ShiftController::class, 'storeExpense'])
+        ->middleware(['can:shift.manage', 'idempotency']);
+
+    /*
      * Customer & membership — API.md §6, DEC-027.
      *
      * `customer.create` sekarang dipegang operator juga: DEC-024 meminta

@@ -3347,3 +3347,97 @@ poin, aksesori, mode offline. Semuanya **belum punya backend**, bukan
 sekadar belum punya UI.
 
 **Next step** — OD-029 (pengeluaran kasir).
+
+---
+
+## 12 Okt 2026 — Pengeluaran kasir (DEC-046) + tabel menu dirapikan
+
+**Satu kalimat:** rekonsiliasi laci berhenti menuduh kasir jujur.
+
+### Yang diperbaiki, dan kenapa itu penting
+
+Rumusnya seharusnya `Modal + Tunai − Pengeluaran`. Suku terakhirnya tidak
+pernah dibangun, jadi kasir yang mengambil Rp 20.000 dari laci untuk beli
+galon membuat sistem melaporkan kas **kurang** Rp 20.000 — dan selisih itu
+masuk audit log dengan namanya tertera. Fitur anti-bocor yang justru jadi
+sumber tuduhan palsu.
+
+Sekarang satu rumus di satu tempat: `ShiftService::expectedCash()`, dipakai
+`close()`, `ShiftPresenter` (tablet), **dan** halaman Shift. Yang penting
+bukan kerapiannya — rumus yang disalin ke layar akan melenceng dari rumus
+yang dipakai saat tutup shift, dan kasir yang menyetor uang sesuai angka di
+layar justru tercatat punya selisih yang tidak bisa dijelaskan siapa pun.
+
+Halaman Shift menampilkan sukunya satu per satu dengan angkanya
+(`Rp 200.000 modal awal + Rp 0 tunai masuk − Rp 67.000 pengeluaran`), supaya
+kasir bisa mengulang hitungannya di kertas.
+
+### Keputusan yang diambil (jawaban atas OD-029)
+
+Menempel ke **shift**, bukan tanggal. Boleh dicatat **pemegang shift atau
+admin** — aturan yang sama dengan menutup shift. **Tanpa** persetujuan owner
+per belanja: menunggu balasan membuat pencatatan ditunda, dan pengeluaran
+yang diingat belakangan selalu lebih kecil dari yang sebenarnya. **Tanpa**
+batas nominal: batas hanya memindahkan belanja besar ke luar catatan.
+Keterangan **wajib, minimal 3 huruf**. Kategori daftar tertutup, karena
+teks bebas membuat "es batu" dan "Es Batu" jadi dua kelompok di laporan.
+**Tidak bisa dihapus**, dan tidak bisa ditambahkan ke shift yang sudah
+ditutup — keduanya pintu belakang untuk menutupi selisih setelah ketahuan.
+
+### Bug tata letak yang ketemu sambil jalan
+
+**Seluruh halaman bisa digeser ke samping di laptop 1366px.** Bukan di
+halaman Shift saja — di **setiap** halaman, sejak header dibuat. Nav sebaris
+menyala mulai `xl` (1280px), padahal isinya butuh 1428px: merek 215 + sembilan
+menu 896 + blok akun 293. Diukur di browser, bukan ditebak.
+
+Titik tukarnya dipindah ke `2xl` (1536px), dan nav sebarisnya diberi
+`justify-center-safe` + geser internal supaya menu pertama tetap terjangkau
+kalau suatu saat menunya bertambah lagi. Nama panjang di blok akun dibatasi
+`max-w-36 truncate` — pemiliknya tidak akan pernah melaporkan namanya sendiri
+sebagai bug tata letak.
+
+Test barunya tidak memeriksa pikselnya (PHPUnit tidak bisa), tapi memeriksa
+bahwa **kedua nav bertukar di lebar yang sama**. Kalau tidak, ada rentang
+lebar yang muncul tanpa navigasi sama sekali.
+
+### Tabel Menu & Stok
+
+Tiga tabel per kategori diganti satu tabel `table-fixed` + `<colgroup>` +
+baris pemisah kategori. Sebelumnya tiap kategori punya header sendiri dan
+lebar kolomnya ditentukan isinya masing-masing, jadi tidak ada satu pun
+kolom yang lurus antar kategori.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `CashExpense.php`, `StoreExpenseRequest.php`, migrasi `cash_expenses`, `admin/partials/menu-stok.blade.php`, `tests/Feature/Api/CashExpenseTest.php` |
+| Diubah | `ShiftService.php` (+`expectedCash`, +`recordExpense`, `summary.expense`), `ShiftController.php`, `ShiftPresenter.php`, `AuditAction.php`, `Shift.php`, `Web/AdminActionController.php`, `Web/AdminController.php`, `routes/{api,web}.php`, `admin/{shifts,fnb}.blade.php`, `layouts/app.blade.php` |
+
+**DB changes** — migrasi `2026_10_11_143642_create_cash_expenses_table`:
+`shift_id` (cascade), `amount` unsigned int, `category` varchar(32), `note`
+varchar(255) **NOT NULL**, `actor_id` (restrict), index `[shift_id, created_at]`.
+
+**API/Events** — `POST /shifts/{id}/expenses` baru. Objek `shift` bertambah
+`summary.expense` dan `expected_cash`. Tidak ada event baru. CHANGELOG
+DRAFT 18.
+
+**Tests** — **450 lulus** (+14), 1.420 assertion. Yang diperiksa bukan
+"pengeluaran tersimpan" melainkan **angkanya ikut dalam hitungan**: rumus
+tiga suku dengan nilai berbeda-beda, dan selisih saat `close()` yang
+memakai rumus yang sama. Test lama
+`test_shift_menyebut_pengeluaran_kasir_belum_ada` dihapus — isinya sudah
+tidak benar.
+
+**Manual test** — form diisi lewat browser di 1366px: `Rp 5.000 /
+Perbaikan / "lem stik rusak"` → pengeluaran 67.000 → 72.000, kas seharusnya
+133.000 → 128.000, baris baru muncul paling atas. Lebar 320/375/768/1366/
+1536/1920 diperiksa: tidak ada yang meluber.
+
+**Known issues** — pengeluaran belum masuk laporan laba (HPP dan biaya
+operasional bulanan masih kosong). F&B walk-in (**OD-030**) masih terbuka:
+pembeli yang cuma beli rokok belum bisa dilayani sama sekali.
+
+**Next step** — OD-030 (F&B walk-in), lalu station & tipe konsol yang bisa
+ditambah-ubah dari halaman owner (OD-028).

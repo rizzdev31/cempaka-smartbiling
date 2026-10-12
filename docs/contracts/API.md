@@ -720,10 +720,22 @@ Endpoint ini **read-only** untuk operator. Pendaftaran, pemetaan ulang, dan penc
 { "data": { "id": "uuid", "operator": { "id": "uuid", "name": "Budi" },
             "opened_at": "...Z", "closed_at": null,
             "opening_cash": 200000,
-            "summary": { "rental": 0, "fnb": 0, "cash": 0, "qris": 0, "total": 0 } } }
+            "summary": { "rental": 0, "fnb": 0, "cash": 0, "qris": 0, "total": 0, "expense": 0 },
+            "expected_cash": 200000 } }
 ```
 
 Close butuh `closing_cash` + `note` opsional; selisih dicatat untuk audit.
+
+**`expected_cash` dihitung SERVER** (DEC-046):
+
+```
+expected_cash = opening_cash + summary.cash − summary.expense
+```
+
+Client **tidak boleh** menghitungnya sendiri. Rumus yang disalin akan
+melenceng dari rumus yang dipakai saat `close()`, dan kasir yang menyetor
+uang sesuai angka di layarnya justru tercatat punya selisih. QRIS tidak ikut
+— uangnya tidak pernah masuk laci.
 
 Dasar angka di `summary`:
 
@@ -731,6 +743,7 @@ Dasar angka di `summary`:
 |---|---|
 | `cash`, `qris`, `total` | **uang yang benar-benar masuk** — payment ber-`shift_id` sama |
 | `rental`, `fnb` | **nilai transaksi** — item pada sesi milik shift ini, dibayar maupun belum |
+| `expense` | **uang keluar dari laci** — `cash_expenses` milik shift ini. Nilainya **positif**; `expected_cash` yang mengurangkannya |
 
 `rental` sudah termasuk `EXTEND`: keduanya penjualan waktu bermain.
 
@@ -748,6 +761,34 @@ Aturan lain:
   yang dibutuhkan adalah selisihnya tercatat, bukan dipaksa nol.
 - `GET /shifts/current` mengembalikan `data: null` kalau belum ada shift —
   itu keadaan normal di awal hari, bukan `404`.
+
+---
+
+### `POST /shifts/{id}/expenses` — pengeluaran kasir (DEC-046)
+`Idempotency-Key` wajib. Izin `shift.manage`.
+
+```json
+{ "amount": 20000, "category": "Galon & air", "note": "beli galon 2 buah" }
+```
+
+```json
+{ "data": { "id": "uuid", "amount": 20000, "category": "Galon & air",
+            "note": "beli galon 2 buah", "created_at": "...Z",
+            "shift": { "...": "objek shift lengkap, sudah diperbarui" } } }
+```
+
+Shift ikut dikirim: pertanyaan berikutnya setelah mencatat selalu "jadi
+berapa sekarang isi laci", dan client tidak boleh menghitungnya sendiri.
+
+- `category` harus salah satu dari: `Bahan F&B`, `Galon & air`, `Kebersihan`,
+  `Perbaikan`, `Listrik & utilitas`, `Lainnya`. Daftar tertutup — teks bebas
+  membuat "es batu" dan "Es Batu" jadi dua kelompok di laporan.
+- `note` **wajib**, minimal 3 huruf.
+- `amount` integer rupiah, minimal 1.
+- Shift sudah ditutup → `409 SHIFT_NOT_OPEN`.
+- Bukan pemegang shift dan bukan admin → `403 FORBIDDEN`.
+- **Tidak ada endpoint hapus.** Pengeluaran yang bisa dihapus adalah jalan
+  keluar paling mudah dari selisih kas.
 
 ---
 

@@ -110,6 +110,15 @@ Route::middleware(['auth', 'admin.web'])
 
         Route::post('/shift/{shift}/tutup', 'closeShift')
             ->middleware('can:shift.manage')->name('shifts.close');
+
+        /*
+         * Pengeluaran kasir — DEC-046. Izin sama dengan
+         * `POST /api/v1/shifts/{shift}/expenses`: `shift.manage` di route,
+         * lalu Service menolak kalau shiftnya sudah ditutup atau
+         * pemanggilnya bukan pemegangnya.
+         */
+        Route::post('/shift/{shift}/pengeluaran', 'recordExpense')
+            ->middleware('can:shift.manage')->name('shifts.expense');
     });
 
 /*

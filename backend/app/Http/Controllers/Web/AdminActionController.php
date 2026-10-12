@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web;
 
 use App\Enums\FnbOrderStatus;
 use App\Exceptions\ApiException;
+use App\Http\Requests\Api\V1\StoreExpenseRequest;
 use App\Http\Requests\Api\V1\StoreFnbProductRequest;
 use App\Models\Customer;
 use App\Models\FnbOrder;
@@ -273,5 +274,24 @@ class AdminActionController
         ), 'closing_cash');
 
         return back()->with('sukses', 'Shift ditutup. Selisih kasnya tercatat di Audit.');
+    }
+
+    /**
+     * Catat uang yang keluar dari laci — DEC-046.
+     *
+     * Validasinya memakai `StoreExpenseRequest` yang SAMA dengan API, bukan
+     * aturan yang ditulis ulang di sini. Batas "keterangan minimal tiga
+     * huruf" adalah satu-satunya hal yang membuat kolom itu berguna saat
+     * laporan diperiksa; aturan yang disalin akan melunak di salah satu
+     * pintu tanpa ada yang menyadarinya.
+     */
+    public function recordExpense(StoreExpenseRequest $request, Shift $shift): RedirectResponse
+    {
+        $this->jalankan(
+            fn () => $this->shifts->recordExpense($shift, $request->validated(), $request->user()),
+            'amount',
+        );
+
+        return back()->with('sukses', 'Pengeluaran dicatat. Kas seharusnya di laci sudah dikurangi.');
     }
 }

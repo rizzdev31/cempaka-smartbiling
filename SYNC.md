@@ -4,7 +4,7 @@
 > setiap ada perubahan backend. Kalau tidak ada nama Anda di bagian
 > "Perlu dikerjakan", tidak ada yang perlu Anda lakukan.
 
-**Terakhir diperbarui:** 11 Oktober 2026 · **Kontrak:** `v1 DRAFT 17`
+**Terakhir diperbarui:** 12 Oktober 2026 · **Kontrak:** `v1 DRAFT 18`
 
 > **Perubahan batas kerja (10 Okt):** user mencabut aturan "backend saja".
 > Claude sekarang juga menyentuh `operator-app/` dan `tv-agent/`.
@@ -16,8 +16,8 @@
 
 | Bagian | Status |
 |---|---|
-| **Backend (Laravel)** | Tahap 0 **SELESAI**. 33 endpoint, 9 event realtime, 436 test lulus |
-| **Admin Web (Blade)** | Login + **10 halaman** di `/admin`, data nyata, **penuh layar**, **menyegarkan otomatis**. Bisa ubah harga, stok, status F&B, tutup shift (DEC-044) |
+| **Backend (Laravel)** | Tahap 0 **SELESAI**. 34 endpoint, 9 event realtime, 450 test lulus |
+| **Admin Web (Blade)** | Login + **10 halaman** di `/admin`, data nyata, **penuh layar**, **menyegarkan otomatis**. Bisa ubah harga, stok, status F&B, buka/tutup shift, **catat pengeluaran kasir** (DEC-044/045/046) |
 | **Operator app (Flutter)** | Layar sudah jadi. Klien API **sudah ada** (`lib/data/api/`) dan alamat server sudah bisa ditemukan otomatis, tapi aplikasi **masih memakai data palsu** — belum dialihkan dan belum ada login |
 | **TV Agent (Kotlin)** | Kiosk + timer jalan, dan sudah bisa **menemukan** server, tapi **belum bicara** dengan Laravel — masih menerima perintah langsung dari tablet |
 
@@ -34,6 +34,8 @@
 | 3 | Panggil `ServerConnector().connect()` saat `main()` | Kodenya sudah ada tapi **belum dipanggil otomatis** — sekarang baru jalan kalau tombolnya ditekan |
 | 4 | Klien Reverb + reconnect | Tablet tidak tahu apa pun yang terjadi di tablet/TV lain |
 | 5 | Dengarkan `master.updated` → muat ulang `GET /packages` | Harga yang diubah owner tidak akan terlihat |
+| 6 | **Pakai `expected_cash` dari server** di layar tutup shift — jangan menjumlahkan `opening_cash + cash` sendiri | **DEC-046.** Rumusnya sekarang `modal + tunai − pengeluaran`. Tablet yang menjumlahkan sendiri akan menampilkan angka yang berbeda dari yang dipakai server saat `close()`, dan kasir yang menyetor sesuai layar justru tercatat punya selisih |
+| 7 | Layar **catat pengeluaran** (`POST /shifts/{id}/expenses`) | Yang memegang laci adalah kasir di tablet. Sekarang satu-satunya pintunya ada di Admin Web — artinya kasir harus memanggil owner hanya untuk mencatat Rp 20.000 beli galon |
 
 > ⚠️ Kalau nomor 3 dikerjakan: `connect()` bisa mengembalikan
 > `addressChanged == true`. Saat itu koneksi WebSocket yang sudah terbuka
@@ -223,6 +225,7 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 | Tanggal | Isi |
 |---|---|
+| 12 Okt 2026 | **DEC-046** — pengeluaran kasir dicatat (`POST /shifts/{id}/expenses`), `expected_cash` dihitung server. Rekonsiliasi laci berhenti menuduh kasir jujur. Bug: seluruh halaman bisa digeser menyamping di laptop 1366px — titik tukar nav dipindah ke 2xl |
 | 11 Okt 2026 | **DEC-045** — Laravel punya SEMUA akses: mulai sesi, bayar, extend, swap, F&B, checkout, batal, buka shift |
 | 11 Okt 2026 | 7 celah "backend ada, UI belum" ditutup: detail sesi, struk WA, pembayaran, daftar member, tambah menu, HPP. `POST /fnb/products` baru (DRAFT 17) |
 | 11 Okt 2026 | **DEC-044** — Laravel mengatur semuanya, Flutter melayani. Web bisa ubah harga/stok/shift, menyegarkan otomatis tiap 10 detik |

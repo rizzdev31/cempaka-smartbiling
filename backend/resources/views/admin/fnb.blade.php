@@ -108,77 +108,13 @@
         <x-card class="xl:col-span-7 order-2" padding="p-4 sm:p-6">
             <h2 class="text-base font-bold text-ink mb-4">Menu & Stok</h2>
 
-            @forelse ($products as $kategori => $daftar)
-                <div class="mb-5 last:mb-0">
-                    <h3 class="text-[11px] font-bold text-ink-soft uppercase tracking-wide mb-2">
-                        {{ $kategori }}
-                    </h3>
-
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-xs table-stacked">
-                            <thead>
-                                <tr class="text-ink-soft border-b border-line-soft">
-                                    <th scope="col" class="py-2 px-2 font-medium">Nama</th>
-                                    <th scope="col" class="py-2 px-2 font-medium md:text-right">Harga</th>
-                                    <th scope="col" class="py-2 px-2 font-medium md:text-right">HPP</th>
-                                    <th scope="col" class="py-2 px-2 font-medium md:text-right">Stok</th>
-                                    <th scope="col" class="py-2 px-2 font-medium md:text-right">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-line-soft">
-                                @foreach ($daftar as $p)
-                                    @php
-                                        /*
-                                         * `stock` null berarti TIDAK DILACAK
-                                         * (mis. es batu), bukan nol. Menampilkan
-                                         * "0" akan membuat orang mengira
-                                         * barangnya habis.
-                                         */
-                                        $stok = match (true) {
-                                            $p->stock === null => ['Tidak dilacak', 'bg-inset text-ink-soft'],
-                                            $p->stock === 0 => ['Habis', 'bg-danger-surface text-danger'],
-                                            $p->stock <= 3 => ['Sisa sedikit', 'bg-warning-surface text-warning'],
-                                            default => ['Aman', 'bg-playing-surface text-playing'],
-                                        };
-                                    @endphp
-                                    <tr class="hover:bg-inset/60 transition-colors">
-                                        <td data-label="Nama" class="py-2.5 px-2 font-semibold text-ink">{{ $p->name }}</td>
-                                        <td data-label="Harga" class="py-2.5 px-2 md:text-right text-ink">
-                                            <x-rupiah :value="$p->price" />
-                                        </td>
-                                        <td data-label="HPP" class="py-2.5 px-2 md:text-right text-ink-soft">
-                                            {{-- HPP boleh kosong: produk lama
-                                                 belum tentu punya angkanya. --}}
-                                            @if ($p->hpp !== null)
-                                                <x-rupiah :value="$p->hpp" />
-                                            @else
-                                                —
-                                            @endif
-                                        </td>
-                                        <td data-label="Stok" class="py-2.5 px-2 md:text-right text-ink tabular">
-                                            {{ $p->stock ?? '—' }}
-                                        </td>
-                                        <td data-label="Status" class="py-2.5 px-2 md:text-right">
-                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold {{ $stok[1] }}">
-                                                {{ $stok[0] }}
-                                            </span>
-                                            @unless ($p->is_available)
-                                                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-idle-surface text-idle">
-                                                    Dinonaktifkan
-                                                </span>
-                                            @endunless
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            @empty
+            @if ($products->isEmpty())
                 <x-empty title="Belum ada menu" icon="cup">
-                    Tambahkan produk lewat seeder atau halaman Harga & Paket.
+                    Tambahkan menu dari halaman Harga & Paket.
                 </x-empty>
-            @endforelse
+            @else
+                @include("admin.partials.menu-stok")
+            @endif
         </x-card>
     </div>
 

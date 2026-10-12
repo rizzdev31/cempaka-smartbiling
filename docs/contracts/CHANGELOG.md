@@ -656,3 +656,43 @@ Tidak ada yang wajib dikerjakan. Tapi kalau nanti ada layar menu di tablet:
 - alasan + referensi DEC/OD
 - aksi yang harus dilakukan client
 ```
+
+---
+
+## v1 · DRAFT 18 — 2026-10-12
+
+Pengeluaran kasir akhirnya punya tempat, dan hitungan laci berhenti salah.
+
+**ADDED — API** · Flutter · Admin Web · **DEC-046** (menutup OD-029)
+- `POST /shifts/{id}/expenses` — catat uang yang keluar dari laci.
+  `can:shift.manage` + `Idempotency-Key`. 201 + objek pengeluaran, dengan
+  shift yang sudah diperbarui ikut di dalamnya.
+
+```json
+{ "amount": 20000, "category": "Galon & air", "note": "beli galon 2 buah" }
+```
+
+- `category` daftar tertutup: `Bahan F&B`, `Galon & air`, `Kebersihan`,
+  `Perbaikan`, `Listrik & utilitas`, `Lainnya`.
+- `note` **wajib**, minimal 3 huruf. Pengeluaran tanpa keterangan persis
+  yang tidak bisa dijelaskan saat laporan diperiksa.
+- Shift sudah ditutup → `409 SHIFT_NOT_OPEN`. Bukan pemegangnya dan bukan
+  admin → `403`.
+- **Tidak ada endpoint hapus**, dan itu disengaja.
+
+**ADDED — API** · Flutter · objek `shift`
+- `summary.expense` — total pengeluaran shift ini. **Positif**; yang
+  mengurangkan adalah `expected_cash`.
+- `expected_cash` — `opening_cash + summary.cash − summary.expense`,
+  dihitung **server**.
+
+**Kenapa `expected_cash` dikirim server, bukan dihitung client**
+
+Rumus itu sudah salah sekali karena sukunya kurang. Kalau client
+menghitungnya sendiri, layar tablet dan hitungan `close()` bisa berbeda —
+dan kasir yang menyetor uang **sesuai angka di layarnya** justru tercatat
+punya selisih. Selisih seperti itu tidak akan pernah bisa dijelaskan.
+
+Flutter yang sudah menampilkan "kas seharusnya" **wajib** berhenti
+menjumlahkan sendiri dan memakai `expected_cash`. Tidak breaking: field
+lama tidak berubah, hanya bertambah.

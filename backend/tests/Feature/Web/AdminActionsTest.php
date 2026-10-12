@@ -299,6 +299,85 @@ class AdminActionsTest extends TestCase
             ->assertSessionHasErrors('closing_cash');
     }
 
+    // ── Pengeluaran kasir (DEC-046) ───────────────────────────────────
+
+    public function test_mencatat_pengeluaran_dari_web(): void
+    {
+        $owner = $this->owner();
+        $shift = Shift::query()->create([
+            'operator_id' => $owner->id,
+            'opened_at' => now()->subHour(),
+            'opening_cash' => 200_000,
+        ]);
+
+        $this->actingAs($owner)
+            ->post(route('admin.shifts.expense', $shift), [
+                'amount' => 20_000,
+                'category' => 'Galon & air',
+                'note' => 'beli galon 2 buah',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertDatabaseHas('cash_expenses', [
+            'shift_id' => $shift->id,
+            'amount' => 20_000,
+            'actor_id' => $owner->id,
+        ]);
+
+        // Service yang sama dengan API → audit terisi. Hilang diam-diam
+        // kalau suatu saat controller ini menulis ke model sendiri.
+        $this->assertDatabaseHas('audit_logs', ['action' => AuditAction::EXPENSE_RECORDED]);
+    }
+
+    public function test_pengeluaran_dengan_keterangan_kosong_ditolak_di_web(): void
+    {
+        /*
+         * Aturan validasinya milik `StoreExpenseRequest`, dan dipakai oleh
+         * KEDUA pintu. Diuji dari sisi web juga karena pintu yang memakai
+         * aturan sendiri adalah cara paling mudah aturan ini melunak tanpa
+         * ada yang menyadarinya.
+         */
+        $owner = $this->owner();
+        $shift = Shift::query()->create([
+            'operator_id' => $owner->id,
+            'opened_at' => now(),
+            'opening_cash' => 200_000,
+        ]);
+
+        $this->actingAs($owner)
+            ->post(route('admin.shifts.expense', $shift), [
+                'amount' => 20_000,
+                'category' => 'Galon & air',
+                'note' => '',
+            ])
+            ->assertSessionHasErrors('note');
+
+        $this->assertDatabaseCount('cash_expenses', 0);
+    }
+
+    public function test_pengeluaran_ke_shift_tertutup_ditolak_di_web(): void
+    {
+        $owner = $this->owner();
+        $shift = Shift::query()->create([
+            'operator_id' => $owner->id,
+            'opened_at' => now()->subHours(2),
+            'closed_at' => now()->subHour(),
+            'opening_cash' => 200_000,
+            'closing_cash' => 200_000,
+        ]);
+
+        $this->actingAs($owner)
+            ->post(route('admin.shifts.expense', $shift), [
+                'amount' => 20_000,
+                'category' => 'Lainnya',
+                'note' => 'telat catat',
+            ])
+            ->assertSessionHasErrors('amount');
+
+        $this->assertDatabaseCount('cash_expenses', 0);
+    }
+
     // ── Pintu ─────────────────────────────────────────────────────────
 
     public function test_operator_tidak_bisa_memakai_aksi_web(): void

@@ -27,6 +27,12 @@ class Shift extends Model
         return $this->belongsTo(User::class, 'operator_id');
     }
 
+    /** Uang yang keluar dari laci saat shift ini berjalan — DEC-046. */
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(CashExpense::class);
+    }
+
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);

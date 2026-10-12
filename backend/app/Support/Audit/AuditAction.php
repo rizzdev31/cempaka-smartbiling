@@ -44,6 +44,9 @@ final class AuditAction
 
     public const SHIFT_CLOSED = 'shift.closed';
 
+    /** Uang keluar dari laci — DEC-046. */
+    public const EXPENSE_RECORDED = 'shift.expense.recorded';
+
     /** DEC-027 — operator boleh mendaftarkan, tapi tidak boleh tidak terlacak. */
     public const CUSTOMER_CREATED = 'customer.created';
 

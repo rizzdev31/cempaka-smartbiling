@@ -89,12 +89,25 @@
             </a>
 
             {{--
-                Nav di baris yang sama mulai `xl`, pindah ke baris sendiri di
+                Nav di baris yang sama mulai `2xl`, pindah ke baris sendiri di
                 bawahnya. Memaksanya sebaris di 1024px membuat merek, sembilan
                 menu, dan blok akun berebut ruang — dan yang kalah selalu
                 menunya.
+
+                Batasnya `2xl` (1536px), bukan `xl`. Diukur, bukan ditebak:
+                merek 215px + sembilan menu 896px + blok akun 293px = 1428px,
+                jadi di laptop 1366px barisnya meluber dan SELURUH halaman
+                bisa digeser ke samping — di setiap halaman, bukan hanya yang
+                ini.
+
+                `justify-center-safe` menahan sisa kemungkinannya: kalau suatu
+                saat menunya bertambah lagi, nav menggeser di dalam dirinya
+                sendiri dan menu pertama tetap bisa dijangkau. `justify-center`
+                biasa memotongnya di kiri tanpa ada cara menggulirnya kembali.
             --}}
-            <nav aria-label="Navigasi utama" class="hidden xl:flex items-center gap-1 flex-1 justify-center">
+            <nav aria-label="Navigasi utama"
+                 class="hidden 2xl:flex items-center gap-1 flex-1 min-w-0 justify-center-safe
+                        overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 @foreach ($nav as $item)
                     <x-nav-link :label="$item['label']" :route="$item['route']" />
                 @endforeach
@@ -121,8 +134,12 @@
                     </span>
                 @endif
 
-                <div class="hidden lg:block leading-tight mr-1">
-                    <div class="text-xs font-bold text-ink">{{ $me?->name }}</div>
+                {{-- Lebarnya dibatasi: nama panjang ("Muhammad Reyhan
+                     Pratama") kalau dibiarkan akan mendorong tombol keluar ke
+                     luar layar, dan pemiliknya tidak akan pernah melaporkannya
+                     sebagai bug tata letak. --}}
+                <div class="hidden lg:block leading-tight mr-1 max-w-36 min-w-0">
+                    <div class="text-xs font-bold text-ink truncate">{{ $me?->name }}</div>
                     <div class="text-[11px] text-ink-soft">{{ $me?->role->value }}</div>
                 </div>
 
@@ -151,7 +168,7 @@
             halaman aktifnya tetap terlihat tanpa membuka apa pun.
         --}}
         <nav aria-label="Navigasi utama"
-             class="xl:hidden flex items-center gap-1 overflow-x-auto pb-3 -mx-4 px-4 sm:-mx-6 sm:px-6
+             class="2xl:hidden flex items-center gap-1 overflow-x-auto pb-3 -mx-4 px-4 sm:-mx-6 sm:px-6
                     [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             @foreach ($nav as $item)
                 <x-nav-link :label="$item['label']" :route="$item['route']" />

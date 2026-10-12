@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Models\Membership;
 use App\Models\Shift;
 use App\Models\User;
+use App\Services\ShiftService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Concerns\MakesBillingWorld;
@@ -195,24 +196,36 @@ class AdminPagesTest extends TestCase
             ->assertSee('Belum didaftarkan');
     }
 
-    public function test_shift_menyebut_pengeluaran_kasir_belum_ada(): void
+    public function test_kas_seharusnya_dikurangi_pengeluaran_kasir(): void
     {
         /*
-         * OD-029. Kas seharusnya = Modal + Tunai − Pengeluaran, dan suku
-         * terakhirnya belum dibangun. Halaman ini WAJIB mengatakannya —
-         * kalau tidak, kasir jujur yang mengambil uang untuk beli galon akan
-         * terlihat seperti mencuri.
+         * DEC-046, dulu OD-029.
+         *
+         * Kas seharusnya = Modal + Tunai − Pengeluaran. Suku terakhirnya
+         * dulu tidak ada, dan kasir jujur yang mengambil Rp 20.000 untuk
+         * beli galon terlihat kekurangan Rp 20.000 saat tutup shift.
+         *
+         * Yang diperiksa ANGKANYA, bukan ada-tidaknya kata "pengeluaran" di
+         * halaman. Kalimat yang menjelaskan rumus bisa benar sementara
+         * hitungannya salah — itu keadaan versi sebelumnya.
          */
-        $this->actingAs($this->owner());
+        $this->actingAs($owner = $this->owner());
 
-        Shift::query()->create([
-            'operator_id' => auth()->id(),
+        $shift = Shift::query()->create([
+            'operator_id' => $owner->id,
             'opened_at' => now(),
             'opening_cash' => 200_000,
         ]);
 
+        app(ShiftService::class)->recordExpense($shift, [
+            'amount' => 20_000,
+            'category' => 'Galon & air',
+            'note' => 'beli galon 2 buah',
+        ], $owner);
+
         $this->get(route('admin.shifts'))
             ->assertOk()
-            ->assertSee('OD-029');
+            ->assertSee('Rp 180.000')          // 200.000 − 20.000
+            ->assertSee('beli galon 2 buah');  // keterangannya, bukan hanya nominalnya
     }
 }
