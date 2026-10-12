@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\FnbOrderStatus;
 use App\Enums\SessionItemType;
 use App\Events\FnbOrderCreated;
-use App\Support\Realtime\SessionUpdateBroadcaster;
 use App\Exceptions\ApiException;
 use App\Models\BillingSession;
 use App\Models\FnbOrder;
@@ -15,6 +14,7 @@ use App\Models\User;
 use App\Support\Api\ErrorCode;
 use App\Support\Audit\AuditAction;
 use App\Support\Audit\AuditLogger;
+use App\Support\Realtime\SessionUpdateBroadcaster;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -68,6 +68,17 @@ class FnbService
                     'name' => $line['product']->name,
                     'qty' => $line['qty'],
                     'unit_price' => $line['product']->price,
+                    /*
+                     * HPP ikut dibekukan — DEC-050.
+                     *
+                     * Tanpa ini laporan laba bulan lalu ikut berubah setiap
+                     * kali harga modal diperbarui, tanpa error dan tanpa ada
+                     * yang bisa menjelaskan kenapa angkanya tidak sama lagi.
+                     *
+                     * NULL kalau produknya memang belum punya HPP: "tidak
+                     * diketahui", bukan nol.
+                     */
+                    'unit_hpp' => $line['product']->hpp,
                     'subtotal' => $line['subtotal'],
                 ]);
 

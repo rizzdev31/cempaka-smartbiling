@@ -22,6 +22,10 @@
         'tv' => ['stroke', 'M9 17.25v1.007a3 3 0 01-.879 2.122L7 21h10l-1.121-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25A2.25 2.25 0 015.25 3h13.5A2.25 2.25 0 0121 5.25z'],
         'cup' => ['stroke', 'M3 8h14m0 0a3 3 0 110 6h-1M3 8v9a3 3 0 003 3h8a3 3 0 003-3v-3M7 3v2m4-2v2'],
         'clock' => ['stroke', 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
+        // Halaman Laporan. Ikon yang tidak ada jatuh ke `warning`, dan
+        // segitiga peringatan di keadaan kosong yang normal membuat orang
+        // mengira ada yang rusak.
+        'chart' => ['stroke', 'M3 3v16a2 2 0 002 2h16M7 15V9m5 6V5m5 10v-4'],
         'search' => ['stroke', 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'],
         'sort' => ['stroke', 'M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12'],
         'chevron-down' => ['stroke', 'M19 9l-7 7-7-7'],

@@ -56,7 +56,7 @@
         ['label' => 'Customer', 'route' => 'admin.customers'],
         ['label' => 'Shift', 'route' => 'admin.shifts'],
         ['label' => 'Audit', 'route' => 'admin.audit'],
-        ['label' => 'Laporan', 'route' => null],
+        ['label' => 'Laporan', 'route' => 'admin.reports'],
     ];
 
     $me = auth()->user();

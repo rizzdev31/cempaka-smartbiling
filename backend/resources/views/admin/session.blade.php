@@ -18,10 +18,10 @@
         </x-slot:actions>
     </x-page-header>
 
-    <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 xl:gap-6">
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-4">
 
         {{-- ── Rincian tagihan ─────────────────────────────────────── --}}
-        <x-card class="xl:col-span-7" padding="p-4 sm:p-6">
+        <x-card class="xl:col-span-7">
             <h2 class="text-base font-bold text-ink mb-4">Rincian Tagihan</h2>
 
             <div class="overflow-x-auto">
@@ -121,7 +121,7 @@
         <div class="xl:col-span-5 flex flex-col gap-4">
 
             {{-- Waktu --}}
-            <x-card padding="p-4 sm:p-6">
+            <x-card>
                 <h2 class="text-base font-bold text-ink mb-4">Waktu</h2>
 
                 <dl class="space-y-2 text-xs">
@@ -188,7 +188,7 @@
             </x-card>
 
             {{-- Pembayaran --}}
-            <x-card padding="p-4 sm:p-6">
+            <x-card>
                 <h2 class="text-base font-bold text-ink mb-4">Pembayaran</h2>
 
                 @forelse ($session->payments as $p)
@@ -215,8 +215,8 @@
 
             {{-- Struk --}}
             @if ($session->receipt_number)
-                <x-card padding="p-4 sm:p-6">
-                    <h2 class="text-base font-bold text-ink mb-3">Struk</h2>
+                <x-card>
+                    <h2 class="text-base font-bold text-ink mb-4">Struk</h2>
 
                     <div class="flex items-baseline justify-between gap-3 text-xs mb-1">
                         <span class="text-ink-soft">Nomor</span>
@@ -273,7 +273,7 @@
          yang dicari tenggelam, dan di tablet mendorong rincian tagihan
          sampai di luar pandangan. --}}
     @unless ($session->status->isFinal())
-        <x-card class="mt-4" padding="p-4 sm:p-6">
+        <x-card class="mt-4">
             <div class="flex items-center justify-between gap-3 mb-4 flex-wrap">
                 <h2 class="text-base font-bold text-ink">Aksi</h2>
                 <p class="text-[11px] text-ink-soft">
@@ -405,7 +405,7 @@
     @endunless
 
     {{-- ── Jejak audit ─────────────────────────────────────────────── --}}
-    <x-card class="mt-4" padding="p-4 sm:p-6">
+    <x-card class="mt-4">
         <h2 class="text-base font-bold text-ink mb-4">Jejak</h2>
 
         @forelse ($logs as $log)

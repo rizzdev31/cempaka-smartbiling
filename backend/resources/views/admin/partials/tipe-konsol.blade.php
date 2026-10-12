@@ -6,7 +6,7 @@
     terpisah membuat urutan itu tidak terlihat.
 --}}
 
-<x-card class="mb-6" padding="p-4 sm:p-6">
+<x-card class="mb-4">
     <div class="flex items-start justify-between gap-3 flex-wrap mb-4">
         <div>
             <h2 class="text-base font-bold text-ink">Tipe Konsol</h2>

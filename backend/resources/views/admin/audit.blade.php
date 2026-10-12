@@ -26,7 +26,7 @@
         @endforeach
     </div>
 
-    <x-card padding="p-4 sm:p-6">
+    <x-card>
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs table-stacked">
                 <thead>

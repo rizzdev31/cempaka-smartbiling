@@ -342,8 +342,8 @@ php artisan test --filter=WebDesignTokensTest
 |---|---|
 | ~~Login web~~ | ✅ **Sudah ada** — DEC-043. Guard session, Owner & Admin saja |
 | ~~Data nyata~~ | ✅ **Sudah** — `DashboardData` + `BusinessDay`. Batas "hari ini" = tengah malam **WIB**, bukan UTC |
-| **Modul §19 lainnya** | Laporan, Booking, Target, Backup — backend-nya juga belum ada. **Expense kas sudah ada** (DEC-046, halaman Shift); Profit masih menunggu biaya operasional bulanan, bukan hanya pengeluaran laci |
+| **Modul §19 lainnya** | Booking, Target, Backup — backend-nya juga belum ada. **Laporan sudah ada** (DEC-050), **Expense kas sudah ada** (DEC-046); Profit bersih masih menunggu biaya operasional bulanan, bukan hanya pengeluaran laci |
 | ~~Semua halaman hanya membaca~~ | ✅ **Sudah bisa mengubah** — DEC-044/045/046: harga, stok, status pesanan, operasi sesi, shift, pengeluaran kasir |
-| Laporan | satu-satunya menu nav yang masih diredupkan dan tidak bisa diklik |
+| ~~Laporan~~ | ✅ **DEC-050** — omzet, laba kotor F&B, pengeluaran, performa station, menu terlaris, per operator. Periode bebas. Tidak ada lagi menu nav yang diredupkan |
 | Mode gelap | tidak dibuat — sama seperti tablet (DEC-016) |
-| Responsif ponsel | tata letak sudah menyusut sampai satu kolom, tapi belum diuji di perangkat |
+| Responsif ponsel | 11 halaman diukur di 375px dengan semua panel terbuka — tidak ada yang meluber. Belum diuji di perangkat fisik |

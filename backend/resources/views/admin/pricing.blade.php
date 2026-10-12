@@ -18,7 +18,7 @@
             tidak tahu kenapa aksesnya ditolak akan mengira sistemnya rusak
             dan mencari jalan memutar.
         --}}
-        <div class="flex items-start gap-3 p-4 mb-6 rounded-block bg-inset border border-line">
+        <div class="flex items-start gap-3 p-4 mb-4 rounded-block bg-inset border border-line">
             <span class="text-ink-soft shrink-0 mt-0.5"><x-icon name="warning" class="w-4 h-4" /></span>
             <p class="text-xs text-ink-soft leading-relaxed">
                 <span class="font-bold text-ink">Perubahan harga dikunci untuk owner</span> (DEC-020).
@@ -34,7 +34,7 @@
         Ini pertanyaan yang paling sering muncul (DEC-040), dan jawabannya
         ditaruh di halaman tempat orang bertanya — bukan hanya di dokumen.
     --}}
-    <div class="flex items-start gap-3 p-4 mb-6 rounded-block bg-brand-50 border border-brand-100">
+    <div class="flex items-start gap-3 p-4 mb-4 rounded-block bg-brand-50 border border-brand-100">
         <span class="text-brand-600 shrink-0 mt-0.5"><x-icon name="clock" class="w-4 h-4" /></span>
         <p class="text-xs text-brand-600 leading-relaxed">
             Harga baru berlaku untuk <span class="font-bold">sesi berikutnya</span>.
@@ -45,7 +45,7 @@
 
     {{-- ── Paket rental ────────────────────────────────────────────── --}}
     @forelse ($packages as $tipe => $daftar)
-        <x-card class="mb-4" padding="p-4 sm:p-6">
+        <x-card class="mb-4">
             <div class="flex items-center justify-between gap-3 mb-4">
                 <h2 class="text-base font-bold text-ink">{{ $tipe }}</h2>
                 <x-badge tone="neutral">{{ $daftar->count() }} paket</x-badge>
@@ -165,7 +165,7 @@
 
     {{-- ── Tambah paket ────────────────────────────────────────────── --}}
     @if ($bolehUbah && $stationTypes->isNotEmpty())
-        <x-card class="mb-4" padding="p-4 sm:p-6">
+        <x-card class="mb-4">
             <h2 class="text-base font-bold text-ink mb-4">Tambah Paket</h2>
 
             <form method="POST" action="{{ route('admin.packages.store') }}"
@@ -203,7 +203,7 @@
     @endif
 
     {{-- ── Harga F&B ───────────────────────────────────────────────── --}}
-    <x-card padding="p-4 sm:p-6">
+    <x-card>
         <div class="flex items-start justify-between gap-3 mb-4 flex-wrap">
             <h2 class="text-base font-bold text-ink">Harga F&B</h2>
             {{--

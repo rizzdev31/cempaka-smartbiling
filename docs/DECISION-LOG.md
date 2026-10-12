@@ -1936,6 +1936,89 @@ yang bisa macet. Setelah disimpan, redirect tanpa `?edit=` supaya formnya
 tertutup sendiri.
 
 ---
+## DEC-050 — Halaman Laporan, dan HPP yang dibekukan
+**Tanggal:** 12 Okt 2026 · **Status:** APPROVED
+
+User: *"halaman laporan kok tidak bisa? buatkan segera."*
+
+Menu "Laporan" memang sengaja diredupkan sejak DEC-042 — modulnya belum
+ada. Sekarang ada.
+
+### Isinya (PRD §19 "Reports" & §27)
+
+Uang diterima · rental · F&B dengan modalnya · kas bersih · grafik per
+jam/per hari · metode bayar · performa per station · pengeluaran kasir per
+kategori · menu terlaris · uang masuk per operator. Periode: hari ini, 7
+hari, 30 hari, bulan ini, atau rentang tanggal bebas.
+
+### Satu definisi "pendapatan" untuk seluruh sistem
+
+**Pendapatan = payment berstatus CONFIRMED**, sama persis dengan
+`DashboardData` dan `ShiftService::summary()`.
+
+Bukan pilihan gaya. Halaman laporan dengan dasar berbeda akan selalu
+selisih dengan dashboard, dan yang dicurigai pertama adalah sistemnya —
+bukan definisinya. Ada test yang membandingkan kedua halaman untuk hari
+yang sama.
+
+### Bug yang ditemukan karena keduanya dibandingkan
+
+Dashboard melaporkan **Rp 346.000**; Laporan menyebut **Rp 394.000** untuk
+hari yang sama. Selisih Rp 48.000.
+
+Penyebabnya `whereBetween`, yang inklusif di **kedua** ujungnya, dipakai di
+dua belas tempat di `ReportData`. Transaksi tepat pada tengah malam
+terhitung di hari ini **dan** besok. Tidak ada error, tidak ada yang ganjil
+di layar mana pun — hanya dua halaman yang tidak sepakat, dan tidak ada
+cara tahu mana yang benar.
+
+`BusinessDay::range()` sudah memperingatkan ini di komentarnya sendiri.
+Rentang sekarang setengah terbuka: `>= from AND < to`.
+
+### Baris tabel WAJIB menjumlah ke totalnya sendiri
+
+Versi pertama tabel Performa Station memakai "sesi yang berakhir" sementara
+angka besar di atasnya memakai "item yang dibuat" — kolom Omzet tidak
+menjumlah ke Rental + F&B.
+
+Keduanya sah sebagai definisi, tapi laporan yang baris-barisnya tidak
+menjumlah ke totalnya sendiri akan selalu dicurigai rusak. Sekarang satu
+dasar, dengan test yang menjaganya.
+
+### HPP dibekukan saat order dibuat
+
+`name` dan `unit_price` sudah dibekukan sejak awal; `unit_hpp` tidak.
+Akibatnya: es teh dijual 5.000 dengan modal 1.500 di Januari; Februari
+harga gula naik dan HPP diubah jadi 2.500; **laporan laba Januari ikut
+berubah sendirinya**, karena ia menghitung ulang dari angka hari ini.
+
+Kolom `fnb_order_items.unit_hpp` nullable, **tidak diisi mundur**: HPP saat
+itu memang tidak pernah disimpan, dan mengisinya dengan angka hari ini akan
+terlihat seperti data yang benar padahal tebakan. Halaman menyebutkan
+berapa porsi yang begitu, karena laba yang dihitung dari sebagian data
+bukan laba.
+
+Bukan perubahan kontrak: `unit_hpp` tidak pernah dikirim ke client.
+
+### Grafik: batang CSS, bukan pustaka
+
+Satu halaman tidak sebanding dengan 70 KB JavaScript, dan batang yang
+digambar browser tetap tampil saat skrip gagal dimuat (rental ini dipakai
+di jaringan lokal — DEC-002).
+
+Rentang satu hari digambar **per jam**, bukan satu batang tunggal: "hari
+ini" adalah tampilan yang paling sering dibuka, dan sebaran per jam
+menjawab pertanyaan yang memang ditanyakan pemilik rental. Di atas 90 hari
+grafiknya tidak digambar sama sekali — 90 batang tidak terbaca di layar
+mana pun, dan angkanya tetap benar.
+
+### Izin: `audit.read`, bukan `pricing.manage`
+
+Laporan adalah bacaan. Admin yang mengelola operasi harian tidak bisa
+bekerja tanpa melihat angkanya. Operator tetap ditolak: dia memakai tablet,
+dan tidak punya alasan melihat omzet sepanjang bulan.
+
+---
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**

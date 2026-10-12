@@ -253,6 +253,79 @@ class WebDesignTokensTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/(?<![a-z0-9])xl:hidden/', $kelas);
     }
 
+    /** @return list<string> berkas halaman di `views/admin`, bukan partial */
+    private function halamanAdmin(): array
+    {
+        return array_values(array_filter(
+            glob(self::VIEWS.'/admin/*.blade.php') ?: [],
+            fn (string $f) => is_file($f),
+        ));
+    }
+
+    public function test_setiap_halaman_memakai_page_header(): void
+    {
+        /*
+         * Judul halaman ditulis SEKALI, di satu komponen.
+         *
+         * Dashboard dulu menyusun judulnya sendiri: ukuran, jarak bawah,
+         * dan perilakunya di ponsel semuanya sedikit berbeda dari sepuluh
+         * halaman lain. Beda yang terlalu kecil untuk dilaporkan sebagai
+         * bug, tapi cukup untuk membuat halaman terasa tidak dirancang —
+         * dan itu justru halaman yang paling sering dibuka.
+         */
+        foreach ($this->halamanAdmin() as $file) {
+            $this->assertStringContainsString(
+                '<x-page-header',
+                file_get_contents($file),
+                basename($file).' menyusun judulnya sendiri. Pakai <x-page-header>.',
+            );
+        }
+    }
+
+    public function test_tidak_ada_halaman_yang_menimpa_padding_kartu(): void
+    {
+        /*
+         * Bawaan `<x-card>` sudah `p-4 sm:p-6`.
+         *
+         * Sebelum dirapikan ada LIMA varian padding di sebelas halaman:
+         * `p-6`, `p-5`, `p-4 sm:p-5`, `p-4 sm:p-6`, dan bawaan. Semuanya
+         * masuk akal satu per satu; berdampingan, kartunya terlihat
+         * seperti disusun oleh orang yang berbeda-beda.
+         *
+         * Prop `padding` masih ada untuk kasus yang memang khusus — tapi
+         * kasusnya harus disebutkan di sini dulu, bukan dipakai diam-diam.
+         */
+        foreach ([...$this->halamanAdmin(), ...glob(self::VIEWS.'/admin/partials/*.blade.php') ?: []] as $file) {
+            $isi = preg_replace('/\{\{--.*?--\}\}/s', '', file_get_contents($file));
+
+            $this->assertStringNotContainsString(
+                'padding="',
+                $isi,
+                basename($file).' menimpa padding kartu. Bawaannya sudah benar untuk hampir semua tempat.',
+            );
+        }
+    }
+
+    public function test_jarak_antar_blok_memakai_satu_skala(): void
+    {
+        /*
+         * `mb-4` antar blok, `mb-6` hanya milik `x-page-header`.
+         *
+         * Dulu bercampur `mb-4`, `mb-6`, `mb-8`, dan `mb-6 sm:mb-8`. Di
+         * satu halaman tidak ada yang sadar; saat berpindah halaman,
+         * isinya terlihat "melompat" naik-turun tanpa alasan.
+         */
+        foreach ([...$this->halamanAdmin(), ...glob(self::VIEWS.'/admin/partials/*.blade.php') ?: []] as $file) {
+            $isi = preg_replace('/\{\{--.*?--\}\}/s', '', file_get_contents($file));
+
+            $this->assertDoesNotMatchRegularExpression(
+                '/\bmb-(?:6|8)\b/',
+                $isi,
+                basename($file).' memakai jarak di luar skala. Antar blok: mb-4.',
+            );
+        }
+    }
+
     public function test_layout_memanggil_direktif_fonts(): void
     {
         /*
@@ -262,10 +335,27 @@ class WebDesignTokensTest extends TestCase
          * tidak terlihat kecuali dibandingkan berdampingan, dan justru
          * karena itu bisa bertahan berbulan-bulan.
          */
-        $layout = file_get_contents(self::VIEWS.'/components/layouts/app.blade.php');
+        /*
+         * SETIAP berkas yang punya `<html>` sendiri, bukan hanya layout
+         * utama. Halaman login berdiri sendiri — ia tidak memakai
+         * `layouts.app`, jadi ia bisa kehilangan fontnya tanpa satu pun
+         * halaman admin ikut berubah.
+         */
+        foreach ($this->bladeFiles() as $file) {
+            $isi = file_get_contents($file);
 
-        $this->assertStringContainsString('@fonts', $layout, 'Layout kehilangan @fonts — Plus Jakarta Sans tidak akan termuat.');
-        $this->assertStringContainsString('@vite', $layout);
+            if (! str_contains($isi, '<html')) {
+                continue;
+            }
+
+            $nama = basename($file);
+
+            $this->assertStringContainsString(
+                '@fonts', $isi,
+                "{$nama} kehilangan @fonts — Plus Jakarta Sans tidak akan termuat di halaman itu.",
+            );
+            $this->assertStringContainsString('@vite', $isi, "{$nama} kehilangan @vite.");
+        }
     }
 
     public function test_font_hanya_plus_jakarta_sans(): void

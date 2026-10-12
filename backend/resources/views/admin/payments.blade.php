@@ -19,7 +19,7 @@
         </x-slot:actions>
     </x-page-header>
 
-    <div class="grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] gap-4 mb-6">
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(14rem,1fr))] gap-4 mb-4">
         <x-metric label="Tunai masuk" icon="money" :value="'Rp '.number_format($cash, 0, ',', '.')" chip="soft" />
         <x-metric label="QRIS masuk" icon="money" :value="'Rp '.number_format($qris, 0, ',', '.')" />
         <x-metric
@@ -34,7 +34,7 @@
         ditampilkan di daftar. Pembayaran yang tertahan harus terlihat ada —
         menyembunyikannya membuat selisih laci jadi misteri.
     --}}
-    <x-card padding="p-4 sm:p-6">
+    <x-card>
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs table-stacked">
                 <thead>

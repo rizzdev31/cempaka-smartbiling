@@ -11,7 +11,7 @@
     @if ($current)
         @php $summary = app(\App\Services\ShiftService::class)->summary($current); @endphp
 
-        <x-card class="mb-6" padding="p-4 sm:p-6">
+        <x-card class="mb-4">
             <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
                 <div>
                     <div class="flex items-center gap-2 flex-wrap">
@@ -200,7 +200,7 @@
             </details>
         </x-card>
     @else
-        <x-card class="mb-6">
+        <x-card class="mb-4">
             <x-empty title="Tidak ada shift yang terbuka" icon="clock">
                 Operator biasanya membukanya dari tablet. Bisa juga dari sini.
             </x-empty>
@@ -222,7 +222,7 @@
     @endif
 
     {{-- ── Riwayat ─────────────────────────────────────────────────── --}}
-    <x-card padding="p-4 sm:p-6">
+    <x-card>
         <h2 class="text-base font-bold text-ink mb-4">Riwayat Shift</h2>
 
         <div class="overflow-x-auto">

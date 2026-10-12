@@ -48,7 +48,7 @@
         </div>
     </div>
 @else
-    <x-card padding="p-5" class="flex flex-col justify-between">
+    <x-card class="flex flex-col justify-between">
         <div class="flex items-start justify-between gap-3">
             <span class="text-xs font-medium text-ink-soft">{{ $label }}</span>
             <x-icon-chip :tone="$chip" :icon="$icon" />

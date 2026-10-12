@@ -19,7 +19,7 @@
          Muncul menggantikan form tambah saat ada `?edit=`. Dua form
          sekaligus di satu halaman membuat orang mengisi yang salah. --}}
     @if ($editing)
-        <x-card id="ubah" class="mb-4 border-brand-600" padding="p-4 sm:p-6">
+        <x-card id="ubah" class="mb-4 border-brand-600">
             <div class="flex items-start justify-between gap-3 flex-wrap mb-4">
                 <div>
                     <h2 class="text-base font-bold text-ink">Perbaiki Data Customer</h2>
@@ -66,7 +66,7 @@
          Operator juga bisa dari tablet (DEC-027). Yang di sini untuk kasus
          lain: member yang mendaftar lewat telepon, atau yang datanya
          telanjur ditulis di kertas. --}}
-    <x-card class="mb-4 {{ $editing ? 'opacity-60' : '' }}" padding="p-4 sm:p-6">
+    <x-card class="mb-4 {{ $editing ? 'opacity-60' : '' }}">
         <h2 class="text-base font-bold text-ink mb-4">Tambah Customer</h2>
 
         <form method="POST" action="{{ route('admin.customers.store') }}"
@@ -93,7 +93,7 @@
         </p>
     </x-card>
 
-    <x-card padding="p-4 sm:p-6">
+    <x-card>
         <div class="overflow-x-auto">
             <table class="w-full text-left text-xs table-stacked">
                 <thead>

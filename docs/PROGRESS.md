@@ -3611,3 +3611,108 @@ tersisa, dan belum pernah dibahas.
 **Next step** — tanya user soal nonaktif membership + saldo, atau lanjut ke
 sisa katalog kasir yang belum punya backend sama sekali (promo OD-032,
 pause, booking, top-up, poin).
+
+---
+
+## 12 Okt 2026 (lanjutan 3) — Halaman Laporan + perapian seluruh halaman (DEC-050)
+
+**Satu kalimat:** menu Laporan berhenti diredupkan, dan sebelas halaman
+akhirnya memakai ukuran yang sama.
+
+### 1. Halaman Laporan
+
+Uang diterima · rental · F&B dengan modalnya · kas bersih · grafik per
+jam/hari · metode bayar · performa per station · pengeluaran per kategori ·
+menu terlaris · uang masuk per operator. Periode: hari ini, 7 hari, 30
+hari, bulan ini, atau rentang tanggal bebas — pilihannya ikut di URL, jadi
+bisa di-bookmark dan dikirim ke orang lain.
+
+Grafiknya batang CSS, bukan pustaka: satu halaman tidak sebanding dengan
+70 KB JavaScript, dan batang yang digambar browser tetap tampil saat skrip
+gagal dimuat.
+
+### 2. Bug yang ketemu karena dua halaman dibandingkan
+
+**Dashboard Rp 346.000, Laporan Rp 394.000 — hari yang sama.**
+
+`whereBetween` inklusif di kedua ujungnya, dipakai di dua belas tempat.
+Transaksi tepat tengah malam terhitung di hari ini **dan** besok. Tidak ada
+error, tidak ada yang ganjil di layar; hanya dua halaman yang tidak
+sepakat. `BusinessDay::range()` sudah memperingatkan ini di komentarnya
+sendiri, dan saya tetap melakukannya.
+
+Ada test yang membandingkan Dashboard dan Laporan untuk hari yang sama, dan
+satu lagi khusus transaksi tepat di batas hari. Keduanya dibuktikan dengan
+mengembalikan `whereBetween` sebentar — langsung merah.
+
+### 3. Tabel yang tidak menjumlah ke totalnya sendiri
+
+Performa Station memakai "sesi yang berakhir" sementara angka besar di
+atasnya memakai "item yang dibuat". Kolom Omzet tidak sama dengan Rental +
+F&B. Sekarang satu dasar, dijaga test.
+
+### 4. HPP dibekukan (`fnb_order_items.unit_hpp`)
+
+Es teh dijual 5.000 modal 1.500 di Januari; Februari HPP diubah jadi 2.500;
+laporan laba Januari **ikut berubah sendirinya**. Kolomnya nullable dan
+tidak diisi mundur — halaman menyebutkan berapa porsi yang belum punya HPP,
+karena laba dari sebagian data bukan laba.
+
+### 5. Perapian sebelas halaman
+
+| Yang berbeda-beda | Sekarang |
+|---|---|
+| Lima varian padding kartu (`p-6`, `p-5`, `p-4 sm:p-5`, `p-4 sm:p-6`, bawaan) | satu bawaan `p-4 sm:p-6`, prop `padding` tidak dipakai lagi |
+| Jarak antar blok `mb-4`/`mb-6`/`mb-8`/`mb-6 sm:mb-8` | `mb-4`; `mb-6` hanya milik `x-page-header` |
+| Dashboard menyusun judulnya sendiri | `x-page-header`, sama dengan sepuluh halaman lain |
+| `gap-6` dan `xl:gap-6` di tiga halaman | `gap-4` |
+| Satu `<h2 class="... mb-3">` | `mb-4` |
+
+Tiga test baru menjaga ketiganya. Tanpa itu, konvensi ini akan melenceng
+lagi pada halaman berikutnya yang ditulis.
+
+**Tiga tombol mati di dashboard dihapus** — "Bulan ini", "Ekspor", "Filter"
+tidak pernah melakukan apa pun sejak disalin dari berkas referensi. Tombol
+yang tidak bekerja lebih buruk daripada tombol yang tidak ada: orang
+menekannya, tidak terjadi apa-apa, dan yang disalahkan sistemnya. Diganti
+satu tautan yang bekerja: **Laporan lengkap**.
+
+### Font
+
+Plus Jakarta Sans memang **sudah** terpasang dan terpakai di semua halaman
+— diperiksa di browser: lima bobot termuat, `font-family` terhitung Plus
+Jakarta Sans di `body` dan heading. Yang kurang adalah penjaganya: test
+`@fonts` hanya memeriksa layout admin, padahal halaman login punya
+`<html>` sendiri dan bisa kehilangan fontnya tanpa satu pun halaman admin
+ikut berubah. Sekarang semua berkas ber-`<html>` diperiksa.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `ReportData.php`, `admin/reports.blade.php`, `tests/Feature/Web/ReportTest.php`, migrasi `unit_hpp` |
+| Diubah | `Web/AdminController.php`, `routes/web.php`, `layouts/app.blade.php` (nav Laporan hidup), `icon.blade.php` (+`chart`), `card.blade.php` (bawaan padding), `FnbService.php`, `FnbOrderItem.php`, 11 berkas halaman admin, `WebDesignTokensTest.php` |
+
+**DB changes** — `fnb_order_items.unit_hpp` nullable unsigned int.
+
+**API/Events** — **tidak ada**. Laporan khusus web; `unit_hpp` tidak pernah
+dikirim ke client. Kontrak tetap DRAFT 20.
+
+**Tests** — **520 lulus** (+25), 1.627 assertion. Dua test dibuktikan
+dengan merusak kodenya dulu.
+
+**Manual test** — 10 halaman × lebar 375 diperiksa dengan semua panel
+terbuka: tidak ada yang meluber. Laporan diperiksa di 375 dan 1366. Dua
+belas sesi demo dibuat di database dev supaya angkanya tidak nol.
+
+**Known issues** — **Ada 12 sesi demo berkode `S-DEMO-…` di database dev**,
+beserta pembayaran dan order F&B-nya. Dibuat supaya halaman Laporan bisa
+dilihat berisi. Hapus dengan:
+`App\Models\BillingSession::where('code','like','S-DEMO-%')->delete();`
+
+Target omzet (PRD §27) belum ada — tidak ada tabelnya, dan belum pernah
+dibahas. Laba bersih juga belum: biaya operasional bulanan belum punya
+tempat.
+
+**Next step** — tanya user soal target omzet & biaya bulanan, atau lanjut
+ke katalog kasir yang belum punya backend (promo OD-032, pause, booking).

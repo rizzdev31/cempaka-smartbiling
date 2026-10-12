@@ -44,6 +44,14 @@ Route::middleware(['auth', 'admin.web'])
         Route::get('/audit', 'audit')->name('audit');
 
         /*
+         * Laporan — DEC-050. `audit.read` (admin ke atas), bukan
+         * `pricing.manage`: laporan adalah bacaan, dan admin yang mengelola
+         * operasi harian tidak bisa bekerja tanpa melihat angkanya.
+         */
+        Route::get('/laporan', 'reports')
+            ->middleware('can:audit.read')->name('reports');
+
+        /*
          * Harga butuh permission tersendiri (DEC-020). Halamannya boleh
          * DILIHAT admin — mengetahui tarif adalah bagian dari pekerjaannya —
          * tapi tombol ubahnya hanya untuk owner, dan penegaknya ada di

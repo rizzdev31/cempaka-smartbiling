@@ -16,8 +16,8 @@
 
 | Bagian | Status |
 |---|---|
-| **Backend (Laravel)** | Tahap 0 **SELESAI**. 40 endpoint, 9 event realtime, 495 test lulus |
-| **Admin Web (Blade)** | Login + **10 halaman** di `/admin`, data nyata, **penuh layar**, **menyegarkan otomatis**. Bisa ubah harga, stok, status F&B, shift, pengeluaran kasir, **dan menambah/mengubah station, tipe konsol, serta data customer** (DEC-044 s/d 049) |
+| **Backend (Laravel)** | Tahap 0 **SELESAI**. 40 endpoint, 9 event realtime, 520 test lulus |
+| **Admin Web (Blade)** | Login + **11 halaman** di `/admin` (termasuk **Laporan**), data nyata, **penuh layar**, **menyegarkan otomatis**. Bisa ubah harga, stok, status F&B, shift, pengeluaran kasir, **dan menambah/mengubah station, tipe konsol, serta data customer** (DEC-044 s/d 050) |
 | **Operator app (Flutter)** | Layar sudah jadi. Klien API **sudah ada** (`lib/data/api/`) dan alamat server sudah bisa ditemukan otomatis, tapi aplikasi **masih memakai data palsu** — belum dialihkan dan belum ada login |
 | **TV Agent (Kotlin)** | Kiosk + timer jalan, dan sudah bisa **menemukan** server, tapi **belum bicara** dengan Laravel — masih menerima perintah langsung dari tablet |
 
@@ -224,6 +224,7 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 | Tanggal | Isi |
 |---|---|
+| 12 Okt 2026 | **DEC-050** — halaman **Laporan** jadi. HPP dibekukan ke baris order. Bug: `whereBetween` membuat transaksi tengah malam terhitung dua hari — Dashboard dan Laporan beda Rp 48.000. Sebelas halaman dirapikan ke satu skala padding & jarak |
 | 12 Okt 2026 | **DEC-049** — data customer bisa diperbaiki (`PATCH /customers/{id}`). Jalur web yang selama ini menambah customer **tanpa audit** ikut diperbaiki |
 | 12 Okt 2026 | **DEC-048** — station & tipe konsol bisa ditambah/diubah dari web. Permission baru `station.manage`. Kode station terkunci selama TV terdaftar; tipe terkunci selama ada sesi berjalan |
 | 12 Okt 2026 | **DEC-047** — F&B walk-in (OD-030) **ditutup tanpa dibangun**. User: tidak bisa beli F&B saja, minimal sewa; teman yang ikut beli masuk ke sesi yang menyewa. `fnb_orders.session_id` tetap NOT NULL |

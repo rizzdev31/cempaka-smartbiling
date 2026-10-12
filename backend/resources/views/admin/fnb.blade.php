@@ -2,10 +2,10 @@
 
     <x-page-header title="F&B" subtitle="Menu, stok, dan pesanan yang belum sampai ke meja." />
 
-    <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 xl:gap-6">
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-4">
 
         {{-- ── Antrean pesanan ─────────────────────────────────────── --}}
-        <x-card class="xl:col-span-5 order-1" padding="p-4 sm:p-6">
+        <x-card class="xl:col-span-5 order-1">
             <div class="flex items-center justify-between gap-3 mb-4">
                 <h2 class="text-base font-bold text-ink">Antrean Pesanan</h2>
                 <x-badge tone="{{ $orders->isEmpty() ? 'neutral' : 'warn' }}">{{ $orders->count() }} terbuka</x-badge>
@@ -105,7 +105,7 @@
         </x-card>
 
         {{-- ── Menu & stok ─────────────────────────────────────────── --}}
-        <x-card class="xl:col-span-7 order-2" padding="p-4 sm:p-6">
+        <x-card class="xl:col-span-7 order-2">
             <h2 class="text-base font-bold text-ink mb-4">Menu & Stok</h2>
 
             @if ($products->isEmpty())

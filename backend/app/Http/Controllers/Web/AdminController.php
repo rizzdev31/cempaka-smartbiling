@@ -22,6 +22,7 @@ use App\Models\StationType;
 use App\Support\Phone;
 use App\Support\Time\BusinessDay;
 use App\Support\Web\DashboardData;
+use App\Support\Web\ReportData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -363,6 +364,31 @@ class AdminController
                     DB::raw("SUM(CASE WHEN type = 'EARNED' THEN amount ELSE -amount END)"),
                     'customer_id',
                 ),
+        ]);
+    }
+
+    /**
+     * Laporan — PRD §19 "Reports" & §27, DEC-050.
+     *
+     * Dasarnya sama persis dengan Dashboard dan Shift: pendapatan = payment
+     * CONFIRMED. Halaman laporan yang memakai dasar berbeda akan selalu
+     * selisih dengan dashboard, dan yang dicurigai pertama adalah
+     * sistemnya — bukan definisinya.
+     */
+    public function reports(Request $request): View
+    {
+        $rentang = ReportData::rentang(
+            $request->string('periode')->toString() ?: null,
+            $request->string('dari')->toString() ?: null,
+            $request->string('sampai')->toString() ?: null,
+        );
+
+        return view('admin.reports', [
+            'rentang' => $rentang,
+            'periode' => $request->string('periode')->toString() ?: 'hari-ini',
+            'dari' => $request->string('dari')->toString(),
+            'sampai' => $request->string('sampai')->toString(),
+            'data' => ReportData::all($rentang['from'], $rentang['to']),
         ]);
     }
 

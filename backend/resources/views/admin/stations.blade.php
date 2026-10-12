@@ -43,7 +43,7 @@
                 };
             @endphp
 
-            <x-card padding="p-5" class="flex flex-col gap-4">
+            <x-card class="flex flex-col gap-4">
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                         <div class="flex items-center gap-2 flex-wrap">
@@ -248,7 +248,7 @@
              mengikuti urutan baca, dan bentuknya langsung memberi tahu apa
              yang akan bertambah. --}}
         @if ($bolehOwner)
-            <x-card padding="p-5" class="border-dashed">
+            <x-card class="border-dashed">
                 <x-action-panel title="Tambah station" :open="$stations->isEmpty()">
                     <form method="POST" action="{{ route('admin.stations.store') }}" class="space-y-3 mt-3">
                         @csrf
