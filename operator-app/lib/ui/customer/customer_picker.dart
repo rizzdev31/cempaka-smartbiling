@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/tokens.dart';
+import '../../core/util/format.dart';
 import '../../domain/models/models.dart';
 import '../../domain/repositories/billing_repository.dart';
 import '../widgets/confirm_dialog.dart';
@@ -408,6 +409,16 @@ class _CustomerRow extends StatelessWidget {
                         customer.phone!,
                         style: AppTypography.bodySm
                             .copyWith(color: AppColors.outline),
+                      ),
+                    // Saldo ditampilkan di sini, saat member DIPILIH —
+                    // bukan nanti di checkout. DEC-026: keputusan memakai
+                    // saldo diambil sebelum tagihan ditutup, jadi angkanya
+                    // harus terlihat sebelum itu.
+                    if (customer.hasCredit)
+                      Text(
+                        'Saldo ${formatRupiah(customer.creditBalance)}',
+                        style: AppTypography.labelSm
+                            .copyWith(color: AppColors.statusActive),
                       ),
                   ],
                 ),

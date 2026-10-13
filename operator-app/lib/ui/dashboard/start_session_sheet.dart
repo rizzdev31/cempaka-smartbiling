@@ -82,15 +82,32 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
   String? _packageId;
   SessionMode _mode = SessionMode.prepaid;
 
+  /// Paket yang sah untuk tipe konsol station ini — DEC-019.
+  ///
+  /// Tanpa penyaringan ini operator melihat SEMUA paket, dan namanya bisa
+  /// sama persis: data asli punya dua "1 Jam", PS3 Rp 8.000 dan PS4
+  /// Rp 10.000. Dua tombol identik, dan yang salah ditolak server 422
+  /// dengan pesan yang tidak bisa dia perbaiki dari layar itu.
+  ///
+  /// Kalau tidak ada yang cocok, daftar penuh dipakai apa adanya: daftar
+  /// kosong membuat station tidak bisa dibuka sama sekali, dan itu lebih
+  /// buruk daripada satu penolakan yang bisa dibaca.
+  List<Package> get _available {
+    final fit = widget.packages
+        .where((p) => p.fitsConsole(widget.station.consoleType))
+        .toList();
+    return fit.isEmpty ? widget.packages : fit;
+  }
+
   @override
   void initState() {
     super.initState();
-    if (widget.packages.isNotEmpty) _packageId = widget.packages.first.id;
+    if (_available.isNotEmpty) _packageId = _available.first.id;
   }
 
   Package? get _package => _packageId == null
       ? null
-      : widget.packages.firstWhere((p) => p.id == _packageId);
+      : _available.firstWhere((p) => p.id == _packageId);
 
   Future<void> _submit() async {
     final pkg = _package;
@@ -149,7 +166,7 @@ class _StartSessionSheetState extends State<_StartSessionSheet> {
               Wrap(
                 spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.sm,
-                children: widget.packages.map((p) {
+                children: _available.map((p) {
                   final selected = p.id == _packageId;
                   return _ChoiceTile(
                     selected: selected,

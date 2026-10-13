@@ -55,6 +55,8 @@ class Package {
     required this.price,
     required this.hourlyRate,
     required this.isActive,
+    this.consoleType,
+    this.stationTypeId,
   });
 
   final String id;
@@ -67,6 +69,27 @@ class Package {
   final int hourlyRate;
   final bool isActive;
 
+  /// Tipe konsol yang berhak memakai paket ini — DEC-019.
+  ///
+  /// **Wajib dipakai untuk menyaring daftar paket.** Tarif berbeda per tipe
+  /// konsol, dan nama paketnya bisa sama persis: seed punya dua "1 Jam",
+  /// PS3 Rp 8.000 dan PS4 Rp 10.000. Tanpa penyaringan, operator melihat dua
+  /// tombol identik dan yang salah ditolak server 422.
+  final String? consoleType;
+
+  /// Pasangan `console_type` dalam bentuk id. Belum dipakai menyaring karena
+  /// `GET /stations` hanya mengirim `console_type`, bukan id-nya.
+  final String? stationTypeId;
+
+  /// Apakah paket ini sah untuk station bertipe [stationConsoleType].
+  ///
+  /// Paket tanpa tipe dianggap berlaku umum — server yang memutuskan, dan
+  /// menyembunyikannya di sini justru membuat daftar kosong tanpa sebab.
+  bool fitsConsole(String? stationConsoleType) =>
+      consoleType == null ||
+      stationConsoleType == null ||
+      consoleType == stationConsoleType;
+
   factory Package.fromJson(Map<String, dynamic> j) => Package(
         id: j['id'] as String,
         name: j['name'] as String,
@@ -74,20 +97,30 @@ class Package {
         price: _int(j['price']),
         hourlyRate: _int(j['hourly_rate']),
         isActive: j['is_active'] as bool? ?? true,
+        consoleType: j['console_type'] as String?,
+        stationTypeId: j['station_type_id'] as String?,
       );
 }
 
 // ─── Customer — kontrak §6 ──────────────────────────────────────────
 
 class Membership {
-  const Membership({required this.tier, required this.isActive});
+  const Membership({
+    required this.tier,
+    required this.isActive,
+    this.joinedAt,
+  });
 
   final String tier;
   final bool isActive;
 
+  /// Sejak kapan jadi member. Dikirim server, sebelumnya tidak di-parse.
+  final DateTime? joinedAt;
+
   factory Membership.fromJson(Map<String, dynamic> j) => Membership(
         tier: j['tier'] as String,
         isActive: j['is_active'] as bool? ?? false,
+        joinedAt: _dt(j['joined_at']),
       );
 }
 
@@ -97,6 +130,8 @@ class Customer {
     required this.name,
     this.phone,
     this.membership,
+    this.creditBalance = 0,
+    this.phoneWa,
   });
 
   final String id;
@@ -104,10 +139,28 @@ class Customer {
   final String? phone;
   final Membership? membership;
 
+  /// Saldo member — DEC-026.
+  ///
+  /// Dikirim server dan sebelumnya **dibuang saat parsing**. Operator perlu
+  /// melihatnya **sebelum** checkout untuk memutuskan memakainya; kalau baru
+  /// muncul sesudah, keputusannya sudah lewat.
+  final int creditBalance;
+
+  /// Nomor siap pakai untuk tautan `wa.me` — DEC-035.
+  ///
+  /// Terpisah dari [phone] dan tidak menggantikannya: yang ditampilkan ke
+  /// operator harus bentuk yang dia ketik sendiri. `null` kalau nomornya
+  /// kosong atau terlalu pendek untuk masuk akal.
+  final String? phoneWa;
+
+  bool get hasCredit => creditBalance > 0;
+
   factory Customer.fromJson(Map<String, dynamic> j) => Customer(
         id: j['id'] as String,
         name: j['name'] as String,
         phone: j['phone'] as String?,
+        phoneWa: j['phone_wa'] as String?,
+        creditBalance: _int(j['credit_balance']),
         membership: j['membership'] == null
             ? null
             : Membership.fromJson(j['membership'] as Map<String, dynamic>),

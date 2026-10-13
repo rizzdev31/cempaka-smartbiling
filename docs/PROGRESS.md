@@ -1953,6 +1953,113 @@ Klien Reverb + reconnect.
 
 ---
 
+### 2026-10-13 — Audit sinkronisasi Flutter ↔ backend: endpoint & bentuk data
+
+**Files changed** — `models.dart`, `start_session_sheet.dart`,
+`customer_picker.dart`; baru `test/package_console_test.dart`.
+**DB changes** — tidak ada.
+
+**Cara mengauditnya**
+
+Bukan dibaca sepintas: 40 endpoint backend diekstrak dari `routes/api.php`
+berikut izinnya, dibandingkan dengan yang benar-benar dipanggil Flutter, lalu
+setiap presenter dibandingkan field-per-field dengan `fromJson` pasangannya.
+
+**Endpoint: 24 dari 40 dipakai**
+
+Yang tidak dipakai sebagian besar memang bukan tugas tablet — `devices/*`
+milik TV Agent, `station.manage` dan `pricing.manage` milik owner. Yang
+tersisa dan **operator punya izinnya**:
+
+| Endpoint | Izin | Keadaan |
+|---|---|---|
+| `POST /customers` | `customer.create` ✅ | **tidak ada UI-nya** |
+| `PATCH /customers/{id}` | `customer.create` ✅ | tidak ada UI-nya |
+| `POST /customers/{id}/membership` | `customer.create` ✅ | tidak ada UI-nya |
+| `PATCH /fnb/products/{id}` | `fnb.manage` ✅ | tidak ada UI-nya |
+
+**Layar customer menyangkal keputusan yang sudah diambil**
+
+`customer_picker.dart` menulis, ke operator dan di komentar kodenya:
+
+> "Pendaftaran member baru dilakukan Admin."
+> "Operator **tidak bisa mendaftarkan member baru**. PRD §6 … Lihat OD-014."
+
+**DEC-027 (8 Okt) membalikkan itu** — "operator atau kasir boleh
+mendaftarkan member baru" — dan OD-014 sudah tertutup. Role operator memang
+punya `customer.create`.
+
+Jadi tablet menolak sesuatu yang server izinkan, dan memberi tahu operator
+alasan yang sudah tidak berlaku. Belum diperbaiki: butuh form, dan itu
+pekerjaan tersendiri.
+
+**Bentuk data: tiga penyimpangan**
+
+**1. `Package` membuang `console_type` dan `station_type_id` — DIPERBAIKI.**
+
+Ini yang paling mengganggu operator. Data asli punya **dua paket bernama
+"1 Jam"**: PS3 Rp 8.000 dan PS4 Rp 10.000. Tablet menampilkan **semua**
+paket tanpa pembeda, jadi di station PS4 ada dua tombol dengan tulisan sama
+persis — dan yang salah ditolak server 422 "Tipe konsol paket dan station
+berbeda", pesan yang tidak bisa dia perbaiki dari layar itu.
+
+Bukan bug uang: server memang menolaknya (`SessionService` memeriksa
+`station_type_id`). Tapi operator terhambat, dan peluang salah 50%.
+
+Diperbaiki: kedua field di-parse, `Package.fitsConsole()` ditambahkan, dan
+layar Start hanya menampilkan paket yang cocok. Kalau tidak ada yang cocok,
+daftar penuh tetap ditampilkan — daftar kosong membuat station tidak bisa
+dibuka sama sekali, dan itu lebih buruk daripada satu penolakan yang bisa
+dibaca.
+
+**2. `Customer` membuang `credit_balance` dan `phone_wa` — DIPERBAIKI.**
+
+Saldo member (DEC-026) tidak pernah sampai ke layar. Komentar server
+menjelaskan kenapa itu penting: operator perlu melihatnya **sebelum**
+checkout untuk memutuskan memakainya; kalau baru muncul sesudah,
+keputusannya sudah lewat.
+
+Sekarang di-parse dan **ditampilkan di pemilih customer** saat member
+dipilih. `phone_wa` (DEC-035) ikut di-parse untuk tautan `wa.me` nanti.
+`membership.joined_at` juga.
+
+> Koreksi atas pembacaan awal: `tier` dan `is_active` sempat terlihat hilang,
+> padahal keduanya bersarang di `membership` dan sudah di-parse. Diff yang
+> meratakan struktur melaporkan lebih banyak daripada yang sebenarnya.
+
+**3. `Session.duration_minutes` tidak di-parse** — belum diperbaiki, dampaknya
+kecil (durasi paket bisa dibaca dari `package`).
+
+**Celah terbesar yang BELUM diperbaiki: bayar pakai saldo member**
+
+Backend mendukung penuh (DEC-026): `use_credit` di `CheckoutSessionRequest`,
+`applyCredit()` di `CheckoutService`, dan `credit_used`/`credit_earned`
+tercatat di audit.
+
+Flutter **tidak pernah mengirimnya**. Artinya saldo member hanya bisa
+dipakai lewat Admin Web — padahal yang melayani checkout adalah kasir di
+tablet. Ini bentuk yang sama persis dengan masalah pengeluaran kasir kemarin.
+
+Yang dibutuhkan: parameter `useCredit` di repo + fake, dan checkbox di sheet
+checkout yang menampilkan saldo. `Receipt` **tidak** perlu diubah — server
+tidak mengirim `credit_used` di sana, hanya ke audit.
+
+**Tests** — +8 (`package_console_test.dart`), total **260 lulus**,
+`analyze` bersih.
+
+**Known issues — berurutan menurut dampak**
+1. Saldo member tidak bisa dipakai dari tablet (`use_credit`).
+2. Operator tidak bisa mendaftarkan/mengubah member, padahal DEC-027
+   mengizinkan — dan layarnya masih menyangkalnya.
+3. Operator tidak bisa menandai produk F&B habis (`PATCH /fnb/products`).
+4. `Session.duration_minutes` tidak di-parse.
+
+**Next step**
+Sisa pekerjaan Flutter dari `SYNC.md` tinggal dua: klien Reverb dan
+`master.updated`. Empat temuan di atas adalah tambahan di luar daftar itu.
+
+---
+
 ## SESI TV — diisi saat menguji
 
 ### Pairing
