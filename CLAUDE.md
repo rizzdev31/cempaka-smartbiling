@@ -43,11 +43,18 @@ TAHAP 2  Kotlin Android TV Agent       ← sebagian: kiosk jalan, belum bicara k
 TAHAP 3  Laravel Superadmin Web + migrasi VPS + Customer Portal + gateway
 ```
 
-**Yang menahan Tahap 1 sekarang** — detail dan urutannya di `SYNC.md`:
-operator app masih memakai `FakeBillingRepository`. `ApiBillingRepository`
-sudah ada di `lib/data/api/`, tapi `main.dart` belum dialihkan dan belum ada
-layar login. Sampai itu beres, **aplikasi masih menampilkan data palsu** —
-dan fake-nya meniru aturan billing yang sudah dicabut (lihat §4).
+**Sudah beres (11 Okt):** operator app memakai `ApiBillingRepository` —
+bukan lagi data palsu. Layar masuk, gate auth tunggal, dan token tersimpan
+sudah ada.
+
+`FakeBillingRepository` **masih di pohon kode tapi hanya dipakai test.**
+Jangan menjadikannya rujukan perilaku: aturan yang ditirunya sudah dicabut
+DEC-033/034 (lihat §4).
+
+**Yang menahan Tahap 1 sekarang** — urutannya di `SYNC.md`: klien Reverb
+belum ada, jadi belum ada realtime; `ServerConnector().connect()` belum
+dipanggil otomatis saat `main()`; dan bentuk `session` serta `device`
+bersarang belum pernah dicocokkan ke server karena belum ada sesi berjalan.
 
 **Penting:** "Laravel tahap 3" = **Admin/Superadmin Web UI + reporting + finance**, BUKAN API.
 Laravel API Core wajib ada di Tahap 0/1, karena PRD melarang Flutter menyimpan business rule.

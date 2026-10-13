@@ -17,7 +17,7 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); klien API + penemuan server otomatis (DEC-041) sudah ada tapi **aplikasi masih memakai data palsu**; **225 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal + penemuan server otomatis (DEC-041); **47 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti**, dan agent **belum bicara ke Laravel** |
-| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **436 test LULUS** (1.375 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata. **Sudah jalan di mesin Rifqi (11 Okt)** — PHP 8.4 berdampingan, 25 tabel, seeder terisi, login terbukti |
+| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **520 test LULUS** (1.627 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata. **Sudah jalan di mesin Rifqi (11 Okt)** — PHP 8.4 berdampingan, 25 tabel, seeder terisi, login terbukti |
 | **Admin Web** | **BARU 11 Okt (DEC-042, DEC-043).** Login (guard session, Owner & Admin saja) + dashboard di `/admin`. Design system dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. **8 halaman** (dashboard, sesi, station, F&B, harga, customer, shift, audit), semuanya data nyata dan **penuh layar** dari 375px sampai 2560px (diukur, 40 kombinasi). Sudah bisa **mengubah** harga, paket, stok, status F&B, dan tutup shift (DEC-044), serta **menyegarkan diri otomatis**. Spec: `docs/UI-UX-SPEC-WEB.md` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
@@ -1675,6 +1675,63 @@ supaya beberapa admin di satu jaringan tidak saling mengunci.
 - Dashboard `/admin` masih **data contoh** (`DashboardSampleData`) — sudah
   ditandai sebagai langkah berikutnya oleh penulisnya.
 - Operator app belum pernah dijalankan di perangkat terhadap server ini.
+
+**Next step**
+Jalankan operator app, masuk `operator1`/`password`, pastikan dashboard
+memuat 6 station dari server.
+
+---
+
+### 2026-10-13 — Pull + merge Admin Web gelombang 2; klaim DEC-045 diuji
+
+**Files changed** — `CLAUDE.md` §3, `docs/PROGRESS.md`. Merge membawa 96
+berkas dari `origin/backend/tahap-0`.
+**DB changes** — **2 migration baru jalan**: `cash_expenses` (DEC-046) dan
+`unit_hpp` di `fnb_order_items`.
+
+**Merge**
+
+11 commit, DEC-044 s/d DEC-050. Satu konflik di `docs/PROGRESS.md`, pola yang
+sama seperti sebelumnya — diselesaikan dengan memakai angka terbaru mereka
+dan menambahkan kembali catatan "sudah jalan di mesin Rifqi".
+
+Sempat mengkhawatirkan: `git diff` dua titik menampilkan seluruh berkas login
+Flutter sebagai **terhapus**. Itu artefak — branch mereka bercabang sebelum
+login di-merge, jadi berkas itu memang tidak ada di sana. Diperiksa sebelum
+merge: `merge-base` tidak memuatnya dan branch mereka **tidak pernah
+menyentuh** `operator-app/`, jadi merge mempertahankannya. Terbukti sesudahnya
+— kelima berkas ada, `app.dart` tetap memakai `ApiBillingRepository`.
+
+**Verifikasi** — Flutter: `analyze` bersih, **237 test lulus**.
+Backend: **520 test lulus** (1.627 assertion).
+
+Status di PROGRESS menulis 436; angka sebenarnya di tip branch **520**.
+Dikoreksi.
+
+**Klaim DEC-045 diuji, tidak sekadar dibaca**
+
+DEC-045 membalik DEC-044: Admin Web kini bisa melakukan operasi sesi —
+mulai, bayar, extend, swap, checkout, batal, shift. Artinya **ada dua pintu
+ke operasi yang memegang uang.** Keamanannya bersandar pada satu klaim, dan
+klaim itu diperiksa:
+
+| Klaim | Hasil |
+|---|---|
+| Kedua pintu memanggil Service yang sama | **Benar.** `Web\SessionActionController` mengimpor `SessionService`, `PaymentService`, `ExtendService`, `SwapService`, `CheckoutService`, `CancelService`, `FnbService`, `ShiftService` |
+| Web tidak menulis ulang aturan billing | **Benar.** Tidak ada aritmetika harga/durasi; harga dibaca dari hasil Service (`$hasil['price']`) |
+| Izin web disalin dari API | **Hampir.** Semua izin **tulis** ada di keduanya. Web **tidak** memasang enam gerbang `.read` yang ada di API |
+
+Yang terakhir diperiksa lebih jauh, bukan ditandai sebagai temuan: ketiga
+role (Owner, Admin, Operator) **punya seluruh izin `.read`**, dan `admin.web`
+sudah membatasi web ke Owner/Admin. Jadi gerbang itu tidak akan pernah
+menolak siapa pun yang sudah lolos — ketiadaannya tidak membuka apa pun.
+
+`audit.read` hanya ada di web, dan itu wajar: tidak ada endpoint audit di API.
+
+**Known issues**
+- Admin Web belum diuji manual setelah gelombang ini; yang diuji baru test
+  otomatis dan pemeriksaan arsitektur di atas.
+- Operator app masih belum pernah dijalankan di perangkat terhadap server.
 
 **Next step**
 Jalankan operator app, masuk `operator1`/`password`, pastikan dashboard
