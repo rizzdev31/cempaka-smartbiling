@@ -1798,6 +1798,73 @@ Jalankan operator app ke server dan buktikan dashboard memuat 6 station.
 
 ---
 
+### 2026-10-13 — Layar catat pengeluaran di tablet (DEC-046)
+
+**Files changed** — `billing_repository.dart`, `api_billing_repository.dart`,
+`fake_billing_repository.dart`, `shift_controller.dart`, `shift_screen.dart`,
+`test/shift_test.dart`, `SYNC.md`.
+**API** — memakai `POST /shifts/{id}/expenses` (sudah ada, belum dipakai klien).
+**DB changes** — tidak ada.
+
+**Kenapa ini dikerjakan**
+
+Pintu satu-satunya untuk mencatat pengeluaran ada di Admin Web, padahal yang
+memegang laci adalah kasir di tablet. Artinya kasir harus memanggil owner
+hanya untuk mencatat beli galon Rp 20.000 — dan yang tidak dicatat akan
+muncul sebagai selisih kas saat shift ditutup.
+
+**Yang dibuat**
+
+Tombol **Catat Pengeluaran** di layar Shift, di atas "Tutup Shift" dan
+sengaja `outlined`: mencatat pengeluaran terjadi berkali-kali selama shift,
+menutup shift sekali di akhir. Yang sering dipakai tidak boleh menyamar
+sebagai yang mengakhiri.
+
+Dialognya: nominal, kategori (dropdown), keterangan. Setelah tersimpan,
+snackbar langsung menyebut **kas seharusnya yang baru** — itu angka yang
+dicari kasir berikutnya.
+
+Baris **Pengeluaran** juga ditambahkan ke kotak kas, dan **ditampilkan walau
+nol**. Rumus kas yang terlihat separuh membuat kasir mengira layar dan server
+berbeda, padahal yang hilang cuma barisnya.
+
+**Keputusan yang diambil**
+
+| | |
+|---|---|
+| Kategori dikunci ke daftar server | Di luar daftar ditolak 422, dan operator melihat error yang tidak bisa dia perbaiki |
+| Validasi ditiru dari `StoreExpenseRequest` | Supaya form tidak terasa lolos di tablet lalu ditolak server di lokasi. Server tetap yang menegakkan |
+| `Idempotency-Key` dibuat **sekali per niat**, bukan per percobaan kirim | Jaringan putus setelah server menerima → percobaan kedua dijawab dari catatan, bukan mengurangi laci dua kali |
+| Hasil **menggantikan** shift di memori | `expected_cash` dihitung server; menjumlahkannya sendiri adalah persis bug yang baru diperbaiki hari ini |
+
+**Diuji ke server sungguhan**, bukan hanya fake:
+
+```
+POST /shifts/{id}/expenses  {amount: 20000, category: "Galon & air", ...}
+→ data.shift.expected_cash   = 180000   (200.000 + 0 − 20.000)
+→ data.shift.summary.expense = 20000
+```
+
+Struktur `data.shift` cocok dengan yang diasumsikan `ApiBillingRepository`.
+
+**Tests** — +7, total **248 lulus**, `analyze` bersih. Termasuk: idempotency
+key yang sama tidak mencatat dua kali, keterangan < 3 huruf ditolak, kategori
+karangan ditolak, dan daftar kategori klien sama persis dengan server.
+
+**Known issues**
+- Daftar pengeluaran yang sudah dicatat **belum bisa dilihat di tablet** —
+  server hanya mengirim totalnya (`summary.expense`), tidak ada endpoint
+  daftar. Kasir tidak bisa memeriksa ulang apa saja yang sudah dia catat,
+  dan **tidak ada jalan membatalkan** entri yang salah.
+- Di DB lokal kini ada satu shift terbuka + satu pengeluaran Rp 20.000 dari
+  uji coba di atas.
+
+**Next step**
+Sisa pekerjaan Flutter tinggal tiga: `ServerConnector().connect()` otomatis,
+klien Reverb, dan dengarkan `master.updated`.
+
+---
+
 ## SESI TV — diisi saat menguji
 
 ### Pairing

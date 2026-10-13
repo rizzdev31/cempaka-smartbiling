@@ -180,6 +180,14 @@ class _OpenShiftPanel extends StatelessWidget {
                   sublabel: 'QRIS tidak masuk kotak kas',
                   amount: s.cash,
                 ),
+                // Ditampilkan walau nol. Rumus kas yang terlihat separuh
+                // membuat kasir mengira layar dan server berbeda, padahal
+                // yang hilang cuma barisnya.
+                MoneyRow(
+                  label: 'Pengeluaran',
+                  sublabel: 'uang keluar dari laci',
+                  amount: -s.expense,
+                ),
                 const Divider(),
                 MoneyRow(
                   label: 'Kas seharusnya',
@@ -219,6 +227,18 @@ class _OpenShiftPanel extends StatelessWidget {
           ),
 
           const SizedBox(height: AppSpacing.lg),
+          // Di atas "Tutup Shift", dan sengaja outlined: mencatat
+          // pengeluaran terjadi berkali-kali selama shift, menutup shift
+          // sekali di akhir. Yang sering dipakai tidak boleh menyamar
+          // sebagai yang mengakhiri.
+          AsyncButton(
+            label: 'Catat Pengeluaran',
+            icon: Icons.receipt_long_outlined,
+            outlined: true,
+            expand: true,
+            onPressed: () => showExpenseDialog(context, ctrl: ctrl),
+          ),
+          const SizedBox(height: AppSpacing.sm),
           AsyncButton(
             label: 'Tutup Shift',
             icon: Icons.logout,
@@ -811,6 +831,164 @@ class _ErrorState extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ─── Catat pengeluaran — DEC-046 ──────────────────────────────────────
+
+/// Mencatat uang yang keluar dari laci selama shift.
+///
+/// Sebelum ini satu-satunya pintunya ada di Admin Web — artinya kasir yang
+/// memegang laci harus memanggil owner hanya untuk mencatat beli galon.
+Future<void> showExpenseDialog(
+  BuildContext context, {
+  required ShiftController ctrl,
+}) =>
+    showDialog<void>(
+      context: context,
+      barrierColor: AppColors.scrim,
+      builder: (_) => _ExpenseDialog(ctrl: ctrl),
+    );
+
+class _ExpenseDialog extends StatefulWidget {
+  const _ExpenseDialog({required this.ctrl});
+
+  final ShiftController ctrl;
+
+  @override
+  State<_ExpenseDialog> createState() => _ExpenseDialogState();
+}
+
+class _ExpenseDialogState extends State<_ExpenseDialog> {
+  /// Dibuat sekali per **niat**, bukan per percobaan kirim.
+  ///
+  /// Kalau jaringan putus setelah server menerimanya, percobaan kedua dengan
+  /// key yang sama dijawab dari catatan — bukan mencatat pengeluaran kedua.
+  final String _intentKey = const Uuid().v4();
+
+  final _amount = TextEditingController();
+  final _note = TextEditingController();
+  String _category = BillingRepository.expenseCategories.first;
+  String? _amountError;
+  String? _noteError;
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    _note.dispose();
+    super.dispose();
+  }
+
+  int? get _value => int.tryParse(_amount.text.trim());
+
+  Future<void> _submit() async {
+    final value = _value;
+    final note = _note.text.trim();
+
+    // Divalidasi di sini supaya pesannya muncul di bawah field yang salah,
+    // bukan sebagai snackbar 422 dari server. Aturannya ditiru dari
+    // `StoreExpenseRequest` — server tetap yang menegakkan.
+    setState(() {
+      _amountError = (value == null || value < 1)
+          ? 'Masukkan nominal pengeluaran.'
+          : null;
+      _noteError = note.length < 3
+          ? 'Tulis keterangannya — ini yang akan dibaca saat laporan diperiksa.'
+          : null;
+    });
+    if (_amountError != null || _noteError != null) return;
+
+    try {
+      final updated = await widget.ctrl.recordExpense(
+        amount: value!,
+        category: _category,
+        note: note,
+        idempotencyKey: _intentKey,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+
+      // Yang dicari setelah mencatat adalah "jadi berapa sekarang isi laci".
+      showSuccess(
+        context,
+        'Pengeluaran ${formatRupiah(value)} dicatat · '
+        'kas seharusnya ${formatRupiah(updated.expectedCash)}',
+      );
+    } catch (e) {
+      if (mounted) showApiError(context, e);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Catat Pengeluaran'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Uang yang keluar dari laci. Mengurangi kas yang seharusnya '
+              'ada saat shift ditutup.',
+              style: AppTypography.bodySm
+                  .copyWith(color: AppColors.onSurfaceVariant),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
+            TextField(
+              controller: _amount,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              style: AppTypography.moneyLg,
+              decoration: InputDecoration(
+                labelText: 'Nominal',
+                prefixText: 'Rp ',
+                errorText: _amountError,
+              ),
+              onChanged: (_) {
+                if (_amountError != null) setState(() => _amountError = null);
+              },
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            DropdownButtonFormField<String>(
+              initialValue: _category,
+              decoration: const InputDecoration(labelText: 'Kategori'),
+              items: [
+                for (final c in BillingRepository.expenseCategories)
+                  DropdownMenuItem(value: c, child: Text(c)),
+              ],
+              onChanged: (v) => setState(() => _category = v ?? _category),
+            ),
+            const SizedBox(height: AppSpacing.md),
+
+            TextField(
+              controller: _note,
+              textCapitalization: TextCapitalization.sentences,
+              maxLength: 255,
+              decoration: InputDecoration(
+                labelText: 'Keterangan',
+                hintText: 'mis. beli galon 2 buah',
+                errorText: _noteError,
+              ),
+              onChanged: (_) {
+                if (_noteError != null) setState(() => _noteError = null);
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Batal'),
+        ),
+        AsyncButton(label: 'Catat', onPressed: _submit),
+      ],
     );
   }
 }

@@ -201,6 +201,7 @@ class FakeBillingRepository implements BillingRepository {
       cash: cash,
       qris: qris,
       total: cash + qris,
+      expense: shift.expense,
     );
   }
 
@@ -213,6 +214,11 @@ class FakeBillingRepository implements BillingRepository {
         closingCash: s.closingCash,
         summary: _summaryFor(s),
         note: s.note,
+        // Server yang menentukan angka ini (DEC-046). Fake ikut
+        // mengirimkannya supaya jalur yang diuji sama dengan produksi —
+        // kalau di sini dibiarkan null, test justru menguji fallback.
+        serverExpectedCash:
+            s.openingCash + _summaryFor(s).cash - s.expense,
       );
 
   // ── Seed ──────────────────────────────────────────────────────────
@@ -1358,6 +1364,53 @@ class FakeBillingRepository implements BillingRepository {
           }));
 
   @override
+  Future<Shift> recordExpense({
+    required String shiftId,
+    required int amount,
+    required String category,
+    required String note,
+    required String idempotencyKey,
+  }) =>
+      _idempotent(idempotencyKey, () => _call(() {
+            final shift = _currentShift;
+            if (shift == null || shift.id != shiftId || shift.closedAt != null) {
+              throw const ApiError(
+                code: ApiErrorCode.notFound,
+                message: 'Shift tidak ditemukan atau sudah ditutup.',
+                httpStatus: 404,
+              );
+            }
+
+            // Aturannya ditiru dari `StoreExpenseRequest` di server. Fake
+            // yang lebih longgar membuat form terasa lolos di sini lalu
+            // ditolak 422 di lokasi.
+            final errors = <String, List<String>>{};
+            if (amount < 1) {
+              errors['amount'] = ['Nominal pengeluaran minimal 1 rupiah.'];
+            }
+            if (!BillingRepository.expenseCategories.contains(category)) {
+              errors['category'] = ['Kategori tidak dikenal.'];
+            }
+            if (note.trim().length < 3) {
+              errors['note'] = [
+                'Tulis keterangannya — ini yang akan dibaca saat laporan '
+                    'diperiksa.',
+              ];
+            }
+            if (errors.isNotEmpty) {
+              throw ApiError(
+                code: ApiErrorCode.validationFailed,
+                message: 'Data yang dikirim tidak valid.',
+                details: errors,
+                httpStatus: 422,
+              );
+            }
+
+            shift.expense += amount;
+            return _projectShift(shift);
+          }));
+
+  @override
   Future<List<Shift>> fetchShiftHistory({int limit = 20}) => _call(
         () => _shiftHistory
             .take(limit)
@@ -1476,6 +1529,9 @@ class _ShiftState {
   DateTime? closedAt;
   int? closingCash;
   String? note;
+
+  /// Pengeluaran kasir dari laci selama shift (DEC-046).
+  int expense = 0;
 }
 
 class _SessionItemState {

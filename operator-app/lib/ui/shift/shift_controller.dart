@@ -103,5 +103,37 @@ class ShiftController extends ChangeNotifier {
     return closed;
   }
 
+  /// Catat uang keluar dari laci — DEC-046.
+  ///
+  /// Hasilnya **menggantikan** shift di memori, bukan menambah angka sendiri:
+  /// `expected_cash` dihitung server, dan menjumlahkannya di sini adalah
+  /// persis kesalahan yang DEC-046 timbulkan dan sudah diperbaiki.
+  Future<Shift> recordExpense({
+    required int amount,
+    required String category,
+    required String note,
+    String? idempotencyKey,
+  }) async {
+    final shift = _current;
+    if (shift == null) {
+      throw const ApiError(
+        code: ApiErrorCode.notFound,
+        message: 'Tidak ada shift yang berjalan.',
+      );
+    }
+
+    final updated = await _repo.recordExpense(
+      shiftId: shift.id,
+      amount: amount,
+      category: category,
+      note: note,
+      idempotencyKey: idempotencyKey ?? _uuid.v4(),
+    );
+
+    _current = updated;
+    notifyListeners();
+    return updated;
+  }
+
   static String newIdempotencyKey() => _uuid.v4();
 }

@@ -129,6 +129,36 @@ abstract class BillingRepository {
     String? note,
   });
 
+  /// Catat uang yang keluar dari laci selama shift berjalan — DEC-046.
+  ///
+  /// Mengembalikan **shift yang sudah diperbarui**, bukan baris
+  /// pengeluarannya: yang langsung dicari setelah mencatat adalah "jadi
+  /// berapa sekarang isi laci", dan itu ada di `expected_cash`.
+  ///
+  /// [note] wajib diisi server (minimal 3 huruf). Pengeluaran tanpa
+  /// keterangan adalah persis yang tidak bisa dijelaskan saat laporan
+  /// diperiksa.
+  Future<Shift> recordExpense({
+    required String shiftId,
+    required int amount,
+    required String category,
+    required String note,
+    required String idempotencyKey,
+  });
+
+  /// Kategori pengeluaran yang diterima server.
+  ///
+  /// Daftarnya dikunci server (`CashExpense::kategori()`); client tidak boleh
+  /// mengarangnya sendiri, karena nilai di luar daftar ditolak 422.
+  static const expenseCategories = <String>[
+    'Bahan F&B',
+    'Galon & air',
+    'Kebersihan',
+    'Perbaikan',
+    'Listrik & utilitas',
+    'Lainnya',
+  ];
+
   /// Riwayat shift yang sudah ditutup, terbaru di atas.
   Future<List<Shift>> fetchShiftHistory({int limit = 20});
 }

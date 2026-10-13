@@ -4,6 +4,7 @@ import 'package:operator_app/data/fake/fake_billing_repository.dart';
 import 'package:operator_app/domain/errors/api_error.dart';
 import 'package:operator_app/domain/models/enums.dart';
 import 'package:operator_app/domain/models/models.dart';
+import 'package:operator_app/domain/repositories/billing_repository.dart';
 import 'package:operator_app/ui/shift/shift_controller.dart';
 
 /// Test shift — PRD §18 "Start/close shift, handover" dan kontrak §10.
@@ -355,6 +356,107 @@ void main() {
       )..['closing_cash'] = 675000;
 
       expect(Shift.fromJson(json).variance, -5000);
+    });
+  });
+
+  // ── Catat pengeluaran — DEC-046 ───────────────────────────────────
+  group('Catat pengeluaran', () {
+    late FakeBillingRepository repo;
+    late ShiftController ctrl;
+
+    setUp(() async {
+      repo = FakeBillingRepository(simulateLatency: false);
+      ctrl = ShiftController(repo);
+      await ctrl.load();
+      if (ctrl.current == null) {
+        await ctrl.open(openingCash: 200000);
+      }
+    });
+
+    test('pengeluaran mengurangi kas seharusnya', () async {
+      final sebelum = ctrl.current!.expectedCash;
+
+      final sesudah = await ctrl.recordExpense(
+        amount: 20000,
+        category: 'Galon & air',
+        note: 'beli galon 2 buah',
+      );
+
+      expect(sesudah.summary.expense, 20000);
+      expect(sesudah.expectedCash, sebelum - 20000);
+      expect(ctrl.current!.expectedCash, sebelum - 20000,
+          reason: 'controller harus memakai shift dari server, '
+              'bukan menyimpan angka lamanya');
+    });
+
+    test('beberapa pengeluaran terakumulasi', () async {
+      final sebelum = ctrl.current!.expectedCash;
+      await ctrl.recordExpense(
+          amount: 20000, category: 'Galon & air', note: 'galon');
+      final akhir = await ctrl.recordExpense(
+          amount: 5000, category: 'Kebersihan', note: 'sabun cuci');
+
+      expect(akhir.summary.expense, 25000);
+      expect(akhir.expectedCash, sebelum - 25000);
+    });
+
+    test('key yang sama tidak mencatat dua kali', () async {
+      // Jaringan putus setelah server menerima: percobaan kedua harus
+      // dijawab dari catatan, bukan mengurangi laci dua kali.
+      final key = ShiftController.newIdempotencyKey();
+      await ctrl.recordExpense(
+          amount: 20000,
+          category: 'Galon & air',
+          note: 'galon',
+          idempotencyKey: key);
+      final ulang = await ctrl.recordExpense(
+          amount: 20000,
+          category: 'Galon & air',
+          note: 'galon',
+          idempotencyKey: key);
+
+      expect(ulang.summary.expense, 20000);
+    });
+
+    test('keterangan terlalu pendek ditolak', () async {
+      // Aturan server (min 3 huruf) ditiru fake, supaya form tidak terasa
+      // lolos di sini lalu ditolak 422 di lokasi.
+      await expectLater(
+        ctrl.recordExpense(
+            amount: 20000, category: 'Galon & air', note: 'x'),
+        throwsA(isA<ApiError>().having(
+            (e) => e.code, 'code', ApiErrorCode.validationFailed)),
+      );
+      expect(ctrl.current!.summary.expense, 0);
+    });
+
+    test('nominal nol ditolak', () async {
+      await expectLater(
+        ctrl.recordExpense(
+            amount: 0, category: 'Lainnya', note: 'salah ketik'),
+        throwsA(isA<ApiError>()),
+      );
+    });
+
+    test('kategori di luar daftar server ditolak', () async {
+      await expectLater(
+        ctrl.recordExpense(
+            amount: 1000, category: 'Karangan Sendiri', note: 'apa saja'),
+        throwsA(isA<ApiError>()),
+      );
+    });
+
+    test('daftar kategori sama dengan milik server', () {
+      // Kalau client menambah kategori sendiri, server menolaknya 422 —
+      // dan operator melihat error yang tidak bisa dia perbaiki.
+      expect(BillingRepository.expenseCategories, [
+        'Bahan F&B',
+        'Galon & air',
+        'Kebersihan',
+        'Perbaikan',
+        'Listrik & utilitas',
+        'Lainnya',
+      ]);
     });
   });
 }

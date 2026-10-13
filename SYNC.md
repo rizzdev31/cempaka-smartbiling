@@ -35,7 +35,7 @@
 | 2 | Klien Reverb + reconnect | Tablet tidak tahu apa pun yang terjadi di tablet/TV lain |
 | 3 | Dengarkan `master.updated` → muat ulang daftarnya. `resource` sekarang bisa `package`, `fnb_product`, `station`, `station_type` (DEC-048) — **abaikan** nilai yang tidak dikenal, jangan error | Harga, menu, dan station yang diubah owner tidak akan terlihat di tablet sampai aplikasinya dimuat ulang |
 | ✅ | **`expected_cash` dari server dipakai** (13 Okt) — `Shift.expectedCash` tidak lagi menghitung sendiri, dan fallback-nya ikut rumus DEC-046 di layar tutup shift — jangan menjumlahkan `opening_cash + cash` sendiri | **DEC-046.** Rumusnya sekarang `modal + tunai − pengeluaran`. Tablet yang menjumlahkan sendiri akan menampilkan angka yang berbeda dari yang dipakai server saat `close()`, dan kasir yang menyetor sesuai layar justru tercatat punya selisih |
-| 4 | Layar **catat pengeluaran** (`POST /shifts/{id}/expenses`) | Yang memegang laci adalah kasir di tablet. Sekarang satu-satunya pintunya ada di Admin Web — artinya kasir harus memanggil owner hanya untuk mencatat Rp 20.000 beli galon |
+| ✅ | **Layar catat pengeluaran** (13 Okt) — tombol di layar Shift, kategori dikunci sesuai server, idempotent per niat | — |
 
 > ⚠️ Kalau nomor 1 dikerjakan: `connect()` bisa mengembalikan
 > `addressChanged == true`. Saat itu koneksi WebSocket yang sudah terbuka

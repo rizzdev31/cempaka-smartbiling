@@ -322,6 +322,27 @@ class ApiBillingRepository implements BillingRepository {
   }
 
   @override
+  Future<Shift> recordExpense({
+    required String shiftId,
+    required int amount,
+    required String category,
+    required String note,
+    required String idempotencyKey,
+  }) async {
+    final data = await _api.post(
+      '/shifts/$shiftId/expenses',
+      idempotencyKey: idempotencyKey,
+      body: {'amount': amount, 'category': category, 'note': note},
+    );
+
+    // Server mengembalikan baris pengeluaran DENGAN shift terbaru di
+    // dalamnya. Yang dipakai shift-nya: itu yang membawa `expected_cash`
+    // baru, dan menghitungnya sendiri di client adalah kesalahan yang baru
+    // saja diperbaiki (DEC-046).
+    return Shift.fromJson(_map(_map(data)['shift']));
+  }
+
+  @override
   Future<List<Shift>> fetchShiftHistory({int limit = 20}) async {
     final data = await _api.get('/shifts', query: {'limit': '$limit'});
     return _list(data, Shift.fromJson);
