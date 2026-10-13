@@ -250,6 +250,63 @@ void main() {
               'password yang tidak terlihat adalah kegagalan tersering');
     });
   });
+
+  group('Preflight: cari server sebelum periksa token', () {
+    test('dijalankan SEBELUM /auth/me', () async {
+      // Urutannya yang diuji, bukan sekadar keduanya dipanggil: `/auth/me`
+      // menuju `ApiConfig.baseUrl`, jadi alamat harus sudah benar sebelum
+      // token diperiksa.
+      final urutan = <String>[];
+      SharedPreferences.setMockInitialValues({'auth.token': 'token-sah'});
+      final w = _wire((_) async {
+        urutan.add('me');
+        return _json(_meOk, 200);
+      });
+      await w.api.loadToken();
+
+      final ctrl = AuthController(
+        w.repo,
+        preflight: () async => urutan.add('preflight'),
+      );
+      await ctrl.bootstrap();
+
+      expect(urutan, ['preflight', 'me']);
+      expect(ctrl.status, AuthStatus.signedIn);
+    });
+
+    test('preflight gagal tidak menggagalkan startup', () async {
+      // Server tidak ditemukan bukan alasan menahan aplikasi: alamat lama
+      // tetap dipakai, dan layar masuk punya "Cari otomatis".
+      SharedPreferences.setMockInitialValues({'auth.token': 'token-sah'});
+      final w = _wire((_) async => _json(_meOk, 200));
+      await w.api.loadToken();
+
+      final ctrl = AuthController(
+        w.repo,
+        preflight: () async => throw const SocketExceptionStub(),
+      );
+      await ctrl.bootstrap();
+
+      expect(ctrl.status, AuthStatus.signedIn,
+          reason: 'alamat yang diingat ternyata masih benar');
+    });
+
+    test('tanpa token, preflight tetap dijalankan', () async {
+      // Layar masuk butuh alamat yang benar juga — tanpa itu login pertama
+      // di tablet baru gagal tanpa sebab yang terlihat.
+      var dipanggil = false;
+      final w = _wire((_) async => _json(_meOk, 200));
+
+      final ctrl = AuthController(
+        w.repo,
+        preflight: () async => dipanggil = true,
+      );
+      await ctrl.bootstrap();
+
+      expect(dipanggil, isTrue);
+      expect(ctrl.status, AuthStatus.signedOut);
+    });
+  });
 }
 
 /// Pengganti `SocketException` tanpa mengimpor `dart:io`, supaya test ini

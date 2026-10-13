@@ -1865,6 +1865,94 @@ klien Reverb, dan dengarkan `master.updated`.
 
 ---
 
+### 2026-10-13 — connect() otomatis + audit UI vs aturan yang berlaku
+
+**Files changed** — `auth_controller.dart`, `app.dart`, `models.dart`,
+`countdown_text.dart`, `station_card.dart`, `session_detail_screen.dart`,
+`fake_billing_repository.dart`, `billing_repository.dart`,
+`test/auth_test.dart`, `test/billing_rules_test.dart`,
+`test/shell_overflow_test.dart`, `SYNC.md`.
+**DB changes** — tidak ada.
+
+**1. Penemuan server otomatis saat startup (DEC-041)**
+
+Dijalankan sebagai *preflight* di `AuthController.bootstrap()`, **bukan di
+`main()`**. Alasannya: pemindaian bisa 2–5 detik, dan memblokir `main()`
+selama itu memberi operator layar kosong yang terlihat seperti aplikasi
+macet. Di dalam `bootstrap()` dia melihat spinner `checking` yang memang
+sudah ada. Jalur normalnya murah — satu probe 600 ms ke alamat yang diingat.
+
+Urutannya mengikat dan diuji: **preflight sebelum `/auth/me`**. Kalau
+terbalik, pemeriksaan token gagal karena jaringan saat server pindah
+alamat, dan operator dilempar ke layar masuk padahal yang salah alamatnya.
+
+Kegagalan preflight **tidak** menggagalkan startup — alamat lama tetap
+dipakai, dan layar masuk punya "Cari otomatis".
+
+**2. Audit UI vs aturan yang berlaku — satu lubang besar ditemukan**
+
+| Diperiksa | Hasil |
+|---|---|
+| `endAt!` di 7 tempat | **Semua terjaga** — tidak ada risiko crash untuk Postpaid |
+| Timer Postpaid | **RUSAK** — lihat di bawah |
+| Fake vs DEC-033/034 | **Usang** — masih grace 10 menit & Postpaid berbatas |
+| Test billing | **Mengunci aturan yang dicabut** |
+
+**Postpaid tidak punya timer sama sekali.** DEC-034 menyatakan Postpaid
+menghitung **maju**; server bahkan menulisnya di `StationPresenter`
+("client menghitung MAJU dari `started_at`") dan mengirim `mode`. Flutter
+**membuang `mode` saat parsing**, dan `CountdownText` menampilkan
+`--:--:--` untuk `end_at` kosong.
+
+Akibatnya operator **tidak bisa melihat sudah berapa lama customer
+bermain** — padahal justru itu yang menentukan tagihan Postpaid.
+
+Diperbaiki: `mode` ikut di-parse, `StationSessionSummary.isOpenEnded` +
+`elapsedAt()` ditambahkan, `CountdownText` dan `RemainingLabel` menghitung
+maju saat tidak ada batas, label kartu berubah "Sisa Waktu" → "Berjalan",
+dan bar proporsi disembunyikan (Postpaid tidak punya total, bar yang selalu
+kosong hanya menyesatkan) dengan ruangnya dipertahankan supaya tinggi kartu
+seragam.
+
+**3. Fake dan test masih mengunci aturan yang dicabut**
+
+`CLAUDE.md §4` memperingatkan ini, dan ternyata benar:
+
+- Fake memberi Postpaid `end_at = now + durasi paket` — **DEC-034 mencabutnya**
+- Fake menerapkan **grace extend 10 menit** — **DEC-033 mencabutnya**
+- Empat test di `billing_rules_test` **melindungi** grace itu, dan memakai
+  **Postpaid untuk menguji extend** — padahal Postpaid tidak bisa di-extend
+
+Disamakan dengan server: batas extend = `end_at` (tepat di `end_at` masih
+boleh), Postpaid ditolak `SESSION_STATUS_INVALID`, dan kode error untuk
+waktu habis tetap `EXTEND_GRACE_EXPIRED` — server sengaja mempertahankannya
+supaya client lama tidak patah.
+
+Test extend sekarang memakai **Prepaid** (dibayar dulu, sesuai kontrak §7).
+T15 dipertahankan tapi skenarionya dipindah ke **sebelum** waktu habis:
+yang sebenarnya dilindungi test itu bukan grace-nya, melainkan bahwa
+`end_at` baru dihitung dari `end_at` lama — dan prinsip itu tetap berlaku.
+Satu test baru memastikan Postpaid ditolak saat di-extend.
+
+Komentar yang masih menyebut grace juga dibersihkan.
+
+**Tests** — **252 lulus** (+1 bersih setelah 4 ditulis ulang), `analyze`
+bersih.
+
+**Known issues**
+- Sisa pekerjaan Flutter tinggal **dua**: klien Reverb, dan dengarkan
+  `master.updated`.
+- Saat Reverb masuk: `connect()` mengembalikan `addressChanged` — koneksi
+  WebSocket yang sudah terbuka **harus dibangun ulang** di titik itu. Ia
+  tidak akan error sendiri, hanya diam. Sudah ditandai `TODO(Reverb)` di
+  `app.dart`.
+- Tampilan Postpaid belum dilihat di perangkat.
+
+**Next step**
+Klien Reverb + reconnect.
+
+---
+
 ## SESI TV — diisi saat menguji
 
 ### Pairing

@@ -90,6 +90,8 @@ Future<String?> _firstOverflow(
       apiClient: api,
       tvClient: client,
       billingRepository: FakeBillingRepository(simulateLatency: false),
+      // Tanpa ini test memindai subnet sungguhan.
+      autoConnect: false,
     ),
   );
   await tester.pump(const Duration(milliseconds: 600));

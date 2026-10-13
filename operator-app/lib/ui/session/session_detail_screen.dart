@@ -146,10 +146,14 @@ class _SummaryPane extends StatelessWidget {
               const SizedBox(height: AppSpacing.lg),
               CountdownText(
                 endAt: session.endAt,
+                startedAt: session.startedAt,
                 style: AppTypography.displayLg,
               ),
               const SizedBox(height: AppSpacing.sm - 2),
-              RemainingLabel(endAt: session.endAt),
+              RemainingLabel(
+                endAt: session.endAt,
+                startedAt: session.startedAt,
+              ),
               const SizedBox(height: AppSpacing.lg),
               const Divider(),
               const SizedBox(height: AppSpacing.sm),

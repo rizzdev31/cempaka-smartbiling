@@ -273,14 +273,19 @@ class _ActiveBody extends StatelessWidget {
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: CountdownText(endAt: session.endAt),
+                  child: CountdownText(
+                    endAt: session.endAt,
+                    startedAt: session.startedAt,
+                  ),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
-                  'Sisa Waktu',
+                  // Postpaid tidak punya sisa waktu — yang ditampilkan
+                  // justru waktu yang sudah berjalan (DEC-034).
+                  session.isOpenEnded ? 'Berjalan' : 'Sisa Waktu',
                   style:
                       AppTypography.labelSm.copyWith(color: AppColors.outline),
                 ),
@@ -288,7 +293,13 @@ class _ActiveBody extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          _TimeProgressBar(session: session),
+          // Bar proporsi butuh total. Postpaid tidak punya, jadi bar yang
+          // selalu kosong hanya menyesatkan — ruangnya dipertahankan supaya
+          // tinggi kartu tetap sama di satu grid.
+          if (session.isOpenEnded)
+            const SizedBox(height: AppSize.progressBar)
+          else
+            _TimeProgressBar(session: session),
           const SizedBox(height: AppSpacing.sm - 2),
           Row(
             children: [

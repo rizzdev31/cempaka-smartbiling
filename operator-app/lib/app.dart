@@ -10,6 +10,7 @@ import 'core/time/ticker.dart';
 import 'data/api/api_billing_repository.dart';
 import 'data/api/api_client.dart';
 import 'data/api/auth_repository.dart';
+import 'data/api/server_connector.dart';
 import 'data/tv/tv_agent_client.dart';
 import 'data/tv/tv_discovery.dart';
 import 'data/tv/tv_link_store.dart';
@@ -28,6 +29,7 @@ class OperatorApp extends StatelessWidget {
     required this.apiClient,
     this.tvClient,
     this.billingRepository,
+    this.autoConnect = true,
   });
 
   /// Dibuka di `main()` sebelum UI dibangun: pasangan station-TV harus sudah
@@ -50,6 +52,13 @@ class OperatorApp extends StatelessWidget {
   /// token yang disimpan saat login tidak terlihat oleh repository billing,
   /// dan setiap permintaan ditolak 401 walau login tampak berhasil.
   final ApiClient apiClient;
+
+  /// Mematikan pencarian server saat startup — **hanya** untuk test.
+  ///
+  /// `ServerConnector` membuka `http.Client` sungguhan dan memindai subnet.
+  /// Di widget test itu menahan isolate sampai suite butuh menit untuk
+  /// keluar, dan yang diuji pun bukan pencariannya.
+  final bool autoConnect;
 
   /// Pengganti sumber data — **hanya** untuk test.
   ///
@@ -90,8 +99,10 @@ class OperatorApp extends StatelessWidget {
         // Siapa yang masuk. Dibuat lebih dulu daripada controller lain karena
         // merekalah yang akan memanggil endpoint yang butuh tokennya.
         ChangeNotifierProvider(
-          create: (ctx) =>
-              AuthController(ctx.read<AuthRepository>())..bootstrap(),
+          create: (ctx) => AuthController(
+            ctx.read<AuthRepository>(),
+            preflight: autoConnect ? _findServer : null,
+          )..bootstrap(),
         ),
 
         // ── Kontrol TV (sementara — DEC-015) ─────────────────────────
@@ -172,5 +183,30 @@ class _AuthGate extends StatelessWidget {
       AuthStatus.signedOut => const LoginScreen(),
       AuthStatus.signedIn => const AppShell(),
     };
+  }
+}
+
+/// Mencari server sebelum token diperiksa — DEC-041.
+///
+/// Dijalankan di dalam state `checking`, bukan di `main()`: pemindaian bisa
+/// memakan 2–5 detik, dan memblokir `main()` selama itu memberi operator
+/// layar kosong yang terlihat seperti aplikasi macet. Di sini dia melihat
+/// spinner yang memang sudah ada.
+///
+/// Jalur normalnya murah — satu probe 600 ms ke alamat yang diingat.
+/// Pemindaian hanya terjadi kalau alamat itu tidak menjawab.
+///
+/// TODO(Reverb): `connect()` mengembalikan `addressChanged` saat server
+/// ditemukan di alamat baru. Begitu klien Reverb masuk, koneksi WebSocket
+/// yang sudah terbuka **harus dibangun ulang** di titik itu — ia tidak akan
+/// error sendiri, hanya diam.
+Future<void> _findServer() async {
+  final connector = ServerConnector();
+  try {
+    await connector.connect();
+  } finally {
+    // Wajib: discovery memegang `http.Client`. Tanpa ini klien itu hidup
+    // selama aplikasi berjalan padahal tugasnya sudah selesai.
+    connector.close();
   }
 }

@@ -96,7 +96,7 @@ void main() {
 
     setUp(() => repo = FakeBillingRepository());
 
-    Future<String> startPostpaidSession(BillingRepository r) async {
+    Future<String> startPrepaidSession(BillingRepository r) async {
       final stations = await r.fetchStations();
       final free = stations.firstWhere(
         (s) => s.session == null && s.status == StationMasterStatus.active,
@@ -104,17 +104,30 @@ void main() {
       final packages = await r.fetchPackages();
       final oneHour = packages.firstWhere((p) => p.durationMinutes == 60);
 
+      // PREPAID, bukan Postpaid.
+      //
+      // Postpaid tidak punya `end_at` (DEC-034), jadi tidak ada yang bisa
+      // diperpanjang — memakainya di sini dulu membuat test lulus sambil
+      // menguji perilaku yang tidak pernah terjadi.
       final session = await r.createSession(
         stationId: free.id,
         packageId: oneHour.id,
-        mode: SessionMode.postpaid,
+        mode: SessionMode.prepaid,
         idempotencyKey: 'test-create-1',
+      );
+
+      // Prepaid menunggu pembayaran sebelum timernya jalan (kontrak §7).
+      await r.addPayment(
+        sessionId: session.id,
+        method: PaymentMethod.cash,
+        amount: oneHour.price,
+        idempotencyKey: 'test-pay-1',
       );
       return session.id;
     }
 
     test('extend menambah tepat 30 menit dari end_at lama', () async {
-      final id = await startPostpaidSession(repo);
+      final id = await startPrepaidSession(repo);
       final before = await repo.fetchSession(id);
 
       final result = await repo.extendSession(
@@ -134,7 +147,7 @@ void main() {
     });
 
     test('durasi bukan kelipatan 30 ditolak', () async {
-      final id = await startPostpaidSession(repo);
+      final id = await startPrepaidSession(repo);
 
       expect(
         () => repo.extendSession(
@@ -152,14 +165,15 @@ void main() {
       );
     });
 
-    test('T16 — extend ditolak setelah lewat grace 10 menit', () async {
-      final id = await startPostpaidSession(repo);
+    test('T16 — extend ditolak setelah waktu habis (DEC-033)', () async {
+      final id = await startPrepaidSession(repo);
       final session = await repo.fetchSession(id);
 
-      // Majukan jam server ke 11 menit setelah end_at — lewat grace.
+      // Satu menit setelah `end_at`. Dulu ini masih di dalam grace 10
+      // menit; sejak DEC-033 grace dicabut — habis ya habis.
       repo.advanceClock(
         session.endAt!
-            .add(const Duration(minutes: 11))
+            .add(const Duration(minutes: 1))
             .difference(ServerTime.instance.now),
       );
 
@@ -179,16 +193,19 @@ void main() {
       );
     });
 
-    test('T15 — extend diterima di dalam grace, waktu lewat tetap terhitung',
+    test('T15 — extend dihitung dari end_at lama, bukan dari waktu approve',
         () async {
-      final id = await startPostpaidSession(repo);
+      final id = await startPrepaidSession(repo);
       final session = await repo.fetchSession(id);
       final originalEnd = session.endAt!;
 
-      // 6 menit setelah end_at — masih di dalam grace 10 menit.
+      // 10 menit SEBELUM habis. Dulu skenario ini dijalankan 6 menit
+      // SETELAH habis, yang sejak DEC-033 sudah ditolak — tapi yang
+      // sebenarnya dilindungi test ini bukan grace-nya, melainkan bahwa
+      // waktu yang sudah berlalu tidak digratiskan. Prinsip itu tetap.
       repo.advanceClock(
         originalEnd
-            .add(const Duration(minutes: 6))
+            .subtract(const Duration(minutes: 10))
             .difference(ServerTime.instance.now),
       );
 
@@ -200,21 +217,48 @@ void main() {
 
       expect(result.newEndAt, originalEnd.add(const Duration(minutes: 30)));
 
-      // Sisa ke depan tinggal ~24 menit, bukan 30 — 6 menit yang sudah
-      // lewat tidak digratiskan (inti DEC-007).
+      // Sisa ke depan 40 menit: 10 sisa + 30 tambahan. Kalau `end_at` baru
+      // dihitung dari waktu approve, angkanya jadi 30 — dan 10 menit yang
+      // sudah dibayar hilang.
       final forward = result.newEndAt.difference(ServerTime.instance.now);
-      expect(forward.inMinutes, closeTo(24, 1));
+      expect(forward.inMinutes, closeTo(40, 1));
     });
 
-    test('extend_deadline_at = end_at + 10 menit', () async {
-      final id = await startPostpaidSession(repo);
+    test('extend_deadline_at SAMA DENGAN end_at (DEC-033)', () async {
+      // Field-nya sengaja tidak dihapus dari kontrak supaya client lama
+      // tidak patah; yang berubah hanya nilainya.
+      final id = await startPrepaidSession(repo);
       final session = await repo.fetchSession(id);
 
-      expect(
-        session.extendDeadlineAt,
-        session.endAt!.add(const Duration(minutes: 10)),
-      );
+      expect(session.extendDeadlineAt, session.endAt);
       expect(session.extendable, isTrue);
+    });
+
+    test('Postpaid tidak bisa di-extend — tidak ada yang diperpanjang',
+        () async {
+      final stations = await repo.fetchStations();
+      final free = stations.firstWhere(
+        (s) => s.session == null && s.status == StationMasterStatus.active,
+      );
+      final packages = await repo.fetchPackages();
+
+      final session = await repo.createSession(
+        stationId: free.id,
+        packageId: packages.first.id,
+        mode: SessionMode.postpaid,
+        idempotencyKey: 'test-create-postpaid',
+      );
+
+      expect(session.endAt, isNull, reason: 'DEC-034: tanpa batas waktu');
+      expect(
+        () => repo.extendSession(
+          sessionId: session.id,
+          durationMinutes: 30,
+          idempotencyKey: 'test-extend-postpaid',
+        ),
+        throwsA(isA<ApiError>().having(
+            (e) => e.code, 'code', ApiErrorCode.sessionStatusInvalid)),
+      );
     });
   });
 

@@ -31,13 +31,13 @@
 | ✅ | **Penemuan server otomatis** — `server_discovery.dart` + tombol **Cari otomatis** di Pengaturan | — |
 | ✅ | **Layar login** + token tersimpan — gate auth tunggal di `app.dart` | — |
 | ✅ | **`ApiBillingRepository` dipakai** — fake tinggal untuk test | — |
-| 1 | Panggil `ServerConnector().connect()` saat `main()` | Kodenya sudah ada tapi **belum dipanggil otomatis** — sekarang baru jalan kalau tombolnya ditekan |
-| 2 | Klien Reverb + reconnect | Tablet tidak tahu apa pun yang terjadi di tablet/TV lain |
-| 3 | Dengarkan `master.updated` → muat ulang daftarnya. `resource` sekarang bisa `package`, `fnb_product`, `station`, `station_type` (DEC-048) — **abaikan** nilai yang tidak dikenal, jangan error | Harga, menu, dan station yang diubah owner tidak akan terlihat di tablet sampai aplikasinya dimuat ulang |
+| ✅ | **Penemuan server otomatis saat startup** (13 Okt) — dijalankan di dalam state `checking`, bukan memblokir `main()`. Kegagalan tidak menghalangi startup | — |
+| 1 | Klien Reverb + reconnect | Tablet tidak tahu apa pun yang terjadi di tablet/TV lain |
+| 2 | Dengarkan `master.updated` → muat ulang daftarnya. `resource` sekarang bisa `package`, `fnb_product`, `station`, `station_type` (DEC-048) — **abaikan** nilai yang tidak dikenal, jangan error | Harga, menu, dan station yang diubah owner tidak akan terlihat di tablet sampai aplikasinya dimuat ulang |
 | ✅ | **`expected_cash` dari server dipakai** (13 Okt) — `Shift.expectedCash` tidak lagi menghitung sendiri, dan fallback-nya ikut rumus DEC-046 di layar tutup shift — jangan menjumlahkan `opening_cash + cash` sendiri | **DEC-046.** Rumusnya sekarang `modal + tunai − pengeluaran`. Tablet yang menjumlahkan sendiri akan menampilkan angka yang berbeda dari yang dipakai server saat `close()`, dan kasir yang menyetor sesuai layar justru tercatat punya selisih |
 | ✅ | **Layar catat pengeluaran** (13 Okt) — tombol di layar Shift, kategori dikunci sesuai server, idempotent per niat | — |
 
-> ⚠️ Kalau nomor 1 dikerjakan: `connect()` bisa mengembalikan
+> ⚠️ Saat klien Reverb (nomor 1) dibuat: `connect()` bisa mengembalikan
 > `addressChanged == true`. Saat itu koneksi WebSocket yang sudah terbuka
 > **harus dibangun ulang** — ia tidak akan error sendiri, hanya diam.
 

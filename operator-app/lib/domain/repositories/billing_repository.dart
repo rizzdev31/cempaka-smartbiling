@@ -57,7 +57,7 @@ abstract class BillingRepository {
   });
 
   /// Kelipatan 30 menit saja (DEC-007). Server menolak nilai lain dengan
-  /// `EXTEND_DURATION_INVALID`, dan menolak di luar grace 10 menit dengan
+  /// `EXTEND_DURATION_INVALID`, dan menolak setelah waktu habis dengan
   /// `EXTEND_GRACE_EXPIRED`.
   Future<ExtendResult> extendSession({
     required String sessionId,

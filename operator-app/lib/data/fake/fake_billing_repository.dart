@@ -77,8 +77,8 @@ class FakeBillingRepository implements BillingRepository {
   }
 
   /// Jam "server" palsu. Bisa dimajukan di test untuk mensimulasikan waktu
-  /// berjalan — tanpa ini, aturan yang bergantung waktu (grace extend
-  /// DEC-007, rounding durasi DEC-009) tidak bisa diuji sama sekali.
+  /// berjalan — tanpa ini, aturan yang bergantung waktu (batas extend
+  /// DEC-033, rounding durasi DEC-009) tidak bisa diuji sama sekali.
   Duration _clockSkew = Duration.zero;
 
   DateTime get _serverNow => DateTime.now().toUtc().add(_clockSkew);
@@ -141,7 +141,11 @@ class FakeBillingRepository implements BillingRepository {
     return rounded < 30 ? 30 : rounded;
   }
 
-  static const graceWindow = Duration(minutes: 10);
+  /// Batas extend = `end_at` itu sendiri. **Tidak ada grace** (DEC-033).
+  ///
+  /// Dipertahankan sebagai konstanta, bukan dihapus, supaya jelas bahwa
+  /// nilainya sengaja nol — bukan terlupa. DEC-007 dulu memberinya 10 menit.
+  static const graceWindow = Duration.zero;
 
   void _recordPayment(PaymentMethod method, int amount, DateTime at) {
     _paymentLog.add(_PaymentRecord(method: method, amount: amount, at: at));
@@ -461,7 +465,10 @@ class FakeBillingRepository implements BillingRepository {
     if (startedAt != null) {
       state.status = SessionStatus.active;
       state.startedAt = startedAt;
-      state.endAt = startedAt.add(Duration(minutes: pkg.durationMinutes));
+      // Postpaid tanpa batas (DEC-034); hanya Prepaid yang punya `end_at`.
+      if (mode != SessionMode.postpaid) {
+        state.endAt = startedAt.add(Duration(minutes: pkg.durationMinutes));
+      }
     }
 
     // Setiap F&B seed juga dibuatkan FnbOrder, bukan hanya session item.
@@ -791,7 +798,15 @@ class FakeBillingRepository implements BillingRepository {
             if (mode == SessionMode.postpaid) {
               state.status = SessionStatus.active;
               state.startedAt = now;
-              state.endAt = now.add(Duration(minutes: pkg.durationMinutes));
+              /*
+               * `end_at` sengaja DIBIARKAN null — DEC-034.
+               *
+               * Postpaid tidak punya batas waktu: customer main sampai dia
+               * menyatakan selesai. Versi sebelumnya di sini memberinya
+               * `now + durasi paket`, yaitu aturan yang sudah dicabut, dan
+               * itu membuat timer di tablet menghitung mundur ke batas yang
+               * tidak pernah ada.
+               */
             } else {
               state.status = SessionStatus.pendingPayment;
             }
@@ -917,15 +932,32 @@ class FakeBillingRepository implements BillingRepository {
               );
             }
 
+            // Postpaid tidak punya `end_at`, jadi tidak ada yang bisa
+            // diperpanjang (DEC-034). Server menjawab SESSION_STATUS_INVALID.
+            if (s.endAt == null) {
+              throw const ApiError(
+                code: ApiErrorCode.sessionStatusInvalid,
+                message: 'Sesi tanpa batas waktu tidak bisa di-extend.',
+                httpStatus: 409,
+              );
+            }
+
             final previousEnd = s.endAt!;
             final deadline = previousEnd.add(graceWindow);
 
-            // DEC-007: grace 10 menit.
+            /*
+             * DEC-033: habis ya habis. Extend hanya sah selama `now <=
+             * end_at`; tepat di `end_at` masih boleh.
+             *
+             * Kode errornya tetap `EXTEND_GRACE_EXPIRED` — server sengaja
+             * mempertahankannya supaya client lama tidak patah. Yang berubah
+             * artinya: "waktunya sudah lewat", bukan "grace-nya sudah lewat".
+             */
             if (now.isAfter(deadline)) {
               throw ApiError(
                 code: ApiErrorCode.extendGraceExpired,
-                message: 'Sesi sudah lewat 10 menit dari waktu habis. '
-                    'Lakukan checkout lalu buat sesi baru.',
+                message: 'Waktu sesi sudah habis. Lakukan checkout lalu '
+                    'buat sesi baru.',
                 details: {
                   'end_at': previousEnd.toIso8601String(),
                   'grace_until': deadline.toIso8601String(),
@@ -934,8 +966,8 @@ class FakeBillingRepository implements BillingRepository {
               );
             }
 
-            // DEC-007: dihitung dari end_at LAMA, bukan dari waktu approve.
-            // Waktu grace yang sudah lewat tetap terhitung.
+            // DEC-007 (bagian ini TIDAK dicabut): dihitung dari end_at LAMA,
+            // bukan dari waktu approve.
             final newEnd = previousEnd.add(Duration(minutes: durationMinutes));
             final price = extendPrice(
               hourlyRate: s.package.hourlyRate,

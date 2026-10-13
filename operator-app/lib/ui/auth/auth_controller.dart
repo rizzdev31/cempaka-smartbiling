@@ -13,9 +13,18 @@ enum AuthStatus {
 
 /// Siapa yang sedang masuk, dan apakah app boleh menampilkan isinya.
 class AuthController extends ChangeNotifier {
-  AuthController(this._repo);
+  AuthController(this._repo, {Future<void> Function()? preflight})
+      : _preflight = preflight;
 
   final AuthRepository _repo;
+
+  /// Dijalankan **sebelum** token diperiksa — DEC-041.
+  ///
+  /// Urutannya mengikat: `/auth/me` dipanggil ke `ApiConfig.baseUrl`, jadi
+  /// kalau server pindah alamat sejak terakhir dipakai, pemeriksaan token
+  /// gagal karena jaringan — bukan karena tokennya tidak berlaku. Operator
+  /// akan melihat layar masuk padahal yang salah alamatnya.
+  final Future<void> Function()? _preflight;
 
   AuthStatus _status = AuthStatus.checking;
   AuthUser? _user;
@@ -32,6 +41,15 @@ class AuthController extends ChangeNotifier {
   /// Tanpa token tersimpan, langsung ke layar masuk — tidak perlu memanggil
   /// server hanya untuk mendapat 401.
   Future<void> bootstrap() async {
+    // Gagal mencari server BUKAN alasan menggagalkan startup: alamat lama
+    // tetap dipakai, dan layar masuk punya tombol "Cari otomatis" sebagai
+    // jalan keluarnya.
+    try {
+      await _preflight?.call();
+    } catch (_) {
+      // Sengaja ditelan — lihat di atas.
+    }
+
     if (!_repo.hasToken) {
       _set(AuthStatus.signedOut);
       return;

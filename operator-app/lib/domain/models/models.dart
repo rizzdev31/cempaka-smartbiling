@@ -124,10 +124,17 @@ class StationSessionSummary {
     required this.customerLabel,
     required this.balanceDue,
     this.startedAt,
+    this.mode = SessionMode.unknown,
   });
 
   final String id;
   final SessionStatus status;
+
+  /// Prepaid atau Postpaid — menentukan arah timer (DEC-034).
+  ///
+  /// Dikirim server dan sebelumnya **dibuang saat parsing**, sehingga
+  /// Postpaid tidak bisa dibedakan dari sesi yang belum mulai.
+  final SessionMode mode;
 
   /// `null` saat `PENDING_PAYMENT`. Bersama [endAt] dipakai untuk menggambar
   /// proporsi waktu terpakai (kontrak §6, CHANGELOG DRAFT 2).
@@ -136,8 +143,21 @@ class StationSessionSummary {
   final String? customerLabel;
   final int balanceDue;
 
+  /// Sesi tanpa batas waktu — Postpaid (DEC-034).
+  ///
+  /// Dikenali dari `end_at` yang kosong padahal timer sudah jalan, bukan
+  /// dari [mode] saja: server yang menentukan ada-tidaknya batas, dan
+  /// `end_at` itulah pernyataannya.
+  bool get isOpenEnded => startedAt != null && endAt == null;
+
+  /// Sudah berapa lama berjalan. Dipakai Postpaid, yang menghitung **maju**.
+  Duration? elapsedAt(DateTime now) =>
+      startedAt == null ? null : now.difference(startedAt!);
+
   /// Proporsi waktu yang sudah terpakai, 0..1.
-  /// `null` kalau tidak bisa dihitung (sesi belum mulai atau data tidak ada).
+  ///
+  /// `null` kalau tidak bisa dihitung — termasuk Postpaid, yang memang tidak
+  /// punya total sehingga bar proporsi tidak bermakna.
   double? progressAt(DateTime now) {
     if (startedAt == null || endAt == null) return null;
     final total = endAt!.difference(startedAt!).inSeconds;
@@ -150,6 +170,7 @@ class StationSessionSummary {
       StationSessionSummary(
         id: j['id'] as String,
         status: SessionStatus.parse(j['status'] as String?),
+        mode: SessionMode.parse(j['mode'] as String?),
         startedAt: _dt(j['started_at']),
         endAt: _dt(j['end_at']),
         customerLabel: j['customer_label'] as String?,
@@ -361,8 +382,13 @@ class Session {
   /// Server yang memutuskan. Client TIDAK menghitung sendiri.
   final bool extendable;
 
-  /// `end_at + 10 menit` (DEC-007). Dikirim server supaya aturan grace
-  /// tidak diduplikasi di client.
+  /// Batas akhir extend. Sejak DEC-033 nilainya **sama persis dengan
+  /// `end_at`** — grace 10 menit sudah dicabut.
+  ///
+  /// Field-nya sengaja tidak dihapus dari kontrak supaya client lama tidak
+  /// patah; yang berubah hanya angkanya. Tetap dibaca dari server, bukan
+  /// dihitung di sini, supaya kalau aturannya berubah lagi client tidak
+  /// perlu ikut diubah.
   final DateTime? extendDeadlineAt;
 
   final List<SessionItem> items;
