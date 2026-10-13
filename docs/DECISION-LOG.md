@@ -1586,17 +1586,455 @@ penjelasan.
 
 ---
 
+## DEC-044 — Pembagian peran: Laravel mengatur, Flutter melayani
+**Tanggal:** 11 Okt 2026 · **Status:** APPROVED · **Mempertegas:** PRD §18/§19, DEC-001 · **Melanjutkan:** DEC-042, DEC-043
+
+User: *"ternyata di laravel ini yang bisa setting semuanya. yang flutter itu
+untuk yang kasir hanya melayani customer dan input member baru… untuk stock,
+harga, promo, kas, pengeluaran [di Laravel]."*
+
+### Pembagiannya
+
+| | Laravel Admin Web | Flutter Tablet |
+|---|---|---|
+| **Peran** | mengatur & mengawasi | melayani customer |
+| Harga & paket | ✅ sumbernya | melihat saja |
+| Stok F&B | ✅ sumbernya | melihat saja |
+| Kas, pengeluaran, laporan | ✅ | — |
+| Buka/tutup sesi, bayar, extend, swap | — | ✅ |
+| Daftar member baru | — | ✅ (DEC-027) |
+| Antar pesanan F&B | ✅ bisa | ✅ |
+
+Ini **bukan** perubahan arah dari PRD — §18 memang mendaftar layar operator
+dan §19 mendaftar modul admin. Yang ditegaskan di sini: begitu sebuah
+pengaturan ada di Laravel, Flutter **tidak** membuat salinannya. Dua tempat
+mengubah harga berarti dua tempat yang bisa berbeda.
+
+### Satu aturan yang mengikat setiap aksi ubah di web
+
+**Web memanggil Service yang sama dengan API.** Tidak ada satu pun aturan
+bisnis ditulis ulang.
+
+Alasannya bukan kerapian. `MasterDataService::updateFnbProduct()` memeriksa
+bahwa hanya owner yang boleh mengubah `price` (DEC-020) dan mencatat nilai
+sebelum/sesudah ke audit log (PRD §24). Controller web yang menulis
+`$product->update()` sendiri akan melewati keduanya — dan kehilangannya
+tidak menimbulkan error apa pun.
+
+Yang berbeda hanya bentuk jawabannya: JSON di API, kembali ke form di web.
+`ApiException` **wajib** ditangkap di web — ia hanya dirender JSON untuk
+`api/*`, dan dibiarkan lewat ia jadi halaman 500 kosong padahal isinya
+kalimat yang justru perlu dibaca.
+
+### ⛔ Izin disalin PERSIS dari `routes/api.php`
+
+Letak penegakannya berbeda per sumber daya, dan itu mudah salah:
+
+| Sumber daya | Gerbangnya |
+|---|---|
+| **Paket** | `can:pricing.manage` **di route**. Service tidak memeriksa apa pun |
+| **Produk F&B** | `can:fnb.manage` di route, lalu **Service** menolak `price` dari non-owner |
+
+Versi pertama route web melewatkan gerbang paket, dan **admin bisa mengubah
+seluruh tarif rental**. Ditemukan test, bukan saat dibaca. Dua pintu ke
+service yang sama harus dijaga sama ketatnya.
+
+### Realtime: polling, bukan WebSocket
+
+Reverb sudah ada dan menyiarkan sembilan event. Tapi dua kali dalam seminggu
+terakhir realtime-nya mati diam-diam — sekali karena `REVERB_HOST` salah,
+sekali karena `queue:work` tidak jalan. Keduanya tidak menimbulkan error
+yang terlihat.
+
+Halaman admin yang bergantung pada Reverb akan membeku dengan cara yang
+sama: menampilkan angka lama sambil terlihat normal. Itu **lebih buruk**
+daripada tidak realtime, karena owner mengambil keputusan dari angka yang
+dia kira baru.
+
+Polling tidak bisa gagal diam-diam — kalau server mati, penanda waktunya
+berhenti maju dan itu terlihat. Dashboard admin tidak butuh reaksi
+sub-detik; tablet dan TV butuh, dan di sana Reverb tetap jalur yang benar.
+
+Aturan yang menyertainya: penyegaran **dilewati** kalau ada yang sedang
+mengetik atau ada form yang sudah disentuh. Menyegarkan halaman saat
+seseorang mengisi kas akhir akan menghapus ketikannya.
+
+### Yang belum bisa, dan kenapa
+
+| Diminta user | Status |
+|---|---|
+| Stok, harga | ✅ |
+| Kas (tutup shift) | ✅ |
+| **Pengeluaran** | ✅ **DEC-046** — tabel `cash_expenses`, ikut hitungan laci |
+| **Promo** | ❌ belum ada di backend sama sekali |
+| Ubah station & tipe konsol | ✅ **DEC-048** — tambah station, ubah nama/kode/tipe/status, tambah tipe konsol |
+| HPP produk | ❌ `UpdateFnbProductRequest` belum menerimanya |
+
+---
+
+## DEC-045 — Laravel punya SEMUA akses, termasuk operasi sesi
+**Tanggal:** 11 Okt 2026 · **Status:** APPROVED · **Membalik sebagian:** DEC-044
+
+User: *"laravelnya ini anggap saja dia owner dari semua fiturnya jadi dia
+harus punya semua akses nya walaupun dia tidak langsung melayani customer."*
+
+DEC-044 menetapkan Laravel **tidak** melakukan operasi sesi — mengatur saja.
+Itu dibalik. Admin Web sekarang bisa: mulai sesi, catat pembayaran, extend,
+pindah station, pesan F&B, checkout, batalkan sesi, buka & tutup shift.
+
+### Yang TIDAK berubah
+
+| | |
+|---|---|
+| Siapa boleh masuk | Owner & Admin saja (DEC-043). DEC-045 menambah **fitur**, bukan membuka pintunya |
+| Peran sehari-hari | Kasir tetap melayani dari tablet. Web adalah jalur owner, bukan pengganti |
+| Aturan bisnis | Tidak ada satu pun yang ditulis ulang |
+
+### ⛔ Konsekuensi yang harus disadari
+
+**Sekarang ada DUA pintu ke operasi yang memegang uang.** Itu aman hanya
+karena keduanya memanggil Service yang sama — aturan billing, state machine,
+broadcast, dan audit semuanya hidup di sana. Begitu salah satu pintu mulai
+menulis aturannya sendiri, keduanya akan berbeda, dan yang berbeda adalah
+uang.
+
+Izin di `routes/web.php` **disalin persis** dari `routes/api.php`. Dua pintu
+dengan gerbang berbeda sama saja dengan satu pintu tanpa gerbang.
+
+### Yang sengaja berbeda dari API
+
+| | Web | Kenapa |
+|---|---|---|
+| `Idempotency-Key` | tidak dipakai | Di tablet ia mencegah duplikat saat jaringan putus di tengah kirim. Di browser, form yang dikirim dua kali adalah dua niat berbeda. Pengamannya state machine — sesi COMPLETED menolak checkout kedua |
+| Alasan pembatalan | **wajib** | API membolehkannya kosong. Membatalkan sesi dari belakang meja tanpa alasan adalah persis yang perlu dijelaskan saat laporan tidak cocok |
+| Split payment | satu pembayaran saja | Split dipakai tablet, tempat customer berdiri membagi tunai dan QRIS. Menambahnya di web berarti merawat dua tempat untuk kasus yang jarang |
+
+### Satu bug yang hanya ketahuan dengan mencoba sungguhan
+
+Penyegaran otomatis **menutup panel aksi dan menghapus isinya** sebelum
+sempat dikirim. Penjaganya hanya aktif setelah ada yang diketik — membuka
+panel lalu membaca pilihan paketnya sepuluh detik sudah cukup kehilangan.
+
+Sekarang penyegaran juga dilewati selama ada `<details open>` di dalam
+`#live`. Test tidak menemukannya, karena test tidak menunggu sepuluh detik.
+
+---
+## DEC-046 — Pengeluaran kasir dicatat, dan ikut dalam hitungan laci
+**Tanggal:** 12 Okt 2026 · **Status:** APPROVED · **Menutup:** OD-029
+
+User, 11 Okt: *"lalu buat Pengeluaran kasir OD-029."*
+
+### Masalahnya bukan "fiturnya kurang"
+
+Rekonsiliasi laci seharusnya:
+
+```
+Kas seharusnya = Modal awal + Tunai masuk − Pengeluaran
+```
+
+Suku terakhirnya tidak pernah dibangun. Akibatnya bukan sekadar angka yang
+kurang lengkap: kasir yang mengambil Rp 20.000 dari laci untuk beli galon
+membuat sistem melaporkan kas **kurang** Rp 20.000 saat tutup shift — dan
+selisih itu masuk audit log dengan namanya tertera.
+
+Fitur anti-bocor yang justru jadi sumber tuduhan palsu. Itu yang ditutup di
+sini.
+
+### Keputusannya
+
+| Pertanyaan OD-029 | Jawaban |
+|---|---|
+| Menempel ke apa? | **Shift**, bukan tanggal. Yang dibandingkan dengan uang fisik adalah isi satu laci pada satu shift |
+| Siapa boleh mencatat? | **Pemegang shift, atau admin ke atas** — aturan yang sama persis dengan menutup shift |
+| Perlu persetujuan owner? | **Tidak.** Persetujuan per belanja akan membuat kasir menunda pencatatan sampai owner sempat membalas, dan pengeluaran yang diingat belakangan selalu lebih kecil dari yang sebenarnya |
+| Batas nominal? | **Tidak ada.** Batas hanya memindahkan belanja besar ke luar catatan |
+| Keterangan wajib? | **Wajib, minimal 3 huruf.** Pengeluaran tanpa keterangan persis yang tidak bisa dijelaskan saat laporan diperiksa |
+| Kategori? | Daftar tertutup 6 pilihan + "Lainnya". Teks bebas membuat "es batu", "Es Batu", dan "esbatu" jadi tiga kelompok di laporan |
+| Bisa dihapus? | **Tidak.** Pengeluaran yang bisa dihapus adalah jalan keluar paling mudah dari selisih kas. Salah catat diselesaikan di catatan tutup shift |
+| Boleh ke shift yang sudah ditutup? | **Tidak.** Itu mengubah selisih yang sudah ditandatangani orang lain — pintu belakang untuk menutupi selisih setelah ketahuan |
+
+### Satu rumus, bukan dua
+
+`ShiftService::expectedCash()` adalah satu-satunya tempat rumus itu ditulis.
+Dipakai `close()`, `ShiftPresenter` (tablet), dan halaman Shift.
+
+Ini bukan soal kerapian. Rumus yang disalin ke layar akan melenceng dari
+rumus yang dipakai saat tutup shift, dan kasir yang menyetor uang **sesuai
+angka di layar** justru tercatat punya selisih. Selisih itu tidak akan
+pernah bisa dijelaskan oleh siapa pun.
+
+Halaman Shift juga menampilkan sukunya satu per satu dengan angkanya
+(`Rp 200.000 modal awal + Rp 0 tunai masuk − Rp 67.000 pengeluaran`), supaya
+kasir bisa mengulang hitungannya di kertas tanpa memanggil siapa pun.
+
+### Yang masih di luar
+
+HPP dan laba bersih tetap belum tersentuh. Pengeluaran kasir adalah uang
+keluar dari **laci**, bukan biaya operasional bulanan (listrik, sewa, gaji).
+Menyatukan keduanya akan membuat laporan laba terlihat ada padahal
+komponennya belum lengkap.
+
+---
+## DEC-047 — Tidak ada F&B tanpa sesi. OD-030 ditutup tanpa dibangun
+**Tanggal:** 12 Okt 2026 · **Status:** APPROVED · **Menutup:** OD-030
+
+User, ditanya langsung bagaimana bentuk penjualan F&B walk-in:
+
+> *"tidak bisa beli fnb saja. minimal ya sewa. kecuali dia bersama temannya
+> yang sewa tapi dianya yang beli fnb. atau berkelompok ya boleh boleh saja."*
+
+### Keputusannya
+
+**F&B selalu menempel ke sesi rental.** Tidak ada order berdiri sendiri,
+tidak ada sesi tanpa station. `POST /sessions/{session}/fnb/orders` yang
+sudah ada memang bentuk yang benar — bukan keterbatasan yang perlu ditambal.
+
+Kasus "temannya yang beli" sudah tertangani tanpa kode baru: order menempel
+ke **sesi**, bukan ke orang. Siapa pun dalam satu rombongan yang membayar,
+pesanannya masuk ke sesi yang menyewa meja itu.
+
+### Kenapa ini dicatat, bukan sekadar dihapus dari daftar
+
+OD-030 ditulis sebagai lubang kas: "pembeli yang cuma beli rokok tidak bisa
+dilayani sama sekali — uangnya tidak tercatat di mana pun". Analisis itu
+benar secara teknis dan **salah secara bisnis**: di AMOR memang tidak ada
+pembeli seperti itu. Warung rokok bukan model usahanya.
+
+Tanpa catatan ini, analisis yang sama akan muncul lagi enam bulan lagi,
+lengkap dengan desain tabelnya.
+
+### Yang ikut gugur
+
+- `fnb_orders.session_id` **tetap NOT NULL**. Jangan dilonggarkan.
+- Pembayaran tetap punya satu induk: sesi. Tidak ada cabang kedua.
+- `shift.summary.fnb` tetap dihitung dari item pada sesi milik shift itu —
+  tidak ada sumber F&B lain yang perlu dijumlahkan.
+
+---
+## DEC-048 — Station & tipe konsol bisa ditambah dan diubah dari web
+**Tanggal:** 12 Okt 2026 · **Status:** APPROVED · **Menutup:** OD-028
+
+User: *"aku mau kamu buat untuk edit di owner ini lebih flexsibel atau bisa
+custom sesuai hati. kayak tambah ps. nah ini bisa custome namanya,
+tipenya, dll. begitu juga berlaku ke semua halnya."*
+
+### Siapa boleh apa (jawaban OD-028)
+
+Dua tingkat, bukan satu. Permission baru `station.manage` dipegang **admin
+ke atas**; yang lebih dalam ditegakkan Service.
+
+| Tindakan | Siapa | Kenapa |
+|---|---|---|
+| Ubah `status` (Aktif / Perbaikan / Nonaktif) | admin | "PS3 nomor 4 rusak" kejadian harian. Dikunci untuk owner = station rusak tetap ditawarkan ke customer sampai owner sempat membuka laptopnya |
+| Ubah `name`, `sort_order` | admin | label, bukan identitas |
+| **Buat station baru** | **owner** | station lahir dengan `enrollment_code`; siapa pun yang bisa membuat station bisa membuat kode pendaftaran TV sebanyak yang dia mau |
+| **Ubah `code`** | **owner** | kode = alamat channel realtime |
+| **Ubah tipe konsol station** | **owner** | tipe = pembawa tarif (DEC-019) |
+| **Tipe konsol: buat / ubah / nonaktifkan** | **owner** | membuat tipe berarti membuka tempat untuk daftar harga baru |
+
+Polanya sama dengan menu F&B: `can:` di route, lalu Service memisahkan per
+field. Route yang dikunci owner sepenuhnya akan membuat admin menunggu
+hanya untuk menandai satu station rusak.
+
+### Tiga kunci yang mencegah kerusakan diam
+
+Ketiganya ada karena akibatnya **tidak menimbulkan error**:
+
+1. **Kode terkunci selama TV terdaftar.** TV berlangganan
+   `private-station.{code}` saat boot. Kode yang berubah membuatnya diam
+   selamanya — tidak ada error, tidak ada yang tahu sampai seseorang
+   menyadari layarnya tidak pernah berganti. → `409 STATION_HAS_DEVICE`.
+2. **Tipe terkunci selama ada sesi berjalan.** Tipe menentukan paket mana
+   yang sah (DEC-019) dan ke mana sesi boleh dipindahkan (DEC-021).
+   Menukarnya saat ada yang bermain membuat sesi berjalan menunjuk tarif
+   yang bukan dasar harganya. → `409 STATION_HAS_ACTIVE_SESSION`.
+3. **Tipe tidak bisa dinonaktifkan selagi dipakai station aktif.** Kalau
+   boleh, station-nya tetap terlihat kosong dan bisa diklik, lalu tidak ada
+   satu pun paket yang bisa dipilih. Kasir akan mengira sistemnya rusak.
+
+Yang DIBOLEHKAN, dan sengaja: mengubah `name` station yang TV-nya sudah
+terdaftar. Yang berbahaya kodenya, bukan namanya — mengunci keduanya
+membuat station yang sudah dipasang TV tidak bisa dirapikan sama sekali.
+
+### Kode station tidak boleh mengandung titik
+
+`private-station.{code}` memakai titik sebagai pemisah segmen. "ST.07"
+menghasilkan channel yang tidak pernah bisa dilanggani siapa pun — tanpa
+error. Validasinya `^[A-Za-z0-9_-]+$`.
+
+### Tidak ada hapus, hanya nonaktif
+
+Station dipegang setiap sesi yang pernah berjalan di atasnya; tipe dipegang
+paket, station, dan sesi. Menghapusnya berarti membuang dasar harga dari
+riwayat yang **sudah dibayar** — dan riwayat itu adalah catatan uangnya.
+
+Station yang tidak dipakai lagi: status `DISABLED`, hilang dari kasir,
+riwayatnya utuh.
+
+### Kode pendaftaran TV ditampilkan di kartu station
+
+Hanya selama belum ada TV yang memakainya. Sebelum ini kodenya cuma ada di
+database — station yang baru dibuat tidak punya cara dipasangkan ke TV sama
+sekali. Setelah TV terdaftar kodenya hilang dari layar: tidak ada gunanya
+lagi, dan kode pendaftaran yang tertinggal di layar adalah kode yang bisa
+dipakai orang lain.
+
+---
+## DEC-049 — Data customer bisa diperbaiki, dan jalur web akhirnya ikut tercatat
+**Tanggal:** 12 Okt 2026 · **Status:** APPROVED
+
+Bagian dari permintaan yang sama dengan DEC-048: *"ingat buat semua datanya
+bisa di edit di halaman laravelnya dan tersimpan nantinya."*
+
+### Yang hilang
+
+Customer hanya bisa **dibuat**, tidak pernah bisa diubah. Nama salah ketik
+dan nomor HP yang kurang satu angka permanen — dan keduanya baru ketahuan
+saat struk gagal terkirim ke WhatsApp, atau saat orangnya datang lagi dan
+tidak ditemukan di pencarian.
+
+### Lubang kedua, yang ditemukan sambil mengerjakannya
+
+`AdminActionController::storeCustomer()` memanggil `Customer::create()`
+sendiri. Jalur API mencatat audit setelahnya; **jalur web tidak mencatat
+apa pun**. Customer yang ditambahkan dari Admin Web tidak punya jejak siapa
+yang menambahkannya, dan itu tidak menimbulkan error — hanya pertanyaan
+yang tidak bisa dijawab berbulan-bulan kemudian.
+
+Diperbaiki dengan `CustomerService`: satu pintu, satu jejak. Dua pintu yang
+menulis sendiri-sendiri selalu berakhir dengan salah satunya lupa — ini
+kejadian keduanya di repo ini.
+
+### Izinnya `customer.create`, bukan permission baru
+
+Orang yang paling mungkin menyadari nama salah ketik adalah operator yang
+baru saja mengetiknya, sedetik setelahnya. Permission terpisah berarti dia
+harus mencari admin — dan dalam praktiknya salah ketiknya akan dibiarkan,
+yang persis keadaan sebelum keputusan ini.
+
+Namanya memang jadi kurang pas (`customer.create` yang juga mengizinkan
+update). Mengganti namanya berarti perubahan kontrak di
+`data.user.permissions` untuk keuntungan kosmetik.
+
+### Yang TIDAK ikut berubah saat nama diubah
+
+Saldo, membership, dan riwayat sesi. Semuanya menempel ke `customer_id`,
+bukan ke nama atau nomornya. Ada test khusus untuk ini — bukan karena
+kodenya meragukan, tapi karena pertanyaannya pantas muncul dan tidak boleh
+dijawab dengan tebakan.
+
+### Form ubah di atas daftar, bukan di dalam barisnya
+
+Panel di dalam sel tabel akan terjepit selebar kolomnya, dan di bawah 768px
+tabel ini berubah jadi kartu bertumpuk (`table-stacked`) — panel mengambang
+di dalamnya tidak punya tempat.
+
+Yang dipakai: tombol "Ubah" tiap baris adalah **tautan GET** ke
+`?edit=<id>`, dan halaman menampilkan satu form di atas daftar. Tanpa
+JavaScript, bekerja sama di setiap lebar, dan tidak ada keadaan buka/tutup
+yang bisa macet. Setelah disimpan, redirect tanpa `?edit=` supaya formnya
+tertutup sendiri.
+
+---
+## DEC-050 — Halaman Laporan, dan HPP yang dibekukan
+**Tanggal:** 12 Okt 2026 · **Status:** APPROVED
+
+User: *"halaman laporan kok tidak bisa? buatkan segera."*
+
+Menu "Laporan" memang sengaja diredupkan sejak DEC-042 — modulnya belum
+ada. Sekarang ada.
+
+### Isinya (PRD §19 "Reports" & §27)
+
+Uang diterima · rental · F&B dengan modalnya · kas bersih · grafik per
+jam/per hari · metode bayar · performa per station · pengeluaran kasir per
+kategori · menu terlaris · uang masuk per operator. Periode: hari ini, 7
+hari, 30 hari, bulan ini, atau rentang tanggal bebas.
+
+### Satu definisi "pendapatan" untuk seluruh sistem
+
+**Pendapatan = payment berstatus CONFIRMED**, sama persis dengan
+`DashboardData` dan `ShiftService::summary()`.
+
+Bukan pilihan gaya. Halaman laporan dengan dasar berbeda akan selalu
+selisih dengan dashboard, dan yang dicurigai pertama adalah sistemnya —
+bukan definisinya. Ada test yang membandingkan kedua halaman untuk hari
+yang sama.
+
+### Bug yang ditemukan karena keduanya dibandingkan
+
+Dashboard melaporkan **Rp 346.000**; Laporan menyebut **Rp 394.000** untuk
+hari yang sama. Selisih Rp 48.000.
+
+Penyebabnya `whereBetween`, yang inklusif di **kedua** ujungnya, dipakai di
+dua belas tempat di `ReportData`. Transaksi tepat pada tengah malam
+terhitung di hari ini **dan** besok. Tidak ada error, tidak ada yang ganjil
+di layar mana pun — hanya dua halaman yang tidak sepakat, dan tidak ada
+cara tahu mana yang benar.
+
+`BusinessDay::range()` sudah memperingatkan ini di komentarnya sendiri.
+Rentang sekarang setengah terbuka: `>= from AND < to`.
+
+### Baris tabel WAJIB menjumlah ke totalnya sendiri
+
+Versi pertama tabel Performa Station memakai "sesi yang berakhir" sementara
+angka besar di atasnya memakai "item yang dibuat" — kolom Omzet tidak
+menjumlah ke Rental + F&B.
+
+Keduanya sah sebagai definisi, tapi laporan yang baris-barisnya tidak
+menjumlah ke totalnya sendiri akan selalu dicurigai rusak. Sekarang satu
+dasar, dengan test yang menjaganya.
+
+### HPP dibekukan saat order dibuat
+
+`name` dan `unit_price` sudah dibekukan sejak awal; `unit_hpp` tidak.
+Akibatnya: es teh dijual 5.000 dengan modal 1.500 di Januari; Februari
+harga gula naik dan HPP diubah jadi 2.500; **laporan laba Januari ikut
+berubah sendirinya**, karena ia menghitung ulang dari angka hari ini.
+
+Kolom `fnb_order_items.unit_hpp` nullable, **tidak diisi mundur**: HPP saat
+itu memang tidak pernah disimpan, dan mengisinya dengan angka hari ini akan
+terlihat seperti data yang benar padahal tebakan. Halaman menyebutkan
+berapa porsi yang begitu, karena laba yang dihitung dari sebagian data
+bukan laba.
+
+Bukan perubahan kontrak: `unit_hpp` tidak pernah dikirim ke client.
+
+### Grafik: batang CSS, bukan pustaka
+
+Satu halaman tidak sebanding dengan 70 KB JavaScript, dan batang yang
+digambar browser tetap tampil saat skrip gagal dimuat (rental ini dipakai
+di jaringan lokal — DEC-002).
+
+Rentang satu hari digambar **per jam**, bukan satu batang tunggal: "hari
+ini" adalah tampilan yang paling sering dibuka, dan sebaran per jam
+menjawab pertanyaan yang memang ditanyakan pemilik rental. Di atas 90 hari
+grafiknya tidak digambar sama sekali — 90 batang tidak terbaca di layar
+mana pun, dan angkanya tetap benar.
+
+### Izin: `audit.read`, bukan `pricing.manage`
+
+Laporan adalah bacaan. Admin yang mengelola operasi harian tidak bisa
+bekerja tanpa melihat angkanya. Operator tetap ditolak: dia memakai tablet,
+dan tidak punya alasan melihat omzet sepanjang bulan.
+
+---
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 
 | ID | Pertanyaan | Kenapa penting | Blokir tahap |
 |---|---|---|---|
+| ~~OD-029~~ | ~~Pengeluaran kasir (petty cash) belum ada tabelnya~~ | **DIPUTUSKAN → DEC-046** (tabel `cash_expenses`, menempel ke shift, keterangan wajib, tidak bisa dihapus, ikut `expectedCash()`) | — |
+| ~~OD-030~~ | ~~Penjualan F&B tanpa sesi (walk-in)~~ | **DIPUTUSKAN → DEC-047** — tidak ada. F&B selalu menempel ke sesi; teman yang ikut beli masuk ke sesi yang menyewa. Tidak ada yang perlu dibangun | — |
+| **OD-033** | **Siapa boleh mengubah HPP?** Untuk sekarang dikunci **owner**, sama seperti harga jual. HPP bukan angka yang dibayar customer, jadi secara teknis ia bisa saja cukup `fnb.manage` — tapi ia menentukan margin di setiap laporan laba | Dipilih yang lebih ketat dulu: melonggarkan nanti jauh lebih murah daripada menarik kembali akses yang terlanjur diberikan. Kalau owner sering tidak ada saat belanja, aturannya perlu dilonggarkan | Saat laporan laba dipakai |
+| **OD-032** | **Promo / diskon** — user menyebutnya sebagai hal yang diatur dari Laravel (DEC-044), tapi backend **tidak punya apa pun**: tidak ada tabel promo, tidak ada endpoint diskon. `SessionItemType::DISCOUNT` ada tapi hanya diisi otomatis oleh potongan saldo member. Perlu: bentuk promonya apa (potongan rupiah? persen? paket gratis F&B?), siapa yang boleh memberi, dan apakah berlaku otomatis atau dipilih kasir | Disebut user 11 Okt sebagai kebutuhan, tapi belum pernah dirinci. Tanpa bentuknya, tidak ada yang bisa dibangun | Sebelum promo pertama dijalankan |
+| **OD-031** | **Kendali TV manual dari kasir** — lock/unlock darurat, kirim teks ke layar ("pesanan diantar", "sisa 5 menit"), broadcast semua TV, power on/off. Sekarang TV hanya bereaksi **otomatis** pada status sesi; kasir tidak bisa memerintah apa pun | Butuh event/perintah baru di `private-station.{code}` dan dukungan di Kotlin. Power on/off butuh CEC atau relay IoT — keputusan perangkat keras, bukan hanya software. Diprioritaskan user 11 Okt | Tahap 2 |
 | ~~OD-001~~ | ~~Overstay: EXPIRED tapi customer masih bermain~~ | **DIPUTUSKAN → DEC-023** (timer jalan terus, kelebihan ditagih di checkout) + **DEC-024** (sisa waktu hangus kecuali member). Perilaku lock/overlay TV saat EXPIRED tetap di OD-004 | — |
 | **OD-025** | **Harga berdasarkan waktu** — jam pagi, happy hour, jam malam. User: "nanti ada aplikasi minta... jadi kita custom harganya kalau lagi sepi." Paket 3 jam PS3 20.000 / PS4 25.000 di catatan adalah harga jam sepi, jadi sudah ada contoh nyatanya | Muncul dari DEC-036. Butuh jadwal tarif per tipe konsol, dan keputusan apa yang terjadi kalau sesi melewati pergantian jadwal | Tahap 3B |
 | **OD-026** | **Durasi paket "free 2 minuman"** (PS3 40.000, PS4 50.000). Harganya sudah pasti, jamnya belum disebut | Muncul dari DEC-036. Tanpa durasi, paketnya tidak bisa dimasukkan ke sistem sama sekali | Saat paket F&B dibuat |
 | **OD-027** | Kode pendaftaran TV **tidak kedaluwarsa dan bisa dipakai berulang** (DEC-038). Perlu sekali pakai + masa berlaku, atau cukup begini? | Risikonya kecil di WiFi lokal: butuh akses jaringan, station harus belum dipegang TV lain, dan tokennya cuma bisa heartbeat. Perlu ditinjau ulang saat pindah VPS | Tahap 3A |
-| **OD-028** | Siapa yang boleh mengubah **station** (nama, status MAINTENANCE) dan **tipe konsol**? Keduanya bukan harga, jadi aturan owner-only DEC-020 tidak otomatis berlaku | Muncul dari DEC-040. Menandai station rusak adalah kejadian operasional harian — kalau dikunci untuk owner, station rusak tetap tampil bisa dipakai | Tahap 3B |
+| ~~OD-028~~ | ~~Siapa yang boleh mengubah station dan tipe konsol?~~ | **DIPUTUSKAN → DEC-048** — permission baru `station.manage` (admin ke atas) untuk status/nama; membuat station, mengubah kode & tipe, dan seluruh tipe konsol tetap owner | — |
 | **OD-002 🔴** | **Jadi lebih mendesak sejak DEC-034** — Postpaid tidak lagi punya batas waktu, jadi kerugian kalau customer kabur tidak terbatas. Deposit? batas maksimum? catat identitas? — deposit? batas maksimum open tab? catat identitas? | PRD §12 memperbolehkan Postpaid tapi tidak punya mitigasi kerugian. | Tahap 1 |
 | ~~OD-003~~ | ~~Extend pricing & extend setelah EXPIRED~~ | **DIPUTUSKAN → DEC-007** | — |
 | ~~OD-004~~ | ~~Perilaku warning di TV~~ | **DIPUTUSKAN → DEC-030** (overlay kecil di kanan atas). Bunyi & bisa-ditutup belum, default: tanpa suara, tidak bisa ditutup | — |

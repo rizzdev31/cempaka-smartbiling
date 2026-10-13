@@ -35,8 +35,8 @@ class MasterDataUpdated implements ShouldBroadcast
     use InteractsWithSockets;
 
     /**
-     * @param  string  $resource  `package` | `fnb_product`
-     * @param  string  $action    `created` | `updated`
+     * @param  string  $resource  `package` | `fnb_product` | `station` | `station_type`
+     * @param  string  $action  `created` | `updated`
      */
     public function __construct(
         public readonly string $resource,

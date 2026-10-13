@@ -163,6 +163,67 @@
  * membedakan warna — aturan `color-not-only` (UI-UX-SPEC §2) berlaku untuk
  * grafik juga, bukan hanya badge. Teksturnya yang menandainya.
  */
+/*
+ * Tabel yang berubah jadi kartu bertumpuk di layar sempit.
+ *
+ * Operator membuka halaman ini dari tablet, dan tablet dipegang bolak-balik
+ * potret–lanskap. Tabel tujuh kolom di lebar 600px hanya punya dua jalan
+ * keluar: menggeser ke samping (kolom Total hilang dari pandangan — justru
+ * yang dicari) atau meremas teks sampai tidak terbaca.
+ *
+ * Jalan ketiga: di bawah 48rem setiap baris jadi satu blok, dan nama kolom
+ * pindah ke kiri tiap nilai lewat `data-label`. Tanpa JavaScript, tanpa
+ * markup kedua yang harus dijaga tetap sinkron.
+ *
+ * Setiap `<td>` WAJIB punya `data-label`. Yang lupa akan tampil tanpa
+ * keterangan di layar sempit — dan hanya di layar sempit, jadi mudah lolos.
+ */
+@utility table-stacked {
+    @media (width < 48rem) {
+        & thead {
+            display: none;
+        }
+
+        & tbody {
+            display: block;
+        }
+
+        & tr {
+            display: block;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--color-line-soft);
+        }
+
+        & td {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.3rem 0;
+            text-align: right;
+        }
+
+        & td::before {
+            content: attr(data-label);
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--color-ink-soft);
+            text-align: left;
+            flex-shrink: 0;
+        }
+
+        /* Baris keadaan kosong: biarkan utuh, jangan ikut dipecah. */
+        & td[colspan]::before {
+            content: none;
+        }
+
+        & td[colspan] {
+            display: block;
+            text-align: center;
+        }
+    }
+}
+
 @utility bar-active {
     background: linear-gradient(180deg, var(--color-brand-500) 0%, var(--color-brand-600) 100%);
     position: relative;

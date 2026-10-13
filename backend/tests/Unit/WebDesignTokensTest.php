@@ -20,6 +20,7 @@ use PHPUnit\Framework\TestCase;
 class WebDesignTokensTest extends TestCase
 {
     private const CSS = __DIR__.'/../../resources/css/app.css';
+
     private const VIEWS = __DIR__.'/../../resources/views';
 
     /** @return list<string> */
@@ -127,6 +128,204 @@ class WebDesignTokensTest extends TestCase
         );
     }
 
+    public function test_setiap_sel_tabel_punya_data_label(): void
+    {
+        /*
+         * `table-stacked` mengubah tiap baris jadi blok di bawah 48rem, dan
+         * nama kolomnya datang dari `data-label`. Sel yang lupa akan tampil
+         * tanpa keterangan — dan HANYA di layar sempit, jadi lolos dari siapa
+         * pun yang mengujinya di laptop.
+         */
+        $pelanggar = [];
+
+        foreach ($this->bladeFiles() as $file) {
+            $isi = file_get_contents($file);
+
+            if (! str_contains($isi, 'table-stacked')) {
+                continue;
+            }
+
+            // `<td` tanpa `data-label`, kecuali yang memakai colspan —
+            // itu baris keadaan kosong yang memang dibiarkan utuh.
+            preg_match_all('/<td(?![^>]*\bdata-label=)(?![^>]*\bcolspan=)[^>]*>/', $isi, $m);
+
+            if ($m[0] !== []) {
+                $pelanggar[basename($file)] = $m[0];
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $pelanggar,
+            "Sel tabel tanpa `data-label` — akan tampil tanpa keterangan di ponsel.\n"
+            .json_encode($pelanggar, JSON_PRETTY_PRINT),
+        );
+    }
+
+    public function test_prop_komponen_tidak_memakai_entity_html(): void
+    {
+        /*
+         * Blade meng-escape isi `{{ }}`. Prop yang sudah ditulis sebagai
+         * entity jadi ter-escape DUA KALI: `&amp;` keluar sebagai `&amp;amp;`
+         * dan halaman menampilkan "Harga &amp; Paket" apa adanya.
+         *
+         * Di dalam HTML mentah, `&amp;` justru yang benar. Jadi yang
+         * diperiksa hanya yang ada di dalam atribut `<x-...>`.
+         */
+        $pelanggar = [];
+
+        foreach ($this->bladeFiles() as $file) {
+            // Tag komponen `<x-nama ...>` yang atributnya memuat entity.
+            preg_match_all('/<x-[a-z0-9.:-]+[^>]*?(&(?:amp|lt|gt|quot|#\d+);)[^>]*>/i', file_get_contents($file), $m);
+
+            if ($m[0] !== []) {
+                $pelanggar[basename($file)] = array_values(array_unique($m[1]));
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $pelanggar,
+            "Entity HTML di dalam prop komponen — akan ter-escape dua kali.\n"
+            ."Tulis karakternya apa adanya (`&`, bukan `&amp;`).\n"
+            .json_encode($pelanggar, JSON_PRETTY_PRINT),
+        );
+    }
+
+    public function test_layout_penuh_tidak_dikunci_lebar_tetap(): void
+    {
+        /*
+         * Admin Web memakai SELURUH lebar layar.
+         *
+         * Versi pertama memakai `max-w-[1240px] mx-auto` — pola "kartu
+         * melayang" dari referensi. Wajar untuk satu halaman contoh, salah
+         * untuk alat kerja: di monitor 1920px, 680px dibiarkan kosong di
+         * kiri-kanan sementara tabel di tengah tetap harus digeser.
+         *
+         * Yang mengatur kenyamanan baca adalah padding yang ikut membesar
+         * (`2xl:px-12`) dan grid yang menambah kolom, bukan pagar lebar.
+         */
+        $layout = file_get_contents(self::VIEWS.'/components/layouts/app.blade.php');
+
+        /*
+         * Komentar dibuang dulu. Tanpa ini, kalimat yang MENJELASKAN kenapa
+         * `max-w-[1240px]` dibuang justru membuat test ini gagal — dan
+         * perbaikan yang terlihat paling mudah adalah menghapus
+         * penjelasannya.
+         */
+        $kelas = preg_replace('/\{\{--.*?--\}\}/s', '', $layout);
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/\bmax-w-(?:\[|screen-|7xl|6xl|5xl)/',
+            $kelas,
+            'Layout dikunci lebar tetap lagi — halaman akan tertahan di tengah.',
+        );
+
+        $this->assertStringContainsString('px-4 sm:px-6 lg:px-8', $layout, 'Padding tepi harus ikut membesar.');
+    }
+
+    public function test_dua_nav_bertukar_di_lebar_yang_sama(): void
+    {
+        /*
+         * Header punya DUA nav: satu sebaris dengan merek di layar lebar,
+         * satu lagi di baris sendiri yang bisa digeser di layar sempit.
+         * Keduanya harus bertukar di titik yang SAMA.
+         *
+         * Kalau tidak: di antara kedua titik itu halaman muncul tanpa
+         * navigasi sama sekali (keduanya tersembunyi), atau dengan dua
+         * baris menu sekaligus. Dua-duanya hanya terlihat kalau kebetulan
+         * ada yang membuka halaman di lebar itu.
+         *
+         * Nilainya `2xl`, bukan `xl`, dan itu HASIL PENGUKURAN: merek 215px
+         * + sembilan menu 896px + blok akun 293px = 1428px. Di laptop
+         * 1366px barisnya meluber dan seluruh halaman bisa digeser ke
+         * samping. Kalau menunya bertambah, ukur lagi — jangan menebak.
+         */
+        $layout = file_get_contents(self::VIEWS.'/components/layouts/app.blade.php');
+        $kelas = preg_replace('/\{\{--.*?--\}\}/s', '', $layout);
+
+        $this->assertStringContainsString('hidden 2xl:flex', $kelas, 'Nav sebaris harus muncul mulai 2xl.');
+        $this->assertStringContainsString('2xl:hidden', $kelas, 'Nav baris kedua harus hilang mulai 2xl.');
+
+        // Titik tukar yang lama. Ketinggalan satu saja = ada lebar layar
+        // yang tidak punya navigasi.
+        $this->assertStringNotContainsString('hidden xl:flex', $kelas);
+        $this->assertDoesNotMatchRegularExpression('/(?<![a-z0-9])xl:hidden/', $kelas);
+    }
+
+    /** @return list<string> berkas halaman di `views/admin`, bukan partial */
+    private function halamanAdmin(): array
+    {
+        return array_values(array_filter(
+            glob(self::VIEWS.'/admin/*.blade.php') ?: [],
+            fn (string $f) => is_file($f),
+        ));
+    }
+
+    public function test_setiap_halaman_memakai_page_header(): void
+    {
+        /*
+         * Judul halaman ditulis SEKALI, di satu komponen.
+         *
+         * Dashboard dulu menyusun judulnya sendiri: ukuran, jarak bawah,
+         * dan perilakunya di ponsel semuanya sedikit berbeda dari sepuluh
+         * halaman lain. Beda yang terlalu kecil untuk dilaporkan sebagai
+         * bug, tapi cukup untuk membuat halaman terasa tidak dirancang —
+         * dan itu justru halaman yang paling sering dibuka.
+         */
+        foreach ($this->halamanAdmin() as $file) {
+            $this->assertStringContainsString(
+                '<x-page-header',
+                file_get_contents($file),
+                basename($file).' menyusun judulnya sendiri. Pakai <x-page-header>.',
+            );
+        }
+    }
+
+    public function test_tidak_ada_halaman_yang_menimpa_padding_kartu(): void
+    {
+        /*
+         * Bawaan `<x-card>` sudah `p-4 sm:p-6`.
+         *
+         * Sebelum dirapikan ada LIMA varian padding di sebelas halaman:
+         * `p-6`, `p-5`, `p-4 sm:p-5`, `p-4 sm:p-6`, dan bawaan. Semuanya
+         * masuk akal satu per satu; berdampingan, kartunya terlihat
+         * seperti disusun oleh orang yang berbeda-beda.
+         *
+         * Prop `padding` masih ada untuk kasus yang memang khusus — tapi
+         * kasusnya harus disebutkan di sini dulu, bukan dipakai diam-diam.
+         */
+        foreach ([...$this->halamanAdmin(), ...glob(self::VIEWS.'/admin/partials/*.blade.php') ?: []] as $file) {
+            $isi = preg_replace('/\{\{--.*?--\}\}/s', '', file_get_contents($file));
+
+            $this->assertStringNotContainsString(
+                'padding="',
+                $isi,
+                basename($file).' menimpa padding kartu. Bawaannya sudah benar untuk hampir semua tempat.',
+            );
+        }
+    }
+
+    public function test_jarak_antar_blok_memakai_satu_skala(): void
+    {
+        /*
+         * `mb-4` antar blok, `mb-6` hanya milik `x-page-header`.
+         *
+         * Dulu bercampur `mb-4`, `mb-6`, `mb-8`, dan `mb-6 sm:mb-8`. Di
+         * satu halaman tidak ada yang sadar; saat berpindah halaman,
+         * isinya terlihat "melompat" naik-turun tanpa alasan.
+         */
+        foreach ([...$this->halamanAdmin(), ...glob(self::VIEWS.'/admin/partials/*.blade.php') ?: []] as $file) {
+            $isi = preg_replace('/\{\{--.*?--\}\}/s', '', file_get_contents($file));
+
+            $this->assertDoesNotMatchRegularExpression(
+                '/\bmb-(?:6|8)\b/',
+                $isi,
+                basename($file).' memakai jarak di luar skala. Antar blok: mb-4.',
+            );
+        }
+    }
+
     public function test_layout_memanggil_direktif_fonts(): void
     {
         /*
@@ -136,10 +335,27 @@ class WebDesignTokensTest extends TestCase
          * tidak terlihat kecuali dibandingkan berdampingan, dan justru
          * karena itu bisa bertahan berbulan-bulan.
          */
-        $layout = file_get_contents(self::VIEWS.'/components/layouts/app.blade.php');
+        /*
+         * SETIAP berkas yang punya `<html>` sendiri, bukan hanya layout
+         * utama. Halaman login berdiri sendiri — ia tidak memakai
+         * `layouts.app`, jadi ia bisa kehilangan fontnya tanpa satu pun
+         * halaman admin ikut berubah.
+         */
+        foreach ($this->bladeFiles() as $file) {
+            $isi = file_get_contents($file);
 
-        $this->assertStringContainsString('@fonts', $layout, 'Layout kehilangan @fonts — Plus Jakarta Sans tidak akan termuat.');
-        $this->assertStringContainsString('@vite', $layout);
+            if (! str_contains($isi, '<html')) {
+                continue;
+            }
+
+            $nama = basename($file);
+
+            $this->assertStringContainsString(
+                '@fonts', $isi,
+                "{$nama} kehilangan @fonts — Plus Jakarta Sans tidak akan termuat di halaman itu.",
+            );
+            $this->assertStringContainsString('@vite', $isi, "{$nama} kehilangan @vite.");
+        }
     }
 
     public function test_font_hanya_plus_jakarta_sans(): void

@@ -1,0 +1,618 @@
+<?php
+
+namespace Tests\Feature\Web;
+
+use App\Enums\FnbOrderStatus;
+use App\Enums\UserRole;
+use App\Models\Customer;
+use App\Models\FnbOrder;
+use App\Models\Package;
+use App\Models\Shift;
+use App\Models\Station;
+use App\Models\User;
+use App\Support\Audit\AuditAction;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\MakesBillingWorld;
+use Tests\TestCase;
+
+/**
+ * Aksi ubah dari Admin Web — DEC-044.
+ *
+ * Yang paling penting di berkas ini: membuktikan bahwa jalur web **memakai
+ * Service yang sama** dengan API. Bukti itu bukan dibaca dari kode,
+ * melainkan dari akibatnya — izin per field ditegakkan, dan audit log
+ * terisi. Keduanya hilang diam-diam kalau suatu saat ada yang mengganti
+ * panggilan Service dengan `$model->update()`.
+ */
+class AdminActionsTest extends TestCase
+{
+    use MakesBillingWorld;
+    use RefreshDatabase;
+
+    private function owner(): User
+    {
+        return $this->operator(['name' => 'Bos', 'role' => UserRole::OWNER]);
+    }
+
+    private function admin(): User
+    {
+        return $this->operator(['name' => 'Adi', 'role' => UserRole::ADMIN]);
+    }
+
+    private function paket(): Package
+    {
+        return $this->package($this->stationType());
+    }
+
+    // ── Harga paket ───────────────────────────────────────────────────
+
+    public function test_owner_mengubah_harga_paket(): void
+    {
+        $paket = $this->paket();
+
+        $this->actingAs($this->owner())
+            ->patch(route('admin.packages.update', $paket), [
+                'name' => $paket->name,
+                'duration_minutes' => 60,
+                'price' => 12_000,
+                'is_active' => '1',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertSame(12_000, $paket->fresh()->price);
+    }
+
+    public function test_perubahan_harga_tercatat_di_audit(): void
+    {
+        /*
+         * PRD §24. Pertanyaan "kenapa tagihan Senin beda dengan hari ini"
+         * hanya bisa dijawab kalau harga lamanya tercatat — dan itu hanya
+         * terjadi kalau web memanggil Service, bukan menulis ke model.
+         */
+        $paket = $this->paket();
+
+        $this->actingAs($this->owner())->patch(route('admin.packages.update', $paket), [
+            'name' => $paket->name,
+            'duration_minutes' => 60,
+            'price' => 15_000,
+            'is_active' => '1',
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::PACKAGE_UPDATED,
+            'actor_name' => 'Bos',
+        ]);
+    }
+
+    public function test_admin_tidak_bisa_menyentuh_paket_sama_sekali(): void
+    {
+        /*
+         * DEC-020, dan letak penegakannya PENTING.
+         *
+         * Berbeda dari produk F&B, `MasterDataService::updatePackage()`
+         * TIDAK memeriksa izin apa pun — di API, satu-satunya gerbang adalah
+         * `can:pricing.manage` di route. Versi pertama route web ini
+         * melewatkannya, dan admin bisa mengubah seluruh tarif rental.
+         *
+         * Test ini yang menemukannya, bukan pembacaan kode.
+         */
+        $paket = $this->paket();
+        $harga = $paket->price;
+
+        $this->actingAs($this->admin())
+            ->patch(route('admin.packages.update', $paket), [
+                'name' => $paket->name,
+                'duration_minutes' => 60,
+                'price' => 99_000,
+                'is_active' => '1',
+            ])
+            ->assertForbidden();
+
+        $this->assertSame($harga, $paket->fresh()->price);
+    }
+
+    public function test_admin_tidak_bisa_menambah_paket(): void
+    {
+        $this->actingAs($this->admin())
+            ->post(route('admin.packages.store'), [
+                'station_type_id' => $this->stationType()->id,
+                'name' => 'Selundupan',
+                'duration_minutes' => 60,
+                'price' => 1_000,
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('packages', ['name' => 'Selundupan']);
+    }
+
+    public function test_penolakan_service_jadi_pesan_form_bukan_halaman_error(): void
+    {
+        /*
+         * `ApiException` hanya dirender JSON untuk `api/*`. Dibiarkan lewat,
+         * ia jadi halaman 500 kosong — padahal isinya kalimat yang justru
+         * perlu dibaca.
+         *
+         * Diuji lewat produk F&B, karena di sanalah penolakan datang dari
+         * SERVICE (per field), bukan dari route.
+         */
+        $produk = $this->fnbProduct(['price' => 12_000]);
+
+        $this->actingAs($this->admin())
+            ->patch(route('admin.fnb-products.update', $produk), [
+                'price' => 20_000,
+                'stock' => 5,
+            ])
+            ->assertRedirect()
+            // `assertInvalid` mencocokkan sebagian — pesan Service-nya utuh
+            // sampai ke form, bukan diganti kalimat umum.
+            ->assertInvalid(['price' => 'owner']);
+    }
+
+    public function test_checkbox_tidak_dicentang_menonaktifkan_paket(): void
+    {
+        /*
+         * Browser TIDAK mengirim checkbox yang tidak dicentang. Tanpa
+         * `$request->boolean()`, menonaktifkan paket mustahil — nilainya
+         * selalu terbaca "tetap seperti semula".
+         */
+        $paket = $this->paket();
+        $this->assertTrue($paket->is_active);
+
+        $this->actingAs($this->owner())->patch(route('admin.packages.update', $paket), [
+            'name' => $paket->name,
+            'duration_minutes' => 60,
+            'price' => $paket->price,
+            // `is_active` sengaja TIDAK dikirim, seperti browser.
+        ]);
+
+        $this->assertFalse($paket->fresh()->is_active);
+    }
+
+    public function test_owner_menambah_paket(): void
+    {
+        $tipe = $this->stationType();
+
+        $this->actingAs($this->owner())
+            ->post(route('admin.packages.store'), [
+                'station_type_id' => $tipe->id,
+                'name' => '2 Jam',
+                'duration_minutes' => 120,
+                'price' => 18_000,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertDatabaseHas('packages', ['name' => '2 Jam', 'price' => 18_000]);
+    }
+
+    // ── F&B ───────────────────────────────────────────────────────────
+
+    public function test_admin_boleh_mengubah_stok_tanpa_menyentuh_harga(): void
+    {
+        /*
+         * Inti dari pembagian izin ini. "Mie Goreng habis" adalah kejadian
+         * harian yang harus bisa ditangani admin sendiri.
+         *
+         * Form selalu MENGIRIM `price`, karena kolomnya memang ada di baris
+         * itu. Kalau controller meneruskannya apa adanya, Service menolak —
+         * dan admin tidak akan pernah bisa menandai stok habis.
+         */
+        $produk = $this->fnbProduct(['name' => 'Mie Goreng', 'price' => 12_000, 'stock' => 10]);
+
+        $this->actingAs($this->admin())
+            ->patch(route('admin.fnb-products.update', $produk), [
+                'price' => 12_000,   // sama persis — tidak boleh dianggap perubahan
+                'stock' => 0,
+                'is_available' => '1',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(0, $produk->fresh()->stock);
+    }
+
+    public function test_admin_tetap_ditolak_kalau_benar_benar_mengubah_harga(): void
+    {
+        $produk = $this->fnbProduct(['price' => 12_000]);
+
+        $this->actingAs($this->admin())
+            ->patch(route('admin.fnb-products.update', $produk), [
+                'price' => 15_000,
+                'stock' => 5,
+            ])
+            ->assertSessionHasErrors();
+
+        $this->assertSame(12_000, $produk->fresh()->price);
+    }
+
+    public function test_stok_kosong_berarti_tidak_dilacak_bukan_nol(): void
+    {
+        // API.md §8. Nol = habis, null = tidak dihitung (es batu, sambal).
+        $produk = $this->fnbProduct(['stock' => 10]);
+
+        $this->actingAs($this->owner())->patch(route('admin.fnb-products.update', $produk), [
+            'price' => $produk->price,
+            'stock' => '',
+            'is_available' => '1',
+        ]);
+
+        $this->assertNull($produk->fresh()->stock);
+    }
+
+    public function test_status_pesanan_dimajukan(): void
+    {
+        $order = $this->pesanan();
+
+        $this->actingAs($this->admin())
+            ->post(route('admin.fnb-orders.status', $order), ['status' => 'PROCESSING'])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertSame(FnbOrderStatus::PROCESSING, $order->fresh()->status);
+    }
+
+    public function test_lompatan_status_yang_tidak_masuk_akal_ditolak(): void
+    {
+        // Service yang memutuskan transisi mana yang sah. Web tidak boleh
+        // punya daftar sendiri.
+        $order = $this->pesanan();
+
+        $this->actingAs($this->admin())
+            ->post(route('admin.fnb-orders.status', $order), ['status' => 'NGAWUR'])
+            ->assertSessionHasErrors('status');
+    }
+
+    // ── Shift ─────────────────────────────────────────────────────────
+
+    public function test_menutup_shift_dari_web(): void
+    {
+        $owner = $this->owner();
+        $shift = Shift::query()->create([
+            'operator_id' => $owner->id,
+            'opened_at' => now()->subHour(),
+            'opening_cash' => 200_000,
+        ]);
+
+        $this->actingAs($owner)
+            ->post(route('admin.shifts.close', $shift), [
+                'closing_cash' => 195_000,
+                'note' => 'kurang 5rb',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertNotNull($shift->fresh()->closed_at);
+        $this->assertDatabaseHas('audit_logs', ['action' => AuditAction::SHIFT_CLOSED]);
+    }
+
+    public function test_shift_yang_sudah_ditutup_tidak_bisa_ditutup_lagi(): void
+    {
+        $owner = $this->owner();
+        $shift = Shift::query()->create([
+            'operator_id' => $owner->id,
+            'opened_at' => now()->subHours(2),
+            'closed_at' => now()->subHour(),
+            'opening_cash' => 200_000,
+            'closing_cash' => 200_000,
+        ]);
+
+        $this->actingAs($owner)
+            ->post(route('admin.shifts.close', $shift), ['closing_cash' => 100_000])
+            ->assertSessionHasErrors('closing_cash');
+    }
+
+    // ── Memperbaiki data customer (DEC-049) ───────────────────────────
+
+    public function test_memperbaiki_nama_customer_dari_web(): void
+    {
+        $customer = Customer::query()->create(['name' => 'Sti', 'phone' => '081200000009']);
+
+        $this->actingAs($this->owner())
+            ->patch(route('admin.customers.update', $customer), [
+                'name' => 'Siti',
+                'phone' => $customer->phone,
+                'note' => 'langganan malam',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertSame('Siti', $customer->fresh()->name);
+        $this->assertDatabaseHas('audit_logs', ['action' => AuditAction::CUSTOMER_UPDATED]);
+    }
+
+    public function test_form_ubah_customer_muncul_dari_parameter_edit(): void
+    {
+        /*
+         * Formnya dipilih lewat `?edit=<id>`, bukan JavaScript. Kalau
+         * parameter itu tidak lagi dibaca, tombol "Ubah" di tiap baris
+         * berubah jadi tautan yang tidak melakukan apa-apa — dan itu
+         * terlihat seperti halaman yang rusak, bukan fitur yang hilang.
+         */
+        $customer = Customer::query()->create(['name' => 'Siti Rahayu']);
+
+        $this->actingAs($this->owner())
+            ->get(route('admin.customers', ['edit' => $customer->id]))
+            ->assertOk()
+            ->assertSee('Perbaiki Data Customer')
+            ->assertSee('Siti Rahayu');
+    }
+
+    public function test_halaman_customer_tanpa_parameter_edit_tidak_menampilkan_form_ubah(): void
+    {
+        Customer::query()->create(['name' => 'Siti']);
+
+        $this->actingAs($this->owner())
+            ->get(route('admin.customers'))
+            ->assertOk()
+            ->assertDontSee('Perbaiki Data Customer');
+    }
+
+    public function test_setelah_disimpan_form_ubah_tertutup_sendiri(): void
+    {
+        // Form yang tetap terbuka setelah disimpan mengundang penyimpanan
+        // kedua yang tidak disengaja.
+        $customer = Customer::query()->create(['name' => 'Siti']);
+
+        $this->actingAs($this->owner())
+            ->patch(route('admin.customers.update', $customer), ['name' => 'Siti Rahayu'])
+            ->assertRedirect(route('admin.customers', ['q' => '']));
+    }
+
+    // ── Station & tipe konsol (DEC-048) ───────────────────────────────
+
+    public function test_owner_menambah_station_dari_web(): void
+    {
+        $tipe = $this->stationType('VIP Room');
+
+        $this->actingAs($this->owner())
+            ->post(route('admin.stations.store'), [
+                'code' => 'ST09',
+                'name' => 'PS5 Ruang VIP',
+                'station_type_id' => $tipe->id,
+                'sort_order' => 9,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertDatabaseHas('stations', ['code' => 'ST09', 'name' => 'PS5 Ruang VIP']);
+        $this->assertDatabaseHas('audit_logs', ['action' => AuditAction::STATION_CREATED]);
+    }
+
+    public function test_pesan_sukses_menyebut_kode_pendaftaran_tv(): void
+    {
+        /*
+         * Tanpa ini, station yang baru dibuat tidak punya cara dipasangkan
+         * ke TV — kodenya hanya ada di database, dan orang yang menambahnya
+         * tidak punya alasan untuk mencari ke sana.
+         */
+        $this->actingAs($this->owner())
+            ->post(route('admin.stations.store'), ['code' => 'ST10', 'name' => 'Pojok'])
+            ->assertRedirect();
+
+        $kode = Station::query()->where('code', 'ST10')->value('enrollment_code');
+
+        $this->assertStringContainsString($kode, session('sukses'));
+    }
+
+    public function test_admin_menandai_station_perbaikan_dari_web(): void
+    {
+        $station = $this->station($this->stationType());
+
+        $this->actingAs($this->admin())
+            ->patch(route('admin.stations.update', $station), [
+                'name' => $station->name,
+                'status' => 'MAINTENANCE',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertSame('MAINTENANCE', $station->fresh()->status->value);
+    }
+
+    public function test_admin_tidak_bisa_mengubah_kode_station_dari_web(): void
+    {
+        /*
+         * Celah yang sama dengan harga paket: route-nya `station.manage`
+         * (admin boleh), dan satu-satunya yang menahan `code` adalah
+         * Service. Kalau controller web suatu saat menulis ke model sendiri,
+         * pembatasan ini hilang tanpa error apa pun.
+         */
+        $station = $this->station($this->stationType(), ['code' => 'ST01']);
+
+        $this->actingAs($this->admin())
+            ->patch(route('admin.stations.update', $station), [
+                'name' => $station->name,
+                'status' => 'ACTIVE',
+                'code' => 'ST99',
+            ])
+            ->assertSessionHasErrors('code');
+
+        $this->assertSame('ST01', $station->fresh()->code);
+    }
+
+    public function test_owner_menambah_tipe_konsol_dari_web(): void
+    {
+        $this->actingAs($this->owner())
+            ->post(route('admin.station-types.store'), ['name' => 'Simulator Balap', 'sort_order' => 3])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertDatabaseHas('station_types', ['name' => 'Simulator Balap', 'is_active' => true]);
+    }
+
+    public function test_tipe_yang_masih_dipakai_tidak_bisa_dinonaktifkan_dari_web(): void
+    {
+        $tipe = $this->stationType();
+        $this->station($tipe);
+
+        $this->actingAs($this->owner())
+            ->patch(route('admin.station-types.update', $tipe), ['name' => $tipe->name])
+            ->assertSessionHasErrors('name');
+
+        $this->assertTrue($tipe->fresh()->is_active);
+    }
+
+    public function test_tipe_bisa_dinonaktifkan_lewat_checkbox_yang_tidak_dicentang(): void
+    {
+        /*
+         * Checkbox yang tidak dicentang TIDAK dikirim browser. Tanpa
+         * pembacaan eksplisit di controller, menonaktifkan tipe mustahil dan
+         * tombolnya terlihat rusak tanpa pesan apa pun.
+         */
+        $tipe = $this->stationType('Belum Dipakai');
+
+        $this->actingAs($this->owner())
+            ->patch(route('admin.station-types.update', $tipe), ['name' => $tipe->name])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertFalse($tipe->fresh()->is_active);
+    }
+
+    public function test_operator_tidak_bisa_menyentuh_station_dari_web(): void
+    {
+        $station = $this->station($this->stationType());
+
+        $this->actingAs($this->operator(['role' => UserRole::OPERATOR]))
+            ->patch(route('admin.stations.update', $station), ['status' => 'DISABLED'])
+            ->assertRedirect('/login');
+    }
+
+    // ── Pengeluaran kasir (DEC-046) ───────────────────────────────────
+
+    public function test_mencatat_pengeluaran_dari_web(): void
+    {
+        $owner = $this->owner();
+        $shift = Shift::query()->create([
+            'operator_id' => $owner->id,
+            'opened_at' => now()->subHour(),
+            'opening_cash' => 200_000,
+        ]);
+
+        $this->actingAs($owner)
+            ->post(route('admin.shifts.expense', $shift), [
+                'amount' => 20_000,
+                'category' => 'Galon & air',
+                'note' => 'beli galon 2 buah',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('sukses');
+
+        $this->assertDatabaseHas('cash_expenses', [
+            'shift_id' => $shift->id,
+            'amount' => 20_000,
+            'actor_id' => $owner->id,
+        ]);
+
+        // Service yang sama dengan API → audit terisi. Hilang diam-diam
+        // kalau suatu saat controller ini menulis ke model sendiri.
+        $this->assertDatabaseHas('audit_logs', ['action' => AuditAction::EXPENSE_RECORDED]);
+    }
+
+    public function test_pengeluaran_dengan_keterangan_kosong_ditolak_di_web(): void
+    {
+        /*
+         * Aturan validasinya milik `StoreExpenseRequest`, dan dipakai oleh
+         * KEDUA pintu. Diuji dari sisi web juga karena pintu yang memakai
+         * aturan sendiri adalah cara paling mudah aturan ini melunak tanpa
+         * ada yang menyadarinya.
+         */
+        $owner = $this->owner();
+        $shift = Shift::query()->create([
+            'operator_id' => $owner->id,
+            'opened_at' => now(),
+            'opening_cash' => 200_000,
+        ]);
+
+        $this->actingAs($owner)
+            ->post(route('admin.shifts.expense', $shift), [
+                'amount' => 20_000,
+                'category' => 'Galon & air',
+                'note' => '',
+            ])
+            ->assertSessionHasErrors('note');
+
+        $this->assertDatabaseCount('cash_expenses', 0);
+    }
+
+    public function test_pengeluaran_ke_shift_tertutup_ditolak_di_web(): void
+    {
+        $owner = $this->owner();
+        $shift = Shift::query()->create([
+            'operator_id' => $owner->id,
+            'opened_at' => now()->subHours(2),
+            'closed_at' => now()->subHour(),
+            'opening_cash' => 200_000,
+            'closing_cash' => 200_000,
+        ]);
+
+        $this->actingAs($owner)
+            ->post(route('admin.shifts.expense', $shift), [
+                'amount' => 20_000,
+                'category' => 'Lainnya',
+                'note' => 'telat catat',
+            ])
+            ->assertSessionHasErrors('amount');
+
+        $this->assertDatabaseCount('cash_expenses', 0);
+    }
+
+    // ── Pintu ─────────────────────────────────────────────────────────
+
+    public function test_operator_tidak_bisa_memakai_aksi_web(): void
+    {
+        $paket = $this->paket();
+
+        $this->actingAs($this->operator(['role' => UserRole::OPERATOR]))
+            ->patch(route('admin.packages.update', $paket), [
+                'name' => 'X', 'duration_minutes' => 60, 'price' => 1,
+            ])
+            ->assertRedirect('/login');
+    }
+
+    public function test_tamu_tidak_bisa_memakai_aksi_web(): void
+    {
+        $paket = $this->paket();
+
+        $this->patch(route('admin.packages.update', $paket), [
+            'name' => 'X', 'duration_minutes' => 60, 'price' => 1,
+        ])->assertRedirect('/login');
+    }
+
+    private function pesanan(): FnbOrder
+    {
+        $produk = $this->fnbProduct();
+        $type = $this->stationType();
+        $station = $this->station($type);
+        $package = $this->package($type);
+
+        $this->actingAs($this->operator(['name' => 'Kasir']), 'sanctum');
+
+        $sessionId = $this->withHeaders($this->idempotent())
+            ->postJson('/api/v1/sessions', [
+                'station_id' => $station->id,
+                'package_id' => $package->id,
+                'mode' => 'PREPAID',
+            ])->json('data.id');
+
+        /*
+         * Prepaid mulai sebagai PENDING_PAYMENT, dan sesi yang belum dibayar
+         * tidak boleh menerima pesanan F&B. Dibayar dulu supaya sesinya
+         * ACTIVE — meniru urutan yang sebenarnya di kasir.
+         */
+        $this->withHeaders($this->idempotent())
+            ->postJson("/api/v1/sessions/{$sessionId}/payments", [
+                'method' => 'CASH',
+                'amount' => $package->price,
+            ])->assertCreated();
+
+        $this->withHeaders($this->idempotent())
+            ->postJson("/api/v1/sessions/{$sessionId}/fnb/orders", [
+                'items' => [['product_id' => $produk->id, 'qty' => 1]],
+            ])->assertCreated();
+
+        $this->flushHeaders();
+
+        return FnbOrder::query()->firstOrFail();
+    }
+}

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\FnbOrderStatus;
 use App\Http\Requests\Api\V1\StoreFnbOrderRequest;
+use App\Http\Requests\Api\V1\StoreFnbProductRequest;
 use App\Http\Requests\Api\V1\UpdateFnbProductRequest;
 use App\Http\Requests\Api\V1\UpdateFnbStatusRequest;
 use App\Models\BillingSession;
@@ -83,6 +84,22 @@ class FnbController
      * operator. Pemeriksaannya per field di service — "Mie Goreng habis"
      * adalah kejadian harian yang tidak boleh menunggu owner.
      */
+    /**
+     * `POST /fnb/products` — menu baru. Owner saja; lihat
+     * `StoreFnbProductRequest`.
+     *
+     * 201 dengan produknya, sama seperti endpoint pembuat lain (API.md §2).
+     */
+    public function storeProduct(StoreFnbProductRequest $request): JsonResponse
+    {
+        return ApiResponse::data(
+            FnbPresenter::product(
+                $this->masterData->createFnbProduct($request->validated(), $request->user()),
+            ),
+            status: 201,
+        );
+    }
+
     public function updateProduct(UpdateFnbProductRequest $request, FnbProduct $product): JsonResponse
     {
         return ApiResponse::data(FnbPresenter::product(

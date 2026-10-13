@@ -175,12 +175,117 @@ Di `resources/views/components/`.
 | `<x-gauge>` | meter setengah lingkaran |
 | `<x-rupiah>` | uang |
 | `<x-icon>` | satu set ikon inline SVG |
-| `<x-sample-banner>` | penanda data contoh |
+| `<x-delta>` | badge perubahan terhadap kemarin |
 
 Halaman login (`auth/login.blade.php`) **tidak** memakai `<x-layouts.app>`:
 layout itu berisi nav, tombol notifikasi, dan avatar — semuanya menuntut user
 yang sudah login. Memaksakannya berarti menaruh chrome yang tidak bisa dipakai
 di depan orang yang belum boleh memakainya.
+
+### ⛔ Responsif: tiap `<td>` wajib punya `data-label`
+
+Tabel memakai `table-stacked`. Di bawah **48rem** setiap baris berubah jadi
+blok, dan nama kolom pindah ke kiri tiap nilai lewat `data-label`:
+
+```blade
+<table class="w-full text-left text-xs table-stacked">
+    ...
+    <td data-label="Total" class="py-3 px-3 md:text-right">…</td>
+```
+
+Sel yang lupa labelnya tampil **tanpa keterangan** — dan hanya di layar
+sempit, jadi lolos dari siapa pun yang mengujinya di laptop.
+`test_setiap_sel_tabel_punya_data_label` menolaknya. Pengecualiannya hanya
+`<td colspan>`, yaitu baris keadaan kosong yang memang dibiarkan utuh.
+
+Alasan tidak memakai scroll mendatar: kolom paling kanan — Total, Status —
+justru yang dicari, dan di tabel yang digeser ia selalu di luar pandangan.
+
+### ⛔ Penuh layar — jangan pasang pagar lebar
+
+Admin Web memakai **seluruh lebar layar**. Tidak ada `max-w-*` di layout,
+dan `test_layout_penuh_tidak_dikunci_lebar_tetap` menolaknya kalau kembali.
+
+Versi pertama memakai `max-w-[1240px] mx-auto` — pola "kartu melayang" dari
+referensi. Wajar untuk satu halaman contoh, salah untuk alat kerja: di
+monitor 1920px, **680px dibiarkan kosong** sementara tabel di tengah tetap
+harus digeser.
+
+Yang menjaga keterbacaan tanpa pagar:
+
+| | |
+|---|---|
+| Padding bertingkat | `px-4` → `sm:px-6` → `lg:px-8` → `2xl:px-12` |
+| Grid **menambah kolom** | `grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]` — bukan merentangkan kartu |
+| Header `sticky top-0` | tabel bisa 50 baris; tanpa ini, pindah halaman dari baris terbawah berarti menggulir balik ke puncak |
+
+Halaman **login** adalah pengecualian: tetap di tengah dengan `max-w-sm`.
+Form selebar layar tidak membuatnya lebih mudah diisi.
+
+### Breakpoint yang dipakai
+
+| Lebar | Perilaku |
+|---|---|
+| < 640 (`sm`) | satu kolom · nama rental disembunyikan · padding 16px · tabel bertumpuk |
+| < 768 (`md`) | tabel masih bertumpuk · judul dan aksi menumpuk |
+| < 1024 (`lg`) | nama & role user disembunyikan dari header |
+| < 1280 (`xl`) | nav pindah ke **baris kedua**, menggeser mendatar |
+| ≥ 1536 (`2xl`) | padding tepi naik ke 48px |
+
+Navigasi **menggeser mendatar**, tidak pernah disembunyikan. Versi pertama
+memakai `hidden lg:flex` — di tablet tidak ada navigasi sama sekali, dan
+satu-satunya jalan antar halaman adalah tombol Back. Geser mendatar dipilih
+daripada hamburger karena tidak butuh JavaScript dan tidak punya keadaan
+terbuka/tertutup yang bisa macet.
+
+Nav dirender **dua kali** (baris atas ≥1280, baris kedua di bawahnya), jadi
+isinya ada di `<x-nav-link>`. Dua salinan akan melenceng pada perubahan
+pertama, dan yang melenceng adalah yang jarang dilihat.
+
+### Cara memeriksa responsif — diukur, bukan dilihat
+
+```js
+// 8 halaman × 5 lebar. Dua hal, keduanya perlu:
+d.scrollWidth > d.clientWidth          // meluber mendatar?
+main.getBoundingClientRect().width     // benar-benar memakai ≥90% layar?
+```
+
+Pemeriksaan kedua itu yang penting. Tanpanya, halaman yang masih terkunci
+di tengah tetap "lulus" karena memang tidak meluber.
+
+### ⛔ Kelas warna ditulis utuh, jangan dirangkai
+
+```blade
+{{-- SALAH: Tailwind tidak pernah membuat CSS-nya --}}
+<span class="bg-{{ $nada }}-surface text-{{ $nada }}">
+
+{{-- BENAR --}}
+@php $nada = $online ? 'bg-playing-surface text-playing' : 'bg-danger-surface text-danger'; @endphp
+<span class="{{ $nada }}">
+```
+
+Tailwind v4 memindai **kelas literal** di berkas source. Kelas yang baru
+terbentuk saat render tidak pernah muncul sebagai teks, jadi CSS-nya tidak
+dibuat — dan badge tampil tanpa warna sama sekali, hanya di produksi.
+
+### ⛔ Angka perubahan harus dihitung, bukan dituliskan
+
+`<x-metric>` menerima badge lewat **slot**, bukan prop string:
+
+```blade
+<x-slot:badge><x-delta :now="$hariIni" :before="$kemarin" /></x-slot:badge>
+```
+
+Versi pertama menerimanya sebagai string, dan string itu diisi `"↑ 12,5%"`
+dari data contoh. Angka mati itu **bertahan** setelah datanya jadi nyata dan
+mengklaim pertumbuhan di atas nol sesi. Slot memaksa angkanya dihitung.
+
+`<x-delta>` **diam kalau pembandingnya nol**. Persentase perubahan dari nol
+tidak punya arti, tapi badge-nya tetap terlihat sah — dan "↑ 100%" di hari
+pertama akan dibaca sebagai pertumbuhan.
+
+Dikunci dua test dari dua arah: halaman kosong tidak boleh memuat `↑`/`↓`
+sama sekali, dan halaman dengan data kemarin **wajib** memuatnya.
 
 ### Dua hal yang diperbaiki dari referensi
 
@@ -236,7 +341,9 @@ php artisan test --filter=WebDesignTokensTest
 | | |
 |---|---|
 | ~~Login web~~ | ✅ **Sudah ada** — DEC-043. Guard session, Owner & Admin saja |
-| **Data nyata** | Dashboard masih memakai `DashboardSampleData`. Ganti kelas itu, jangan tambahkan query di sampingnya. **Penghalangnya sudah hilang** |
-| Halaman Sesi, F&B, Harga & Paket, Laporan | nav-nya sudah ada, diredupkan dan tidak bisa diklik |
+| ~~Data nyata~~ | ✅ **Sudah** — `DashboardData` + `BusinessDay`. Batas "hari ini" = tengah malam **WIB**, bukan UTC |
+| **Modul §19 lainnya** | Booking, Target, Backup — backend-nya juga belum ada. **Laporan sudah ada** (DEC-050), **Expense kas sudah ada** (DEC-046); Profit bersih masih menunggu biaya operasional bulanan, bukan hanya pengeluaran laci |
+| ~~Semua halaman hanya membaca~~ | ✅ **Sudah bisa mengubah** — DEC-044/045/046: harga, stok, status pesanan, operasi sesi, shift, pengeluaran kasir |
+| ~~Laporan~~ | ✅ **DEC-050** — omzet, laba kotor F&B, pengeluaran, performa station, menu terlaris, per operator. Periode bebas. Tidak ada lagi menu nav yang diredupkan |
 | Mode gelap | tidak dibuat — sama seperti tablet (DEC-016) |
-| Responsif ponsel | tata letak sudah menyusut sampai satu kolom, tapi belum diuji di perangkat |
+| Responsif ponsel | 11 halaman diukur di 375px dengan semua panel terbuka — tidak ada yang meluber. Belum diuji di perangkat fisik |

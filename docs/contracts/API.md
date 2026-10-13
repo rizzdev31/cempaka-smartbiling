@@ -247,6 +247,65 @@ sebelum ada token apa pun.
 }
 ```
 
+### `POST /stations` · `PATCH /stations/{id}` — DEC-048
+
+Route butuh `station.manage` (**permission baru**, admin ke atas). Service
+memisahkan lebih jauh:
+
+| Field | Siapa |
+|---|---|
+| `status`, `name`, `sort_order` | admin ke atas — "PS3 nomor 4 rusak" kejadian harian |
+| `code`, `station_type_id`, dan **membuat station baru** | **owner saja** |
+
+```json
+{ "code": "ST07", "name": "PS5 Ruang VIP", "station_type_id": "uuid", "sort_order": 7 }
+```
+
+- `code` hanya `[A-Za-z0-9_-]`. **Tidak boleh ada titik**: ia dipakai sebagai
+  nama channel realtime (`private-station.{code}`), dan titik adalah pemisah
+  segmen di sana. Kode bertitik menghasilkan channel yang tidak pernah bisa
+  dilanggani — tanpa error.
+- `station_type_id` boleh `null`: station bisa dipasang sebelum konsolnya datang.
+- Station baru otomatis punya `enrollment_code` sendiri. Tidak ada endpoint
+  terpisah untuk membuatnya.
+- `POST` butuh `Idempotency-Key`.
+
+Dua penolakan yang penting diketahui client:
+
+| Kondisi | Error |
+|---|---|
+| Ubah `code` saat TV masih terdaftar | `409 STATION_HAS_DEVICE` — TV berlangganan channel kode lama; kalau diubah ia diam selamanya tanpa error |
+| Ubah `station_type_id` saat ada sesi berjalan | `409 STATION_HAS_ACTIVE_SESSION` — sesi berjalan akan menunjuk tarif yang bukan dasar harganya |
+
+`name` tetap boleh diubah walaupun TV sudah terdaftar. Yang berbahaya
+kodenya, bukan namanya.
+
+**Tidak ada `DELETE`.** Station dipegang setiap sesi yang pernah berjalan di
+atasnya; menghapusnya membuang dasar harga dari riwayat yang sudah dibayar.
+Station yang pensiun: `status: "DISABLED"`.
+
+### `GET /station-types` · `POST /station-types` · `PATCH /station-types/{id}` — DEC-048
+
+Tipe konsol adalah **pembawa tarif** (DEC-019) — paket menempel ke sini.
+Seluruhnya **owner saja**.
+
+```json
+{ "data": [ { "id": "uuid", "name": "PS5 Pro", "sort_order": 1,
+              "is_active": true, "station_count": 3 } ] }
+```
+
+- `name` teks bebas: "PS5 Pro", "VIP Room", "Simulator Balap". Enum akan
+  memaksa rilis aplikasi baru setiap kali pemilik membeli jenis mesin lain.
+- Namanya unik **tanpa memperhatikan besar-kecil huruf**. "PS5" dan "ps5"
+  sebagai dua tipe akan memecah daftar harga jadi dua.
+- `station_count` dipakai layar pengaturan untuk memberi tahu akibat
+  menonaktifkan tipe **sebelum** tombolnya ditekan.
+- `only_active` default `true`.
+- Menonaktifkan tipe yang masih dipakai station **aktif** → `409
+  STATION_NOT_AVAILABLE`. Kalau dibolehkan, station-nya tetap terlihat kosong
+  dan bisa diklik, lalu tidak ada satu pun paket yang bisa dipilih.
+- **Tidak ada `DELETE`.**
+
 ### `POST /packages` · `PATCH /packages/{id}` *(owner saja)*
 
 DEC-020 — hanya owner. `POST` butuh `Idempotency-Key`.
@@ -309,6 +368,26 @@ keputusannya sudah lewat. Non-member selalu `0`.
 `POST /customers` butuh `Idempotency-Key`. Field: `name` (wajib), `phone`
 (opsional, unik), `note`. **Boleh dipanggil operator sejak DEC-027** — PRD §6
 yang membatasinya ke Admin/Owner sudah di-override.
+
+### `PATCH /customers/{id}` — DEC-049
+
+Izin `customer.create` (sama dengan membuat). Memperbaiki nama salah ketik
+dan nomor HP yang keliru; sebelum ini keduanya permanen.
+
+```json
+{ "name": "Siti Rahayu", "phone": "081234567890", "note": "langganan malam" }
+```
+
+Semua field `sometimes` — yang tidak dikirim tidak berubah. `phone` tetap
+unik, tapi aturannya **mengabaikan baris ini sendiri**: menyimpan form
+tanpa mengubah nomor tidak boleh ditolak dengan "nomor ini sudah terdaftar
+atas nama lain".
+
+**Saldo, membership, dan riwayat sesi tidak ikut berubah.** Semuanya
+menempel ke `customer_id`, bukan ke nama atau nomornya.
+
+Nilai lama tersimpan di audit (`customer.updated`), jadi perubahan yang
+keliru bisa dikembalikan.
 
 ### `POST /customers/{id}/membership`
 `Idempotency-Key` **wajib**. Permission `customer.create` (DEC-027).
@@ -720,10 +799,22 @@ Endpoint ini **read-only** untuk operator. Pendaftaran, pemetaan ulang, dan penc
 { "data": { "id": "uuid", "operator": { "id": "uuid", "name": "Budi" },
             "opened_at": "...Z", "closed_at": null,
             "opening_cash": 200000,
-            "summary": { "rental": 0, "fnb": 0, "cash": 0, "qris": 0, "total": 0 } } }
+            "summary": { "rental": 0, "fnb": 0, "cash": 0, "qris": 0, "total": 0, "expense": 0 },
+            "expected_cash": 200000 } }
 ```
 
 Close butuh `closing_cash` + `note` opsional; selisih dicatat untuk audit.
+
+**`expected_cash` dihitung SERVER** (DEC-046):
+
+```
+expected_cash = opening_cash + summary.cash − summary.expense
+```
+
+Client **tidak boleh** menghitungnya sendiri. Rumus yang disalin akan
+melenceng dari rumus yang dipakai saat `close()`, dan kasir yang menyetor
+uang sesuai angka di layarnya justru tercatat punya selisih. QRIS tidak ikut
+— uangnya tidak pernah masuk laci.
 
 Dasar angka di `summary`:
 
@@ -731,6 +822,7 @@ Dasar angka di `summary`:
 |---|---|
 | `cash`, `qris`, `total` | **uang yang benar-benar masuk** — payment ber-`shift_id` sama |
 | `rental`, `fnb` | **nilai transaksi** — item pada sesi milik shift ini, dibayar maupun belum |
+| `expense` | **uang keluar dari laci** — `cash_expenses` milik shift ini. Nilainya **positif**; `expected_cash` yang mengurangkannya |
 
 `rental` sudah termasuk `EXTEND`: keduanya penjualan waktu bermain.
 
@@ -748,6 +840,34 @@ Aturan lain:
   yang dibutuhkan adalah selisihnya tercatat, bukan dipaksa nol.
 - `GET /shifts/current` mengembalikan `data: null` kalau belum ada shift —
   itu keadaan normal di awal hari, bukan `404`.
+
+---
+
+### `POST /shifts/{id}/expenses` — pengeluaran kasir (DEC-046)
+`Idempotency-Key` wajib. Izin `shift.manage`.
+
+```json
+{ "amount": 20000, "category": "Galon & air", "note": "beli galon 2 buah" }
+```
+
+```json
+{ "data": { "id": "uuid", "amount": 20000, "category": "Galon & air",
+            "note": "beli galon 2 buah", "created_at": "...Z",
+            "shift": { "...": "objek shift lengkap, sudah diperbarui" } } }
+```
+
+Shift ikut dikirim: pertanyaan berikutnya setelah mencatat selalu "jadi
+berapa sekarang isi laci", dan client tidak boleh menghitungnya sendiri.
+
+- `category` harus salah satu dari: `Bahan F&B`, `Galon & air`, `Kebersihan`,
+  `Perbaikan`, `Listrik & utilitas`, `Lainnya`. Daftar tertutup — teks bebas
+  membuat "es batu" dan "Es Batu" jadi dua kelompok di laporan.
+- `note` **wajib**, minimal 3 huruf.
+- `amount` integer rupiah, minimal 1.
+- Shift sudah ditutup → `409 SHIFT_NOT_OPEN`.
+- Bukan pemegang shift dan bukan admin → `403 FORBIDDEN`.
+- **Tidak ada endpoint hapus.** Pengeluaran yang bisa dihapus adalah jalan
+  keluar paling mudah dari selisih kas.
 
 ---
 

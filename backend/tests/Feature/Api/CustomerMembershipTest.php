@@ -3,8 +3,11 @@
 namespace Tests\Feature\Api;
 
 use App\Enums\SessionItemType;
+use App\Enums\UserRole;
+use App\Models\AuditLog;
 use App\Models\BillingSession;
 use App\Models\Customer;
+use App\Models\CustomerCredit;
 use App\Support\Audit\AuditAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -258,6 +261,137 @@ class CustomerMembershipTest extends TestCase
             'action' => AuditAction::MEMBERSHIP_CREATED,
             'actor_name' => 'Budi',
             'subject_id' => $customer->id,
+        ]);
+    }
+
+    // ── Memperbaiki data customer — DEC-049 ───────────────────────────
+
+    public function test_nama_salah_ketik_bisa_diperbaiki(): void
+    {
+        /*
+         * Sebelum DEC-049 ini permanen. Nama salah ketik baru ketahuan saat
+         * orangnya datang lagi dan tidak ditemukan di pencarian.
+         */
+        $this->actingAs($this->operator(), 'sanctum');
+        $customer = $this->member('Sti');
+
+        $this->patchJson("/api/v1/customers/{$customer->id}", ['name' => 'Siti'])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Siti');
+    }
+
+    public function test_nomor_sendiri_tidak_dianggap_dobel(): void
+    {
+        /*
+         * Form mengirim SELURUH field, termasuk nomor yang tidak disentuh.
+         * Tanpa `ignore()` pada aturan unique, menyimpan perbaikan nama
+         * akan ditolak dengan "nomor ini sudah terdaftar atas nama lain" —
+         * dan nama lain itu dirinya sendiri.
+         */
+        $this->actingAs($this->operator(), 'sanctum');
+        $customer = $this->member('Siti');
+
+        $this->patchJson("/api/v1/customers/{$customer->id}", [
+            'name' => 'Siti Rahayu',
+            'phone' => $customer->phone,
+        ])->assertOk();
+    }
+
+    public function test_nomor_milik_orang_lain_tetap_ditolak(): void
+    {
+        $this->actingAs($this->operator(), 'sanctum');
+        $siti = $this->member('Siti');
+        $budi = $this->member('Budi');
+
+        $this->patchJson("/api/v1/customers/{$budi->id}", ['phone' => $siti->phone])
+            ->assertStatus(422);
+    }
+
+    public function test_nama_tidak_boleh_dikosongkan(): void
+    {
+        // Customer tanpa nama tidak bisa dicari, dan tidak bisa disebut
+        // saat strukya dibacakan.
+        $this->actingAs($this->operator(), 'sanctum');
+        $customer = $this->member('Siti');
+
+        $this->patchJson("/api/v1/customers/{$customer->id}", ['name' => ''])
+            ->assertStatus(422);
+
+        $this->assertSame('Siti', $customer->fresh()->name);
+    }
+
+    public function test_perubahan_menyimpan_nilai_lama_di_audit(): void
+    {
+        /*
+         * "Nomor HP member ini dulu berapa" justru ditanyakan ketika ada
+         * yang salah — dan tanpa nilai lamanya, perubahan yang keliru tidak
+         * bisa dikembalikan.
+         */
+        $this->actingAs($this->operator(['name' => 'Budi']), 'sanctum');
+        $customer = $this->member('Siti');
+        $nomorLama = $customer->phone;
+
+        $this->patchJson("/api/v1/customers/{$customer->id}", [
+            'name' => 'Siti Rahayu',
+            'phone' => '081200000001',
+        ])->assertOk();
+
+        $audit = AuditLog::query()
+            ->where('action', AuditAction::CUSTOMER_UPDATED)
+            ->first();
+
+        $this->assertSame('Siti', $audit->before['name']);
+        $this->assertSame($nomorLama, $audit->before['phone']);
+        $this->assertSame('081200000001', $audit->after['phone']);
+        $this->assertSame('Budi', $audit->actor_name);
+    }
+
+    public function test_mengubah_nama_tidak_memindahkan_saldo_atau_membership(): void
+    {
+        /*
+         * Pertanyaan yang pantas dicurigai: kalau nama bisa diubah, apakah
+         * saldo ikut pindah? Tidak — saldo dan membership menempel ke
+         * `customer_id`, bukan ke nama atau nomornya. Diuji supaya tidak
+         * ada yang perlu menebaknya lagi.
+         */
+        $this->actingAs($this->operator(), 'sanctum');
+        $customer = $this->member('Siti');
+
+        $this->withHeaders($this->idempotent())
+            ->postJson("/api/v1/customers/{$customer->id}/membership")
+            ->assertCreated();
+
+        CustomerCredit::query()->create([
+            'customer_id' => $customer->id,
+            'type' => 'EARNED',
+            'amount' => 15000,
+            'note' => 'sisa waktu',
+        ]);
+
+        $this->patchJson("/api/v1/customers/{$customer->id}", ['name' => 'Nama Baru'])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Nama Baru')
+            ->assertJsonPath('data.credit_balance', 15000)
+            ->assertJsonPath('data.membership.is_active', true);
+    }
+
+    public function test_customer_dari_admin_web_juga_tercatat_di_audit(): void
+    {
+        /*
+         * Bukan soal API. Sebelum DEC-049 controller web memanggil
+         * `Customer::create()` sendiri dan melewatkan audit sepenuhnya —
+         * customer yang ditambahkan dari Admin Web tidak punya jejak siapa
+         * yang menambahkannya, tanpa error apa pun.
+         */
+        $owner = $this->operator(['name' => 'Bos', 'role' => UserRole::OWNER]);
+
+        $this->actingAs($owner)
+            ->post(route('admin.customers.store'), ['name' => 'Dari Web'])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AuditAction::CUSTOMER_CREATED,
+            'actor_name' => 'Bos',
         ]);
     }
 }

@@ -17,8 +17,8 @@ Format entry: tanggal → apa yang dikerjakan → hasil → known issue → next
 | **Kontrak** | `docs/contracts/` DRAFT 1 selesai (DEC-011) |
 | **operator-app** | Semua screen PRD §18 kecuali Login & Booking; kontrol TV terpasang & status TV disatukan; **tema terang** (DEC-016); merek **Amor Gaming Space** (DEC-017); klien API + penemuan server otomatis (DEC-041) sudah ada tapi **aplikasi masih memakai data palsu**; **225 test lulus** |
 | **tv-agent** | kiosk + timer + kontrol HTTP lokal + penemuan server otomatis (DEC-041); **47 test lulus**; APK debug 4,2 MB **sudah terpasang di TV**; sambungan operator↔TV **belum terbukti**, dan agent **belum bicara ke Laravel** |
-| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **328 test LULUS** (1.125 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata. **Sudah jalan di mesin Rifqi (11 Okt)** — PHP 8.4 berdampingan, 25 tabel, seeder terisi, login terbukti |
-| **Admin Web** | **BARU 11 Okt (DEC-042, DEC-043).** Login (guard session, Owner & Admin saja) + dashboard di `/admin`. Design system dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. Isinya masih **data contoh** — itu langkah berikutnya. Spec: `docs/UI-UX-SPEC-WEB.md` |
+| **backend** | **TAHAP 0 SELESAI.** Laravel 13.35.0 + Sanctum; 18 entity; auth + RBAC 3 role; mesin state + billing engine; F&B, swap, checkout, shift, customer/membership; Reverb 8 event + debounce; scheduler; **endpoint `/devices/*` (10 Okt) — Tahap 2 terbuka**. **436 test LULUS** (1.375 assertion), **golden path 38/38 lewat HTTP tanpa menyentuh database**, dan realtime terbukti sampai ke client. 32 endpoint, 9 event realtime. Berikutnya: keputusan OD-002 sebelum dipakai untuk uang nyata. **Sudah jalan di mesin Rifqi (11 Okt)** — PHP 8.4 berdampingan, 25 tabel, seeder terisi, login terbukti |
+| **Admin Web** | **BARU 11 Okt (DEC-042, DEC-043).** Login (guard session, Owner & Admin saja) + dashboard di `/admin`. Design system dari referensi user, aksen teal Amor, Plus Jakarta Sans, Tailwind v4. **8 halaman** (dashboard, sesi, station, F&B, harga, customer, shift, audit), semuanya data nyata dan **penuh layar** dari 375px sampai 2560px (diukur, 40 kombinasi). Sudah bisa **mengubah** harga, paket, stok, status F&B, dan tutup shift (DEC-044), serta **menyegarkan diri otomatis**. Spec: `docs/UI-UX-SPEC-WEB.md` |
 
 ### ⏳ Pertanyaan tertunda — ingatkan user
 
@@ -3108,3 +3108,908 @@ tombol keluar → kembali ke /login, /admin tidak bisa dibuka lagi
 - Belum ada "ingat saya". Session berakhir saat browser ditutup.
 
 **Next step** — ganti `DashboardSampleData` dengan query nyata.
+
+---
+
+### 2026-10-11 — [Admin Web] Dashboard memakai data nyata; audit fitur kasir
+
+**Audit dulu, baru kode**
+
+User mengirim katalog lengkap modul kasir dan meminta UI-nya dibuat. Sebelum
+menulis apa pun, seluruh backend ditelusuri — endpoint, model, enum, kolom
+tabel — dan dibandingkan dengan katalog itu. Hasilnya: **sekitar separuh
+fitur di katalog belum punya backend sama sekali** (pause, booking, chat,
+approval, top-up saldo, poin, pengeluaran kasir, sewa aksesori).
+
+User memilih **"UI untuk yang sudah ada saja"**. Tiga prioritas backend yang
+hilang dicatat sebagai **OD-029** (pengeluaran kasir), **OD-030** (F&B
+walk-in), **OD-031** (kendali TV manual).
+
+**Catatan arah: katalog itu PRD §18, bukan §19**
+
+Katalog kasir = `Flutter Operator` (PRD §18), dan aplikasinya sudah ada.
+Laravel = `Admin Web` (PRD §19), 13 modul. Ketiga prioritas user ternyata
+memang milik §19: Expense/Profit, F&B/Inventory, Station & Device. Jadi
+mengikuti PRD tidak membuang keinginan user — hanya menaruhnya di tempat
+yang benar.
+
+**Yang dikerjakan: `DashboardSampleData` → `DashboardData`**
+
+**Jebakan zona waktu, dan kenapa ia berbahaya**
+
+DEC-005 menyimpan semua timestamp UTC. Akibatnya `whereDate(..., today())`
+memotong hari pada **00:00 UTC = 07:00 WIB** — jam paling salah untuk rental
+PS, karena sesi tengah malam sampai subuh justru yang paling ramai. Omzet jam
+00:00–07:00 akan tercatat di hari sebelumnya.
+
+Kesalahannya **tidak terlihat dari layar**: angkanya tetap wajar, hanya di
+kolom yang salah, dan baru ketahuan saat laporan harian tidak cocok dengan
+isi laci.
+
+`App\Support\Time\BusinessDay` memegang batas itu di satu tempat, dan
+`test_pembayaran_jam_dua_pagi_masuk_hari_ini_bukan_kemarin` menguncinya.
+Test itu dibuktikan bisa gagal: zona waktunya diubah ke UTC sementara → test
+gagal; dipulihkan → lulus.
+
+**Dua kebohongan yang dibongkar justru oleh data nyata**
+
+Badge `↑ 12,5%` dan `↑ 6m` di kartu gauge adalah teks **mati** peninggalan
+data contoh. Begitu datanya nyata, keduanya tetap mengklaim pertumbuhan di
+atas **nol sesi**. Bentuknya meyakinkan — itulah yang membuatnya berbahaya.
+
+Diganti komponen `<x-delta>` yang **diam kalau pembandingnya nol**: persentase
+perubahan dari nol tidak punya arti, tapi badge-nya tetap terlihat sah.
+`x-metric` sekarang menerima badge lewat **slot**, bukan string — slot
+memaksa angkanya dihitung, bukan dituliskan.
+
+Dua test menguncinya dari dua arah: halaman kosong tidak boleh memuat `↑`
+maupun `↓` sama sekali, dan halaman dengan data kemarin **wajib**
+memuatnya — kalau tidak, test pertama lulus hanya karena badge-nya mati.
+
+**Keputusan kecil yang dicatat**
+
+- **Pendapatan = uang yang benar-benar diterima** (`payments` CONFIRMED),
+  bukan nilai transaksi. Dasar yang sama dengan `ShiftService::summary()`.
+- **Okupansi = sekarang**, bukan rata-rata harian. Yang dicari owner saat
+  membuka halaman adalah "berapa meja terisi detik ini".
+- **Total di tabel dari `session_items`**, bukan dari pembayaran — sesi yang
+  masih berjalan belum dibayar, dan Rp 0 akan terbaca sebagai fakta.
+- Diskon (subtotal negatif) dikeluarkan dari penjumlahan total.
+- Grafik 7 hari: satu query `GROUP BY`, bukan tujuh query berurutan.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `Support/Time/BusinessDay.php`, `Support/Web/DashboardData.php`, `views/components/delta.blade.php`, `tests/Feature/Web/DashboardDataTest.php` |
+| Diubah | `config/app.php` (+`display_timezone`), `routes/web.php`, `views/admin/dashboard.blade.php`, `views/components/metric.blade.php` |
+| Dihapus | `DashboardSampleData.php`, `components/sample-banner.blade.php` |
+
+**DB changes** — tidak ada.
+**API/Events** — tidak ada. Tahap 0 tidak tersentuh.
+
+**Tests** — **342 lulus** (+14), 1.158 assertion.
+
+**Known issues**
+
+- Database dev masih kosong transaksi, jadi dashboard menampilkan nol
+  semuanya. Itu **benar**, bukan rusak — keadaan kosongnya sudah dibuat
+  terlihat disengaja ("Belum ada sesi").
+- **Batas hari dipotong tengah malam WIB.** Kalau rental tutup jam 02:00,
+  sesi yang selesai 01:30 masuk ke hari berikutnya padahal bagi operator itu
+  masih shift yang sama. Belum pernah ditanyakan ke user; jawabannya hanya
+  mengubah `BusinessDay`. Untuk pertanyaan "berapa yang saya terima saat
+  jaga", `Shift` sudah menjawab benar tanpa bergantung batas hari.
+- `CONVERT_TZ` dipanggil dengan offset angka (`+07:00`), bukan nama zona,
+  karena tabel zona waktu MySQL sering belum diisi di Windows. DST tidak
+  ditangani — tidak relevan untuk WIB.
+
+**Next step** — modul §19 berikutnya yang backend-nya sudah ada: Station &
+Device, Harga & Paket, atau F&B/Inventory.
+
+---
+
+### 2026-10-11 — [Admin Web] Delapan halaman, semuanya responsif
+
+User: *"sekarang semua fitur yang sudah ada, kamu buatkan UI-nya. dan
+usahakan semua halamannya untuk yang operator itu bisa di sesuaikan
+ukurannya."*
+
+**Navigasi sebelumnya HILANG di tablet**
+
+Nav memakai `hidden lg:flex` — di bawah 1024px tidak ada navigasi sama
+sekali, dan satu-satunya jalan antar halaman adalah tombol Back browser.
+Tablet operator justru hidup di lebar itu. Sekarang nav menggeser mendatar,
+dipilih daripada menu hamburger karena tidak butuh JavaScript, tidak punya
+keadaan terbuka/tertutup yang bisa macet, dan halaman aktifnya tetap
+terlihat tanpa membuka apa pun.
+
+**Tabel jadi kartu bertumpuk di bawah 48rem**
+
+Tabel delapan kolom di lebar 375px hanya punya dua jalan keluar: menggeser
+ke samping (kolom Total hilang dari pandangan — justru yang dicari) atau
+meremas teks sampai tidak terbaca. Jalan ketiga: `@utility table-stacked` —
+tiap baris jadi blok, nama kolom pindah ke kiri tiap nilai lewat
+`data-label`. Tanpa JavaScript, tanpa markup kedua yang harus dijaga sinkron.
+
+Konsekuensinya setiap `<td>` wajib punya `data-label`, dan yang lupa hanya
+rusak **di layar sempit** — lolos dari siapa pun yang mengujinya di laptop.
+Karena itu ada test yang memindai Blade dan menolak sel tanpa label.
+Dibuktikan bisa gagal: satu `data-label` dihapus → test gagal menyebut
+berkasnya; dipulihkan → lulus.
+
+**Delapan halaman**
+
+| Halaman | Isi |
+|---|---|
+| Dashboard | sudah ada |
+| Sesi | 50 terbaru + chip filter per status, hitungannya dari seluruh riwayat |
+| Station & TV | kartu per station, **tiga** keadaan TV |
+| F&B | antrean pesanan + menu & stok per kategori |
+| Harga & Paket | paket per tipe konsol + harga F&B dengan margin |
+| Customer | daftar + pencarian + saldo member |
+| Shift | shift berjalan + riwayat 30 terakhir |
+| Audit | 100 terbaru + filter aksi, hanya field yang BERUBAH |
+
+**Keputusan yang menghindari salah baca**
+
+- **TV punya tiga keadaan, bukan dua.** "Belum didaftarkan" ≠ "Offline":
+  yang pertama berarti TV-nya belum pernah dipasang, yang kedua berarti ada
+  yang rusak. Menggabungkannya membuat teknisi mencari kabel pada TV yang
+  memang belum ada.
+- **Stok `null` = tidak dilacak**, bukan nol. "0" akan terbaca sebagai habis.
+- **HPP kosong → margin "—"**, bukan "0%" yang terbaca sebagai rugi.
+- **Halaman Shift menyebut OD-029 terang-terangan.** Kas seharusnya belum
+  dikurangi pengeluaran kasir; kalau tidak dikatakan, kasir jujur yang
+  mengambil uang untuk beli galon akan terlihat seperti mencuri.
+- **Audit hanya menampilkan field yang berubah**, maksimal 4. Menumpahkan
+  seluruh `before`/`after` membuat kolom setinggi layar dan justru
+  menyembunyikan satu angka yang dicari.
+- Kelas warna **ditulis utuh**, tidak dirangkai dari nama nada: Tailwind v4
+  memindai kelas literal, jadi `bg-{$nada}-surface` tidak pernah dibuat dan
+  badge-nya tampil tanpa warna — hanya di produksi.
+
+**Kenapa query langsung, bukan memanggil API sendiri**
+
+Admin Web berjalan di proses Laravel yang sama. Memanggil `GET /api/v1/...`
+dari sini berarti satu request HTTP ke diri sendiri untuk data yang sudah
+ada satu lapisan di bawah. Aturan "client tidak boleh akses DB langsung"
+berlaku untuk Flutter dan Kotlin yang memang terpisah mesin; Blade bukan
+client. Yang tidak ditiru: menulis aturan bisnis — halaman ini hanya membaca.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `Web/AdminController.php`, 7 view `admin/*.blade.php`, komponen `page-header`/`empty`/`stat`, `tests/Feature/Web/AdminPagesTest.php` |
+| Diubah | `app.css` (+`table-stacked`), `layouts/app.blade.php` (nav responsif), `routes/web.php`, `WebDesignTokensTest` (+aturan `data-label`) |
+
+**DB changes** — tidak ada.
+**API/Events** — tidak ada. Tahap 0 tidak tersentuh.
+
+**Tests** — **381 lulus** (+39), 1.222 assertion. `AdminPagesTest` membuka
+setiap halaman **empat kali**: database kosong, database terisi, sebagai
+tamu, sebagai operator. Halaman yang lulus hanya saat kosong tidak pernah
+melewati perulangan isinya; yang lulus hanya saat terisi akan meledak di
+instalasi baru.
+
+**Manual test** — kedelapan halaman diperiksa di 1280px, 768px, dan 375px.
+Tidak ada satu pun yang meluber mendatar di 375px (diukur
+`scrollWidth` vs `clientWidth`, bukan dilihat).
+
+**Known issues**
+
+- Semua halaman **hanya membaca**. Mengubah harga, menutup shift, atau
+  mengubah status pesanan belum bisa dari web — endpoint-nya ada, formnya
+  belum.
+- Laporan, Booking, Target, Backup belum ada (backend-nya juga belum).
+- Halaman Shift memanggil `ShiftService::summary()` untuk shift berjalan;
+  riwayat tidak, karena itu satu query per baris. Selisih kas tiap shift
+  dibaca dari audit log.
+
+**Next step** — form ubah harga (owner-only, endpoint sudah ada), atau
+OD-029 supaya rekonsiliasi laci berhenti berbohong.
+
+---
+
+### 2026-10-11 — [Admin Web] Tata letak penuh layar
+
+User: *"ubah tampilan dashboard agar menjadi full screen (penuh 100% dari
+ujung ke ujung layar) dan responsif… tidak tertahan di tengah atau
+terpotong sebagian."*
+
+**Yang menahannya**
+
+`max-w-[1240px] mx-auto` — pola "kartu melayang" dari referensi. Wajar untuk
+satu halaman contoh, salah untuk alat kerja: di monitor 1920px, **680px
+dibiarkan kosong** di kiri-kanan sementara tabel di tengah tetap harus
+digeser.
+
+**Yang menggantikannya**
+
+Bukan sekadar membuang pagarnya. Lebar tanpa batas saja akan merentangkan
+empat kartu metrik jadi masing-masing 450px di layar lebar.
+
+| Pengganti | Guna |
+|---|---|
+| Padding bertingkat `px-4 → sm:px-6 → lg:px-8 → 2xl:px-12` | ruang baca ikut membesar, bukan dipatok |
+| `grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]` | grid **menambah kolom**, bukan merentangkan kartu |
+| Header `sticky top-0` | tabel bisa 50 baris; tanpa ini, pindah halaman dari baris terbawah berarti menggulir balik ke puncak lebih dulu |
+| Nav dua tingkat | sebaris mulai `xl`, baris sendiri di bawahnya. Dipaksa sebaris di 1024px membuat merek, sembilan menu, dan blok akun berebut ruang — dan yang kalah selalu menunya |
+
+`<x-nav-link>` diekstrak karena nav sekarang dirender **dua kali**. Dua
+salinan akan melenceng pada perubahan pertama, dan yang melenceng adalah
+yang jarang dilihat.
+
+**Diukur, bukan dilihat**
+
+8 halaman × 5 lebar (375 · 768 · 1024 · 1440 · 2560) = **40 kombinasi**.
+Dua hal diperiksa di tiap kombinasi: tidak ada yang meluber mendatar
+(`scrollWidth` vs `clientWidth`), **dan** `<main>` benar-benar memakai
+≥90% lebar layar. Keduanya lolos semua.
+
+Pemeriksaan kedua itu yang penting — tanpanya, halaman yang masih terkunci
+di tengah tetap "lulus" karena memang tidak meluber.
+
+**Files changed** — `layouts/app.blade.php` (ditulis ulang),
+`components/nav-link.blade.php` (baru), grid di `dashboard` dan `stations`,
+`WebDesignTokensTest` (+`test_layout_penuh_tidak_dikunci_lebar_tetap`).
+
+**DB changes** — tidak ada. **API/Events** — tidak ada.
+
+**Tests** — **383 lulus** (+1), 1.225 assertion.
+
+Test barunya sempat gagal oleh **komentarnya sendiri**: kalimat yang
+menjelaskan kenapa `max-w-[1240px]` dibuang ikut terbaca sebagai kelas.
+Komentar Blade sekarang dibuang dulu sebelum diperiksa — kalau tidak,
+perbaikan yang terlihat paling mudah adalah menghapus penjelasannya.
+
+**Known issues** — halaman login sengaja TETAP di tengah; form selebar layar
+tidak membuatnya lebih mudah diisi.
+
+**Next step** — form ubah: harga, shift, status pesanan. Permintaan user
+berikutnya, dan endpoint-nya sebagian sudah ada.
+
+---
+
+### 2026-10-11 — [Admin Web] Bisa mengubah, dan menyegarkan diri sendiri
+
+User menegaskan pembagian peran: **Laravel yang mengatur semuanya**, Flutter
+hanya melayani customer dan mendaftarkan member. Dicatat sebagai **DEC-044**.
+
+**Lubang keamanan yang ditemukan test, bukan pembacaan kode**
+
+Route aksi web versi pertama **tidak punya gerbang izin sama sekali**. Saya
+menulis di komentarnya bahwa "izin per field ditentukan Service" — itu benar
+untuk produk F&B, dan **salah untuk paket**:
+
+| Sumber daya | Gerbangnya |
+|---|---|
+| Produk F&B | `can:fnb.manage` di route, lalu **Service** menolak `price` dari non-owner |
+| **Paket** | `can:pricing.manage` **di route**. Service tidak memeriksa apa pun |
+
+Akibatnya **admin bisa mengubah seluruh tarif rental** lewat web. Izinnya
+sekarang disalin persis dari `routes/api.php` — dua pintu ke service yang
+sama harus dijaga sama ketatnya.
+
+**Realtime: polling, bukan Reverb**
+
+Reverb sudah ada dan menyiarkan sembilan event. Tapi dua kali minggu ini
+realtime-nya mati diam-diam — `REVERB_HOST` salah, lalu `queue:work` tidak
+jalan. Keduanya tanpa error yang terlihat.
+
+Halaman admin yang bergantung padanya akan membeku dengan cara yang sama:
+menampilkan angka lama sambil terlihat normal. Itu **lebih buruk** daripada
+tidak realtime, karena owner mengambil keputusan dari angka yang dia kira
+baru. Polling tidak bisa gagal diam-diam — penanda waktunya berhenti maju.
+
+Dua aturan yang menyertainya, keduanya soal tidak merusak pekerjaan orang:
+
+- penyegaran **dilewati** kalau fokus ada di dalam form, atau ada form yang
+  sudah disentuh tapi belum dikirim;
+- diperiksa **dua kali** — sebelum meminta dan sesudah jawabannya datang,
+  karena orangnya bisa mulai mengetik di tengah jalan.
+
+Berhenti setelah tiga kegagalan berturut-turut, lanjut lagi saat tab dibuka.
+
+**Yang sekarang bisa diubah dari web**
+
+| | Siapa |
+|---|---|
+| Harga, durasi, nama, aktif/nonaktif paket | owner |
+| Tambah paket baru | owner |
+| Harga F&B | owner |
+| **Stok & ketersediaan F&B** | admin — "Mie Goreng habis" kejadian harian |
+| Status pesanan F&B (satu langkah maju, atau batal) | admin |
+| Tutup shift + catatan | pemilik shift / admin |
+
+**Keputusan kecil yang menghindari jebakan**
+
+- `price` hanya dikirim kalau **berubah**. Form selalu memuat kolom harga;
+  meneruskannya apa adanya membuat Service menolak admin yang hanya
+  mengubah stok — padahal itu justru pekerjaan hariannya.
+- `$request->boolean()` untuk checkbox. Browser **tidak mengirim** checkbox
+  yang tidak dicentang; tanpa itu, menonaktifkan paket mustahil.
+- Stok kosong = **tidak dilacak**, bukan nol.
+- Status F&B hanya menawarkan **satu langkah maju**, bukan lima pilihan.
+  Dropdown penuh mengundang lompatan yang pasti ditolak — tapi baru setelah
+  ditekan.
+- `<form>` ditaruh di luar tabel lewat atribut `form=`; `<form>` tidak boleh
+  jadi anak langsung `<tr>` dan browser akan memindahkannya diam-diam.
+- Pesan hasil aksi ada di **luar** `#live`, supaya tidak ikut terhapus saat
+  halaman menyegarkan diri beberapa detik kemudian.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `Web/AdminActionController.php`, `components/{field,money-input,nav-link}.blade.php`, `resources/js/app.js`, `tests/Feature/Web/AdminActionsTest.php` |
+| Diubah | `routes/web.php` (+5 rute aksi, +izin), `layouts/app.blade.php` (`#live`, pesan aksi, penanda segar), `admin/{pricing,fnb,shifts}.blade.php`, `Web/AdminController.php` |
+
+**DB changes** — tidak ada. **API/Events** — tidak ada. Tahap 0 tidak tersentuh.
+
+**Tests** — **399 lulus** (+16), 1.265 assertion.
+
+`AdminActionsTest` membuktikan web memakai Service yang sama lewat
+**akibatnya**, bukan dengan membaca kode: izin per field ditegakkan, dan
+audit log terisi `before.price → after.price`. Keduanya hilang diam-diam
+kalau suatu saat ada yang mengganti panggilan Service dengan
+`$model->update()`.
+
+**Manual test** — harga PS3 1 Jam diubah 8.000 → 9.000 lewat browser;
+tersimpan, "Setara / jam" ikut berubah, dan audit mencatat `8000 → 9000`
+atas nama Owner. Seeder dijalankan ulang untuk mengembalikannya.
+
+**Known issues**
+
+- **Pengeluaran kasir belum ada** (OD-029) — rekonsiliasi laci masih kurang
+  satu suku, dan halaman Shift mengatakannya terang-terangan.
+- **Promo belum ada sama sekali** di backend → **OD-032** (baru).
+- HPP belum bisa diubah; `UpdateFnbProductRequest` belum menerima field itu.
+- Station & tipe konsol belum bisa diubah (OD-028).
+- Halaman Customer dan Audit belum punya aksi apa pun — keduanya memang
+  hanya untuk dibaca.
+
+**Next step** — OD-029 (pengeluaran kasir). Satu tabel, satu endpoint, satu
+form, dan setelah itu angka "kas seharusnya" berhenti berbohong.
+
+---
+
+### 2026-10-11 — [Admin Web] Tujuh dari sembilan celah "backend ada, UI belum"
+
+User meminta seluruh daftar celah dikerjakan. Tujuh item Laravel selesai;
+dua sisanya (Reverb di client, Kotlin ke Laravel) **sengaja tidak
+dikerjakan** — alasannya di bawah.
+
+**Yang selesai**
+
+| | Cara |
+|---|---|
+| Detail sesi | halaman baru `/admin/sesi/{id}` — tiap baris item, tiap pembayaran, jejak audit |
+| Struk + kirim WA | di halaman detail, tautan `wa.me` (DEC-035) |
+| Daftar pembayaran | halaman baru `/admin/pembayaran`, per hari |
+| Daftar member dari web | form di halaman Customer, + tombol "jadikan member" per baris |
+| Tambah produk F&B | endpoint **API baru** `POST /fnb/products` + form |
+| Ubah HPP | field baru di `PATCH /fnb/products/{id}` + kolom di form |
+| Kelola user | ❌ **tidak dikerjakan** — lihat "Yang tidak dikerjakan" |
+
+**Keputusan yang paling berpengaruh: siapa boleh apa**
+
+- **Tambah menu = owner**, bukan `fnb.manage`. Menambah produk berarti
+  menetapkan harganya; membolehkan admin akan membuka jalan memutar yang
+  persis sama dengan mengubah harga produk lama (DEC-020).
+- **HPP = owner** juga. Ia bukan harga yang dibayar customer, tapi ia
+  menentukan margin di setiap laporan laba. Dipilih yang lebih ketat dulu —
+  melonggarkan nanti jauh lebih murah daripada menarik kembali akses.
+  Dicatat **OD-033**.
+
+**Satu bug yang nyaris lolos, ketahuan karena memeriksa database**
+
+Daftar kategori F&B hampir saya tulis `['MAKANAN', 'MINUMAN', 'SNACK']`.
+Isi database ternyata `Makanan, Minuman, Snack`. Daftar karangan itu akan
+menciptakan kategori kembar yang hanya berbeda huruf besar — persis bug
+yang saya tulis peringatannya di komentar beberapa baris di atasnya.
+
+Sekarang kategorinya **dibaca dari database**, dan `StoreFnbProductRequest::kategori()`
+dipakai dropdown maupun validator. Dropdown dan validator yang punya daftar
+sendiri-sendiri akan berbeda pada perubahan pertama.
+
+**Detail sesi: yang sengaja ditampilkan**
+
+Halaman ini punya satu tugas — menjawab "kenapa tagihannya segitu".
+
+- **Durasi sebenarnya dan durasi ditagih berdampingan.** "Kenapa 63 menit
+  ditagih 60" pasti ditanyakan, dan jawabannya harus ada di layar yang sama,
+  bukan di dokumen yang tidak akan dibuka saat customer menunggu (DEC-009).
+- **Tarif yang dibekukan.** Angka ini yang menjelaskan kenapa tagihan tidak
+  ikut berubah setelah owner menaikkan harga (DEC-040).
+- **Kelebihan bayar.** `balanceDue()` dijaga tidak negatif supaya tablet
+  tidak menampilkan tagihan minus (API.md §7) — tapi di halaman audit,
+  kelebihan itu justru yang perlu terlihat: ia berarti ada yang salah.
+- Baris total bernilai nol **disembunyikan**: lima baris "Rp 0" membuat satu
+  angka yang penting jadi sulit ditemukan.
+
+**Halaman pembayaran: yang belum dikonfirmasi tampil, tapi tidak dijumlahkan**
+
+Menyembunyikannya membuat selisih laci jadi misteri; ikut menjumlahkannya
+membuat omzet terlihat lebih besar dari uang yang benar-benar ada. Keduanya
+salah.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `admin/{session,payments}.blade.php`, `StoreFnbProductRequest.php`, `tests/Feature/Web/AdminDetailTest.php` |
+| Diubah | `MasterDataService` (+`createFnbProduct`, HPP dikunci, HPP di snapshot audit), `FnbController` (+`storeProduct`), `UpdateFnbProductRequest` (+`hpp`), `AuditAction` (+`FNB_PRODUCT_CREATED`), `Web/Admin{,Action}Controller`, `routes/{api,web}.php`, 4 view |
+
+**DB changes** — tidak ada.
+**API/Events** — `POST /fnb/products` (baru, owner), `hpp` di `PATCH /fnb/products/{id}`. **CHANGELOG DRAFT 17.**
+
+**Tests** — **423 lulus** (+24), 1.327 assertion.
+
+**Satu kesalahan saya sendiri**
+
+Menyisipkan komentar lewat `php -r` dengan `*\/` — itu escape JavaScript,
+bukan PHP. Komentarnya jadi tidak tertutup dan **seluruh suite gagal**
+dengan parse error. Ketahuan langsung oleh test, bukan oleh pembacaan.
+
+**Yang TIDAK dikerjakan, dan kenapa**
+
+| | Alasan |
+|---|---|
+| **Kelola user** | Butuh endpoint baru yang menangani **password**. Itu permukaan paling sensitif di sistem ini dan pantas dikerjakan sendirian, bukan ditempel di akhir batch tujuh item. Juga belum jelas: boleh reset password orang lain? wajib ganti saat pertama login? |
+| **Reverb di Flutter** | Flutter **masih memakai `FakeBillingRepository`** dan belum punya layar login. Memasang klien realtime sebelum aplikasinya tersambung ke API berarti membangun atap sebelum dindingnya ada |
+| **Kotlin ke Laravel** | Urutannya sama: `ServerConnector` sudah ada tapi belum dipanggil `AgentService`. Menyambung ke `/devices/*` adalah langkah sesudah itu, dan keduanya milik Tahap 2 |
+
+**Next step** — OD-029 (pengeluaran kasir), atau kelola user kalau akun
+produksi sudah dibutuhkan.
+
+---
+
+### 2026-10-11 — [Admin Web] Semua operasi sesi masuk — DEC-045
+
+User membalik DEC-044: Laravel adalah **owner dari semua fitur** dan harus
+punya setiap akses, walaupun bukan dia yang berhadapan dengan customer.
+
+**Delapan operasi baru dari web**
+
+mulai sesi · catat pembayaran · extend · pindah station · pesan F&B ·
+checkout · batalkan sesi · buka shift
+
+Semuanya memanggil Service yang sama dengan API. Izin di `routes/web.php`
+**disalin persis** dari `routes/api.php` — dua pintu dengan gerbang berbeda
+sama saja dengan satu pintu tanpa gerbang.
+
+**Tiga bug nyata, ketiganya ketemu dengan mencoba, bukan membaca**
+
+1. **Validasi `min:1` pada qty F&B menolak setiap pesanan.** Form
+   menampilkan seluruh menu dengan kolom jumlah, jadi menu yang TIDAK
+   dipesan ikut terkirim bernilai 0 — dan validasi berjalan sebelum
+   penyaringan. Ditemukan test.
+
+2. **Penyegaran otomatis menghapus isian panel sebelum sempat dikirim.**
+   Penjaganya hanya aktif setelah ada yang diketik; membuka panel lalu
+   membaca pilihan paketnya sepuluh detik sudah cukup kehilangan. Sekarang
+   penyegaran dilewati selama ada `<details open>`. **Test tidak menemukan
+   ini** — test tidak menunggu sepuluh detik. Ketemu saat menjalankan
+   alurnya sungguhan di browser.
+
+3. **"Open Tab — tanpa batas" muncul pada sesi Prepaid.** `end_at` null
+   punya dua arti: Postpaid memang tanpa batas, Prepaid yang belum dibayar
+   timernya belum mulai. Menyamakannya membuat sesi menunggu bayar terbaca
+   seolah boleh main sepuasnya.
+
+**Tata letak: diukur, bukan dilihat**
+
+10 halaman × 5 lebar (375–1920), dengan **semua panel aksi dibuka** supaya
+form-nya ikut diukur. Tiga elemen terdeteksi keluar batas; dua di antaranya
+memang di dalam area geser yang disengaja (chip filter).
+
+Yang ketiga nyata: **tabel dashboard satu-satunya yang tidak memakai
+`table-stacked`** — di ponsel ia digeser menyamping sementara semua tabel
+lain jadi kartu. Sudah disamakan.
+
+**Keputusan yang sengaja berbeda dari API**
+
+| | Web | Kenapa |
+|---|---|---|
+| `Idempotency-Key` | tidak dipakai | Di browser, form yang dikirim dua kali adalah dua niat berbeda. Pengamannya state machine |
+| Alasan pembatalan | **wajib** | Membatalkan dari belakang meja tanpa alasan adalah persis yang perlu dijelaskan saat laporan tidak cocok |
+| Split payment | satu pembayaran | Split dipakai tablet tempat customer berdiri membagi tunai dan QRIS |
+| Extend | pilihan, bukan kolom bebas | Kolom bebas mengundang "45 menit" yang pasti ditolak DEC-007 |
+| Station tujuan swap | disaring di server | Dropdown yang menawarkan pilihan lalu ditolak setelah ditekan membuat orang mengira sistemnya rusak |
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `Web/SessionActionController.php`, `components/{action-panel,action-submit,select-field}.blade.php`, `tests/Feature/Web/SessionActionTest.php` |
+| Diubah | `routes/web.php` (+8 rute), `admin/{session,stations,shifts,dashboard}.blade.php`, `Web/AdminController.php`, `resources/js/app.js` |
+
+**DB changes** — tidak ada. **API/Events** — tidak ada yang berubah.
+
+**Tests** — **436 lulus** (+13), 1.375 assertion. `SessionActionTest`
+menjalankan golden path lewat web: mulai → bayar → F&B → extend → checkout,
+dan memeriksa harga extend **dihitung server** (30 menit pada tarif 10.000
+= 5.000) apa pun yang dikirim form.
+
+**Manual test** — alur nyata di browser: panel dibuka, bertahan melewati
+siklus penyegaran, sesi `S-20261011-0001` terbentuk di ST01 dengan baris
+RENTAL dan jejak audit. Sesi ujinya lalu dibatalkan supaya ST01 kembali
+kosong.
+
+**Known issues** — katalog kasir masih jauh dari lengkap: pause, booking,
+chat/approval, promo, pengeluaran kasir, F&B walk-in, kendali TV, top-up,
+poin, aksesori, mode offline. Semuanya **belum punya backend**, bukan
+sekadar belum punya UI.
+
+**Next step** — OD-029 (pengeluaran kasir).
+
+---
+
+## 12 Okt 2026 — Pengeluaran kasir (DEC-046) + tabel menu dirapikan
+
+**Satu kalimat:** rekonsiliasi laci berhenti menuduh kasir jujur.
+
+### Yang diperbaiki, dan kenapa itu penting
+
+Rumusnya seharusnya `Modal + Tunai − Pengeluaran`. Suku terakhirnya tidak
+pernah dibangun, jadi kasir yang mengambil Rp 20.000 dari laci untuk beli
+galon membuat sistem melaporkan kas **kurang** Rp 20.000 — dan selisih itu
+masuk audit log dengan namanya tertera. Fitur anti-bocor yang justru jadi
+sumber tuduhan palsu.
+
+Sekarang satu rumus di satu tempat: `ShiftService::expectedCash()`, dipakai
+`close()`, `ShiftPresenter` (tablet), **dan** halaman Shift. Yang penting
+bukan kerapiannya — rumus yang disalin ke layar akan melenceng dari rumus
+yang dipakai saat tutup shift, dan kasir yang menyetor uang sesuai angka di
+layar justru tercatat punya selisih yang tidak bisa dijelaskan siapa pun.
+
+Halaman Shift menampilkan sukunya satu per satu dengan angkanya
+(`Rp 200.000 modal awal + Rp 0 tunai masuk − Rp 67.000 pengeluaran`), supaya
+kasir bisa mengulang hitungannya di kertas.
+
+### Keputusan yang diambil (jawaban atas OD-029)
+
+Menempel ke **shift**, bukan tanggal. Boleh dicatat **pemegang shift atau
+admin** — aturan yang sama dengan menutup shift. **Tanpa** persetujuan owner
+per belanja: menunggu balasan membuat pencatatan ditunda, dan pengeluaran
+yang diingat belakangan selalu lebih kecil dari yang sebenarnya. **Tanpa**
+batas nominal: batas hanya memindahkan belanja besar ke luar catatan.
+Keterangan **wajib, minimal 3 huruf**. Kategori daftar tertutup, karena
+teks bebas membuat "es batu" dan "Es Batu" jadi dua kelompok di laporan.
+**Tidak bisa dihapus**, dan tidak bisa ditambahkan ke shift yang sudah
+ditutup — keduanya pintu belakang untuk menutupi selisih setelah ketahuan.
+
+### Bug tata letak yang ketemu sambil jalan
+
+**Seluruh halaman bisa digeser ke samping di laptop 1366px.** Bukan di
+halaman Shift saja — di **setiap** halaman, sejak header dibuat. Nav sebaris
+menyala mulai `xl` (1280px), padahal isinya butuh 1428px: merek 215 + sembilan
+menu 896 + blok akun 293. Diukur di browser, bukan ditebak.
+
+Titik tukarnya dipindah ke `2xl` (1536px), dan nav sebarisnya diberi
+`justify-center-safe` + geser internal supaya menu pertama tetap terjangkau
+kalau suatu saat menunya bertambah lagi. Nama panjang di blok akun dibatasi
+`max-w-36 truncate` — pemiliknya tidak akan pernah melaporkan namanya sendiri
+sebagai bug tata letak.
+
+Test barunya tidak memeriksa pikselnya (PHPUnit tidak bisa), tapi memeriksa
+bahwa **kedua nav bertukar di lebar yang sama**. Kalau tidak, ada rentang
+lebar yang muncul tanpa navigasi sama sekali.
+
+### Tabel Menu & Stok
+
+Tiga tabel per kategori diganti satu tabel `table-fixed` + `<colgroup>` +
+baris pemisah kategori. Sebelumnya tiap kategori punya header sendiri dan
+lebar kolomnya ditentukan isinya masing-masing, jadi tidak ada satu pun
+kolom yang lurus antar kategori.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `CashExpense.php`, `StoreExpenseRequest.php`, migrasi `cash_expenses`, `admin/partials/menu-stok.blade.php`, `tests/Feature/Api/CashExpenseTest.php` |
+| Diubah | `ShiftService.php` (+`expectedCash`, +`recordExpense`, `summary.expense`), `ShiftController.php`, `ShiftPresenter.php`, `AuditAction.php`, `Shift.php`, `Web/AdminActionController.php`, `Web/AdminController.php`, `routes/{api,web}.php`, `admin/{shifts,fnb}.blade.php`, `layouts/app.blade.php` |
+
+**DB changes** — migrasi `2026_10_11_143642_create_cash_expenses_table`:
+`shift_id` (cascade), `amount` unsigned int, `category` varchar(32), `note`
+varchar(255) **NOT NULL**, `actor_id` (restrict), index `[shift_id, created_at]`.
+
+**API/Events** — `POST /shifts/{id}/expenses` baru. Objek `shift` bertambah
+`summary.expense` dan `expected_cash`. Tidak ada event baru. CHANGELOG
+DRAFT 18.
+
+**Tests** — **450 lulus** (+14), 1.420 assertion. Yang diperiksa bukan
+"pengeluaran tersimpan" melainkan **angkanya ikut dalam hitungan**: rumus
+tiga suku dengan nilai berbeda-beda, dan selisih saat `close()` yang
+memakai rumus yang sama. Test lama
+`test_shift_menyebut_pengeluaran_kasir_belum_ada` dihapus — isinya sudah
+tidak benar.
+
+**Manual test** — form diisi lewat browser di 1366px: `Rp 5.000 /
+Perbaikan / "lem stik rusak"` → pengeluaran 67.000 → 72.000, kas seharusnya
+133.000 → 128.000, baris baru muncul paling atas. Lebar 320/375/768/1366/
+1536/1920 diperiksa: tidak ada yang meluber.
+
+**Known issues** — pengeluaran belum masuk laporan laba (HPP dan biaya
+operasional bulanan masih kosong). F&B walk-in (**OD-030**) masih terbuka:
+pembeli yang cuma beli rokok belum bisa dilayani sama sekali.
+
+**Next step** — OD-030 (F&B walk-in), lalu station & tipe konsol yang bisa
+ditambah-ubah dari halaman owner (OD-028).
+
+---
+
+## 12 Okt 2026 (lanjutan) — Station & tipe konsol bisa diurus sendiri (DEC-048)
+
+**Satu kalimat:** menambah PS baru tidak lagi butuh seeder atau SQL.
+
+User: *"aku mau kamu buat untuk edit di owner ini lebih flexsibel atau bisa
+custom sesuai hati. kayak tambah ps. nah ini bisa custome namanya,
+tipenya, dll."*
+
+### Apa yang sekarang bisa dilakukan dari halaman Station & TV
+
+Tambah station (kode, nama, tipe konsol, urutan). Ubah nama, status, kode,
+tipe. Tambah tipe konsol dengan nama bebas — "PS5 Pro", "VIP Room",
+"Simulator Balap". Nonaktifkan tipe yang tidak dipakai lagi.
+
+Kode pendaftaran TV sekarang **terlihat di kartu station**, selama belum ada
+TV yang memakainya. Sebelum ini kodenya cuma ada di database — station yang
+baru dibuat tidak punya cara dipasangkan ke TV sama sekali.
+
+### Izinnya dua tingkat, bukan satu
+
+Permission baru `station.manage` dipegang **admin ke atas**: menandai "PS3
+nomor 4 rusak" adalah kejadian harian, dan menguncinya untuk owner berarti
+station rusak tetap ditawarkan ke customer sampai owner sempat membuka
+laptopnya.
+
+Yang tetap owner, ditegakkan **Service** bukan route: membuat station,
+mengubah `code`, mengubah tipe konsol, dan seluruh urusan tipe konsol.
+Polanya sama persis dengan menu F&B — route longgar, field dikunci.
+
+### Tiga kunci yang mencegah kerusakan diam
+
+Ketiganya ada karena akibatnya **tidak menimbulkan error apa pun**:
+
+1. **Kode terkunci selama TV terdaftar.** TV berlangganan
+   `private-station.{code}` saat boot; kode yang berubah membuatnya diam
+   selamanya. Tidak ada yang tahu sampai seseorang menyadari layarnya tidak
+   pernah berganti.
+2. **Tipe terkunci selama ada sesi berjalan.** Sesi berjalan akan menunjuk
+   tarif yang bukan dasar harganya.
+3. **Tipe tidak bisa dinonaktifkan selagi dipakai station aktif.** Station-nya
+   tetap terlihat kosong dan bisa diklik, lalu tidak ada satu pun paket yang
+   bisa dipilih — kasir akan mengira sistemnya rusak.
+
+Yang sengaja DIBOLEHKAN: mengubah nama station yang TV-nya sudah terdaftar.
+Yang berbahaya kodenya, bukan namanya.
+
+Kode station juga tidak boleh mengandung titik — `private-station.{code}`
+memakai titik sebagai pemisah segmen.
+
+### Tidak ada hapus
+
+Station dan tipe dipegang setiap sesi yang pernah berjalan di atasnya.
+Menghapusnya membuang dasar harga dari riwayat yang sudah dibayar. Yang
+pensiun: `DISABLED` untuk station, `is_active: false` untuk tipe.
+
+### Satu test dibuktikan dengan merusak kodenya
+
+`test_mengirim_kode_yang_sama_bukan_perubahan` lulus sejak pertama, dan itu
+mencurigakan — 26 test baru yang semuanya hijau tanpa satu pun merah dulu
+biasanya berarti ada yang tidak benar-benar diuji. Perbandingan "nilai baru
+≠ nilai lama" dihapus sementara: test-nya langsung gagal dengan 403. Aturan
+itu nyata, bukan hiasan — form web mengirim seluruh field termasuk yang
+tidak disentuh, jadi tanpa perbandingan itu admin tidak akan bisa menyimpan
+perubahan nama sama sekali.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `StationTypeController.php`, `Store/UpdateStationRequest.php`, `Store/UpdateStationTypeRequest.php`, `admin/partials/tipe-konsol.blade.php`, `tests/Feature/Api/StationManageTest.php` |
+| Diubah | `MasterDataService.php` (+4 method), `Permission.php`, `UserRole.php`, `AuditAction.php` (+4), `StationController.php`, `MasterDataUpdated.php`, `Web/AdminActionController.php`, `Web/AdminController.php`, `routes/{api,web}.php`, `admin/stations.blade.php` |
+
+**DB changes** — **tidak ada**. Skema `stations` dan `station_types` sudah
+mendukung semuanya sejak awal; yang hilang cuma jalannya.
+
+**API/Events** — `POST/PATCH /stations`, `GET/POST/PATCH /station-types`.
+Permission baru `station.manage` di `data.user.permissions` (additive).
+`master.updated` sekarang bisa membawa `resource: station | station_type`.
+`master.updated` akhirnya didokumentasikan di REALTIME.md — selama ini cuma
+ada di CHANGELOG, padahal API.md sudah menunjuk ke sana. CHANGELOG DRAFT 19.
+
+**Tests** — **484 lulus** (+34), 1.512 assertion.
+
+**Manual test** — station ST07 dibuat lewat form di browser: pesan suksesnya
+menyebut kode pendaftaran `YSVEJP`, jumlah station pada tipe PS4 naik dari 3
+ke 4, kartunya muncul di grid. Station ujinya lalu dihapus dari database dev.
+Lebar 375/768/1366 diperiksa dengan semua panel terbuka: tidak ada yang
+meluber.
+
+**Known issues** — Flutter belum tahu apa-apa soal ini: ia tidak punya layar
+pengaturan station, dan `master.updated` dengan `resource: station` akan
+diabaikan begitu saja (itu perilaku yang benar, tapi berarti daftar station
+di tablet baru ikut berubah setelah dimuat ulang).
+
+**Next step** — master data sisanya yang belum bisa diubah dari web: paket
+belum bisa dinonaktifkan per tipe secara massal, dan customer belum bisa
+diedit sama sekali (hanya ditambah).
+
+---
+
+## 12 Okt 2026 (lanjutan 2) — Data customer bisa diperbaiki (DEC-049)
+
+**Satu kalimat:** nama salah ketik tidak lagi permanen — dan jalur web
+akhirnya ikut tercatat di audit.
+
+### Dua hal, satu perbaikan
+
+**Yang diminta:** customer hanya bisa dibuat, tidak pernah bisa diubah.
+Nama salah ketik dan nomor HP yang kurang satu angka permanen, dan keduanya
+baru ketahuan saat struk gagal terkirim atau saat orangnya datang lagi dan
+tidak ditemukan di pencarian.
+
+**Yang ditemukan sambil mengerjakannya:**
+`AdminActionController::storeCustomer()` memanggil `Customer::create()`
+sendiri. Jalur API mencatat audit setelahnya; jalur web **tidak mencatat
+apa pun**. Customer yang ditambahkan dari Admin Web tidak punya jejak siapa
+yang menambahkannya — tanpa error, hanya pertanyaan yang tidak bisa dijawab
+berbulan-bulan kemudian.
+
+Keduanya ditutup `CustomerService`: satu pintu, satu jejak. Ini kejadian
+**kedua** di repo ini — yang pertama izin paket yang hilang di jalur web
+(DEC-044). Polanya sama persis: controller yang menulis ke model sendiri
+melewatkan sesuatu yang tidak kelihatan hilang.
+
+### Form ubah di atas daftar, bukan di dalam barisnya
+
+Panel di dalam sel tabel akan terjepit selebar kolomnya, dan di bawah 768px
+tabel ini berubah jadi kartu bertumpuk — panel mengambang di dalamnya tidak
+punya tempat.
+
+Yang dipakai: tombol "Ubah" tiap baris adalah tautan GET ke `?edit=<id>`,
+dan halaman menampilkan satu form di atas daftar. Tanpa JavaScript, bekerja
+sama di setiap lebar, tidak ada keadaan buka/tutup yang bisa macet. Setelah
+disimpan, redirect tanpa `?edit=` supaya formnya tertutup sendiri.
+
+### Satu test yang ada bukan karena kodenya meragukan
+
+`test_mengubah_nama_tidak_memindahkan_saldo_atau_membership`. Pertanyaannya
+pantas muncul — "kalau nama bisa diubah, saldonya ikut pindah tidak?" — dan
+pertanyaan seperti itu tidak boleh dijawab dengan tebakan oleh orang
+berikutnya yang membaca kode ini.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `CustomerService.php`, `UpdateCustomerRequest.php` |
+| Diubah | `Api/V1/CustomerController.php`, `Web/AdminActionController.php`, `Web/AdminController.php`, `AuditAction.php` (+`customer.updated`), `routes/{api,web}.php`, `admin/customers.blade.php` |
+
+**DB changes** — tidak ada.
+
+**API/Events** — `PATCH /customers/{id}` (tanpa `Idempotency-Key`: bukan
+pembuatan data). Audit action baru `customer.updated`. CHANGELOG DRAFT 20.
+
+**Tests** — **495 lulus** (+11), 1.541 assertion.
+
+**Manual test** — nama diubah lewat form di browser 1366px: tersimpan,
+`?edit=` hilang dari URL, form tertutup sendiri, membership SILVER dan
+saldo tidak berubah. Data dev dikembalikan setelahnya.
+
+**Known issues** — membership masih tidak bisa dinonaktifkan dari mana pun.
+Itu bukan sekadar UI: perlu keputusan apa yang terjadi pada saldo yang
+tersisa, dan belum pernah dibahas.
+
+**Next step** — tanya user soal nonaktif membership + saldo, atau lanjut ke
+sisa katalog kasir yang belum punya backend sama sekali (promo OD-032,
+pause, booking, top-up, poin).
+
+---
+
+## 12 Okt 2026 (lanjutan 3) — Halaman Laporan + perapian seluruh halaman (DEC-050)
+
+**Satu kalimat:** menu Laporan berhenti diredupkan, dan sebelas halaman
+akhirnya memakai ukuran yang sama.
+
+### 1. Halaman Laporan
+
+Uang diterima · rental · F&B dengan modalnya · kas bersih · grafik per
+jam/hari · metode bayar · performa per station · pengeluaran per kategori ·
+menu terlaris · uang masuk per operator. Periode: hari ini, 7 hari, 30
+hari, bulan ini, atau rentang tanggal bebas — pilihannya ikut di URL, jadi
+bisa di-bookmark dan dikirim ke orang lain.
+
+Grafiknya batang CSS, bukan pustaka: satu halaman tidak sebanding dengan
+70 KB JavaScript, dan batang yang digambar browser tetap tampil saat skrip
+gagal dimuat.
+
+### 2. Bug yang ketemu karena dua halaman dibandingkan
+
+**Dashboard Rp 346.000, Laporan Rp 394.000 — hari yang sama.**
+
+`whereBetween` inklusif di kedua ujungnya, dipakai di dua belas tempat.
+Transaksi tepat tengah malam terhitung di hari ini **dan** besok. Tidak ada
+error, tidak ada yang ganjil di layar; hanya dua halaman yang tidak
+sepakat. `BusinessDay::range()` sudah memperingatkan ini di komentarnya
+sendiri, dan saya tetap melakukannya.
+
+Ada test yang membandingkan Dashboard dan Laporan untuk hari yang sama, dan
+satu lagi khusus transaksi tepat di batas hari. Keduanya dibuktikan dengan
+mengembalikan `whereBetween` sebentar — langsung merah.
+
+### 3. Tabel yang tidak menjumlah ke totalnya sendiri
+
+Performa Station memakai "sesi yang berakhir" sementara angka besar di
+atasnya memakai "item yang dibuat". Kolom Omzet tidak sama dengan Rental +
+F&B. Sekarang satu dasar, dijaga test.
+
+### 4. HPP dibekukan (`fnb_order_items.unit_hpp`)
+
+Es teh dijual 5.000 modal 1.500 di Januari; Februari HPP diubah jadi 2.500;
+laporan laba Januari **ikut berubah sendirinya**. Kolomnya nullable dan
+tidak diisi mundur — halaman menyebutkan berapa porsi yang belum punya HPP,
+karena laba dari sebagian data bukan laba.
+
+### 5. Perapian sebelas halaman
+
+| Yang berbeda-beda | Sekarang |
+|---|---|
+| Lima varian padding kartu (`p-6`, `p-5`, `p-4 sm:p-5`, `p-4 sm:p-6`, bawaan) | satu bawaan `p-4 sm:p-6`, prop `padding` tidak dipakai lagi |
+| Jarak antar blok `mb-4`/`mb-6`/`mb-8`/`mb-6 sm:mb-8` | `mb-4`; `mb-6` hanya milik `x-page-header` |
+| Dashboard menyusun judulnya sendiri | `x-page-header`, sama dengan sepuluh halaman lain |
+| `gap-6` dan `xl:gap-6` di tiga halaman | `gap-4` |
+| Satu `<h2 class="... mb-3">` | `mb-4` |
+
+Tiga test baru menjaga ketiganya. Tanpa itu, konvensi ini akan melenceng
+lagi pada halaman berikutnya yang ditulis.
+
+**Tiga tombol mati di dashboard dihapus** — "Bulan ini", "Ekspor", "Filter"
+tidak pernah melakukan apa pun sejak disalin dari berkas referensi. Tombol
+yang tidak bekerja lebih buruk daripada tombol yang tidak ada: orang
+menekannya, tidak terjadi apa-apa, dan yang disalahkan sistemnya. Diganti
+satu tautan yang bekerja: **Laporan lengkap**.
+
+### Font
+
+Plus Jakarta Sans memang **sudah** terpasang dan terpakai di semua halaman
+— diperiksa di browser: lima bobot termuat, `font-family` terhitung Plus
+Jakarta Sans di `body` dan heading. Yang kurang adalah penjaganya: test
+`@fonts` hanya memeriksa layout admin, padahal halaman login punya
+`<html>` sendiri dan bisa kehilangan fontnya tanpa satu pun halaman admin
+ikut berubah. Sekarang semua berkas ber-`<html>` diperiksa.
+
+**Files changed**
+
+| | |
+|---|---|
+| Baru | `ReportData.php`, `admin/reports.blade.php`, `tests/Feature/Web/ReportTest.php`, migrasi `unit_hpp` |
+| Diubah | `Web/AdminController.php`, `routes/web.php`, `layouts/app.blade.php` (nav Laporan hidup), `icon.blade.php` (+`chart`), `card.blade.php` (bawaan padding), `FnbService.php`, `FnbOrderItem.php`, 11 berkas halaman admin, `WebDesignTokensTest.php` |
+
+**DB changes** — `fnb_order_items.unit_hpp` nullable unsigned int.
+
+**API/Events** — **tidak ada**. Laporan khusus web; `unit_hpp` tidak pernah
+dikirim ke client. Kontrak tetap DRAFT 20.
+
+**Tests** — **520 lulus** (+25), 1.627 assertion. Dua test dibuktikan
+dengan merusak kodenya dulu.
+
+**Manual test** — 10 halaman × lebar 375 diperiksa dengan semua panel
+terbuka: tidak ada yang meluber. Laporan diperiksa di 375 dan 1366. Dua
+belas sesi demo dibuat di database dev supaya angkanya tidak nol.
+
+**Known issues** — **Ada 12 sesi demo berkode `S-DEMO-…` di database dev**,
+beserta pembayaran dan order F&B-nya. Dibuat supaya halaman Laporan bisa
+dilihat berisi. Hapus dengan:
+`App\Models\BillingSession::where('code','like','S-DEMO-%')->delete();`
+
+Target omzet (PRD §27) belum ada — tidak ada tabelnya, dan belum pernah
+dibahas. Laba bersih juga belum: biaya operasional bulanan belum punya
+tempat.
+
+**Next step** — tanya user soal target omzet & biaya bulanan, atau lanjut
+ke katalog kasir yang belum punya backend (promo OD-032, pause, booking).

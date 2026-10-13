@@ -60,7 +60,7 @@ Aturan:
 
 ## 4. Daftar event
 
-Delapan event sesuai PRD §23. Nama memakai titik.
+Delapan event sesuai PRD §23, ditambah `master.updated` (event kesembilan, di luar PRD — lihat §5). Nama memakai titik.
 
 | Event | Producer | `private-operator` | `private-station.*` |
 |---|---|---|---|
@@ -72,6 +72,7 @@ Delapan event sesuai PRD §23. Nama memakai titik.
 | `payment.confirmed` | Laravel | ✔ | ✘ |
 | `fnb.order.created` | Laravel | ✔ | ✘ |
 | `device.heartbeat` | Laravel *(lihat §6)* | ✔ | ✘ |
+| `master.updated` | Laravel | ✔ | ✘ |
 
 **Tidak ada event warning.** Warning 10/5/1 menit dihitung client dari `end_at` (PRD §16). Mengirimnya lewat WebSocket akan membuat warning hilang saat koneksi putus — justru skenario yang harus selamat.
 
@@ -154,6 +155,41 @@ Memicu badge di F&B Queue Flutter.
   "server_time": "2026-10-02T07:14:50Z" }
 ```
 Untuk screen Device di Flutter dan dashboard Admin.
+
+---
+
+### `master.updated`
+```json
+{ "resource": "package", "action": "updated", "id": "uuid",
+  "server_time": "2026-10-02T07:14:50Z" }
+```
+
+Event **kesembilan**, di luar delapan event PRD §23. Ada karena tanpa itu
+owner yang menaikkan harga di satu tablet tidak punya cara memberi tahu
+tablet lain: layar Start Session akan terus menampilkan harga lama sampai
+seseorang menutup dan membukanya kembali.
+
+`resource`: `package` · `fnb_product` · `station` · `station_type` (dua
+terakhir sejak DEC-048). `action`: `created` · `updated`.
+
+**Payloadnya sengaja ringan**, berbeda dengan `session.updated` yang
+membawa objek utuh. Master data dibaca sebagai DAFTAR: mengirim satu paket
+yang berubah memaksa client menyisipkannya ke daftar yang sudah dipegang —
+dan urutan, penyaringan, serta item yang baru dibuat atau dinonaktifkan
+harus ditangani sendiri. Memuat ulang daftarnya jauh lebih sulit salah, dan
+master data jarang berubah sehingga biayanya tidak terasa.
+
+Yang harus dilakukan client:
+
+| `resource` | Muat ulang |
+|---|---|
+| `package` | `GET /packages` |
+| `fnb_product` | `GET /fnb/products` |
+| `station` | `GET /stations` |
+| `station_type` | `GET /station-types` dan `GET /packages` |
+
+Nilai `resource` yang tidak dikenal **diabaikan**, bukan dianggap error —
+daftarnya bisa bertambah lagi tanpa rilis client baru.
 
 ---
 

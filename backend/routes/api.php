@@ -3,9 +3,9 @@
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\DeviceController;
-use App\Http\Controllers\Api\V1\PackageController;
 use App\Http\Controllers\Api\V1\FnbController;
 use App\Http\Controllers\Api\V1\HealthController;
+use App\Http\Controllers\Api\V1\PackageController;
 use App\Http\Controllers\Api\V1\SessionCancelController;
 use App\Http\Controllers\Api\V1\SessionCheckoutController;
 use App\Http\Controllers\Api\V1\SessionController;
@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\SessionPaymentController;
 use App\Http\Controllers\Api\V1\SessionSwapController;
 use App\Http\Controllers\Api\V1\ShiftController;
 use App\Http\Controllers\Api\V1\StationController;
+use App\Http\Controllers\Api\V1\StationTypeController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -105,6 +106,13 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
         ->middleware(['can:shift.manage', 'idempotency']);
 
     /*
+     * Pengeluaran kasir — DEC-046. Hanya ke shift yang masih terbuka, dan
+     * hanya oleh pemegangnya atau admin; keduanya ditegakkan Service.
+     */
+    Route::post('/shifts/{shift}/expenses', [ShiftController::class, 'storeExpense'])
+        ->middleware(['can:shift.manage', 'idempotency']);
+
+    /*
      * Customer & membership — API.md §6, DEC-027.
      *
      * `customer.create` sekarang dipegang operator juga: DEC-024 meminta
@@ -120,6 +128,15 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
 
     Route::post('/customers', [CustomerController::class, 'store'])
         ->middleware(['can:customer.create', 'idempotency']);
+
+    /*
+     * Memperbaiki data customer — DEC-049. Izinnya `customer.create`, bukan
+     * permission baru: orang yang paling mungkin menyadari nama salah ketik
+     * adalah operator yang baru saja mengetiknya. Permission terpisah
+     * berarti dia harus mencari admin, dan salah ketiknya akan dibiarkan.
+     */
+    Route::patch('/customers/{customer}', [CustomerController::class, 'update'])
+        ->middleware('can:customer.create');
 
     Route::post('/customers/{customer}/membership', [CustomerController::class, 'storeMembership'])
         ->middleware(['can:customer.create', 'idempotency']);
@@ -137,6 +154,31 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
 
     Route::get('/packages', [PackageController::class, 'index'])
         ->middleware('can:package.read');
+
+    Route::get('/station-types', [StationTypeController::class, 'index'])
+        ->middleware('can:station.read');
+
+    /*
+     * Station & tipe konsol bisa ditambah dan diubah — DEC-048 (OD-028).
+     *
+     * Route-nya `can:station.manage` (admin ke atas), lalu SERVICE yang
+     * memisahkan lebih jauh: membuat station, mengubah `code`, dan mengubah
+     * tipe konsolnya butuh owner. Dipisah begitu karena menandai station
+     * rusak adalah kejadian harian, sedangkan mengubah identitasnya tidak.
+     *
+     * Tipe konsol sepenuhnya owner: ia pembawa tarif (DEC-019).
+     */
+    Route::post('/stations', [StationController::class, 'store'])
+        ->middleware(['can:station.manage', 'idempotency']);
+
+    Route::patch('/stations/{station}', [StationController::class, 'update'])
+        ->middleware('can:station.manage');
+
+    Route::post('/station-types', [StationTypeController::class, 'store'])
+        ->middleware(['can:station.manage', 'idempotency']);
+
+    Route::patch('/station-types/{type}', [StationTypeController::class, 'update'])
+        ->middleware('can:station.manage');
 
     /*
      * Mengubah tarif — owner saja (DEC-020). Setiap perubahan memicu
@@ -158,6 +200,15 @@ Route::middleware(['auth:sanctum', 'active.user', 'throttle:api'])->group(functi
      * kalau pemanggilnya bukan owner. Dipisah begitu supaya operator bisa
      * menandai menu habis sendiri tanpa menunggu owner.
      */
+    /*
+     * Menambah menu butuh OWNER, bukan `fnb.manage`: menambah berarti
+     * menetapkan harga, dan DEC-020 menyerahkan setiap angka harga ke owner.
+     * Membolehkan admin menambah produk akan membuka jalan memutar yang
+     * persis sama dengan mengubah harga produk lama.
+     */
+    Route::post('/fnb/products', [FnbController::class, 'storeProduct'])
+        ->middleware(['can:pricing.manage', 'idempotency']);
+
     Route::patch('/fnb/products/{product}', [FnbController::class, 'updateProduct'])
         ->middleware('can:fnb.manage');
 

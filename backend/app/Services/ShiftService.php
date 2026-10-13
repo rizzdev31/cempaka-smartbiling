@@ -6,6 +6,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\SessionItemType;
 use App\Exceptions\ApiException;
 use App\Models\BillingSession;
+use App\Models\CashExpense;
 use App\Models\Payment;
 use App\Models\Shift;
 use App\Models\User;
@@ -96,7 +97,7 @@ class ShiftService
              * berarti ada dua angka yang bisa berbeda. Yang perlu bertahan
              * adalah jejaknya.
              */
-            $expected = (int) $shift->opening_cash + $summary['cash'];
+            $expected = self::expectedCash($shift, $summary);
 
             $this->audit->forUser($actor, AuditAction::SHIFT_CLOSED, [
                 'subject_type' => 'shift',
@@ -126,8 +127,81 @@ class ShiftService
      * diambil karena lebih menjawab pertanyaan "berapa yang terjual saat saya
      * jaga", dan karena uang masuknya sudah terwakili `cash`/`qris`.
      *
-     * @return array{rental: int, fnb: int, cash: int, qris: int, total: int}
+     * @return array{rental: int, fnb: int, cash: int, qris: int, total: int, expense: int}
      */
+    /**
+     * Catat uang yang keluar dari laci — DEC-046.
+     *
+     * Hanya ke shift yang MASIH TERBUKA. Pengeluaran yang ditempelkan ke
+     * shift yang sudah ditutup akan mengubah selisih kas yang sudah
+     * ditandatangani orang lain — dan itu pintu belakang untuk menutupi
+     * selisih setelah ketahuan.
+     */
+    public function recordExpense(Shift $shift, array $input, User $actor): CashExpense
+    {
+        return DB::transaction(function () use ($shift, $input, $actor) {
+            $shift = Shift::query()->lockForUpdate()->findOrFail($shift->id);
+
+            if (! $shift->isOpen()) {
+                throw ApiException::conflict(
+                    ErrorCode::SHIFT_NOT_OPEN,
+                    'Shift ini sudah ditutup — pengeluarannya tidak bisa ditambahkan lagi.',
+                );
+            }
+
+            /*
+             * Yang boleh mencatat: pemegang shift, atau admin ke atas.
+             * Aturan yang sama dengan menutup shift — orang yang tidak
+             * memegang laci itu tidak boleh mengubah isinya.
+             */
+            if ($shift->operator_id !== $actor->id && ! $actor->role->isAdminLevel()) {
+                throw ApiException::forbidden('Hanya pemegang shift atau admin yang boleh mencatat pengeluaran.');
+            }
+
+            $expense = CashExpense::query()->create([
+                'shift_id' => $shift->id,
+                'amount' => (int) $input['amount'],
+                'category' => $input['category'],
+                'note' => $input['note'],
+                'actor_id' => $actor->id,
+            ]);
+
+            $this->audit->forUser($actor, AuditAction::EXPENSE_RECORDED, [
+                'subject_type' => 'shift',
+                'subject_id' => $shift->id,
+                'after' => [
+                    'amount' => $expense->amount,
+                    'category' => $expense->category,
+                    'note' => $expense->note,
+                ],
+            ]);
+
+            return $expense;
+        });
+    }
+
+    /**     * Uang yang SEHARUSNYA ada di laci — DEC-046.
+     *
+     *     Modal awal + Tunai masuk − Pengeluaran
+     *
+     * Suku terakhirnya dulu tidak ada, dan itu membuat kasir yang mengambil
+     * Rp 20.000 untuk beli galon terlihat kekurangan Rp 20.000. Fitur
+     * anti-bocor yang justru jadi sumber tuduhan palsu.
+     *
+     * QRIS tidak ikut: uangnya tidak pernah masuk laci.
+     *
+     * Dipakai `close()` DAN halaman Shift. Satu rumus, bukan dua — angka di
+     * layar dan angka yang dibandingkan saat tutup shift tidak boleh
+     * berbeda, karena selisih di antara keduanya tidak akan pernah bisa
+     * dijelaskan.
+     *
+     * @param  array{cash: int, ...}  $summary  hasil [self::summary]
+     */
+    public static function expectedCash(Shift $shift, array $summary): int
+    {
+        return (int) $shift->opening_cash + $summary['cash'] - $summary['expense'];
+    }
+
     public function summary(Shift $shift): array
     {
         $payments = Payment::query()
@@ -160,6 +234,9 @@ class ShiftService
             'cash' => $byMethod(PaymentMethod::CASH),
             'qris' => $byMethod(PaymentMethod::QRIS_STATIC),
             'total' => (int) $payments->sum('amount'),
+            // DEC-046. Uang yang KELUAR dari laci; nilainya positif, dan
+            // `expectedCash()` yang mengurangkannya.
+            'expense' => (int) $shift->expenses()->sum('amount'),
         ];
     }
 }

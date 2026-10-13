@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['fnb_order_id', 'fnb_product_id', 'name', 'qty', 'unit_price', 'subtotal'])]
+#[Fillable(['fnb_order_id', 'fnb_product_id', 'name', 'qty', 'unit_price', 'unit_hpp', 'subtotal'])]
 class FnbOrderItem extends Model
 {
     use HasUuidKey;

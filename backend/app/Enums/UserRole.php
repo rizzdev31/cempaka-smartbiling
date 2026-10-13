@@ -58,7 +58,10 @@ enum UserRole: string
 
         // Admin = operator + audit. Sejak DEC-027, CUSTOMER_CREATE sudah ada
         // di operator, jadi tidak perlu ditambahkan lagi di sini.
-        $admin = [...$operator, Permission::AUDIT_READ];
+        // DEC-048 — admin boleh menandai station rusak/perbaikan. Membuat
+        // station baru dan mengubah kode/tipenya tetap owner; itu dijaga
+        // MasterDataService, bukan daftar ini.
+        $admin = [...$operator, Permission::AUDIT_READ, Permission::STATION_MANAGE];
 
         return match ($this) {
             // DEC-020 & DEC-028: harga dan diskon hanya milik owner.

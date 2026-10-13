@@ -4,7 +4,7 @@
 > setiap ada perubahan backend. Kalau tidak ada nama Anda di bagian
 > "Perlu dikerjakan", tidak ada yang perlu Anda lakukan.
 
-**Terakhir diperbarui:** 11 Oktober 2026 · **Kontrak:** `v1 DRAFT 16`
+**Terakhir diperbarui:** 12 Oktober 2026 · **Kontrak:** `v1 DRAFT 20`
 
 > **Perubahan batas kerja (10 Okt):** user mencabut aturan "backend saja".
 > Claude sekarang juga menyentuh `operator-app/` dan `tv-agent/`.
@@ -16,8 +16,8 @@
 
 | Bagian | Status |
 |---|---|
-| **Backend (Laravel)** | Tahap 0 **SELESAI**. 32 endpoint, 9 event realtime, 328 test lulus |
-| **Admin Web (Blade)** | **BARU.** Login (Owner & Admin) + dashboard di `/admin`, design system lengkap. Isinya masih **data contoh** |
+| **Backend (Laravel)** | Tahap 0 **SELESAI**. 40 endpoint, 9 event realtime, 520 test lulus |
+| **Admin Web (Blade)** | Login + **11 halaman** di `/admin` (termasuk **Laporan**), data nyata, **penuh layar**, **menyegarkan otomatis**. Bisa ubah harga, stok, status F&B, shift, pengeluaran kasir, **dan menambah/mengubah station, tipe konsol, serta data customer** (DEC-044 s/d 050) |
 | **Operator app (Flutter)** | Layar sudah jadi. Klien API **sudah ada** (`lib/data/api/`) dan alamat server sudah bisa ditemukan otomatis, tapi aplikasi **masih memakai data palsu** — belum dialihkan dan belum ada login |
 | **TV Agent (Kotlin)** | Kiosk + timer jalan, dan sudah bisa **menemukan** server, tapi **belum bicara** dengan Laravel — masih menerima perintah langsung dari tablet |
 
@@ -33,7 +33,9 @@
 | 2 | **Alihkan `main.dart`** dari `FakeBillingRepository` ke `ApiBillingRepository` | Satu baris, tapi sampai itu dilakukan aplikasi tetap memakai data palsu |
 | 3 | Panggil `ServerConnector().connect()` saat `main()` | Kodenya sudah ada tapi **belum dipanggil otomatis** — sekarang baru jalan kalau tombolnya ditekan |
 | 4 | Klien Reverb + reconnect | Tablet tidak tahu apa pun yang terjadi di tablet/TV lain |
-| 5 | Dengarkan `master.updated` → muat ulang `GET /packages` | Harga yang diubah owner tidak akan terlihat |
+| 5 | Dengarkan `master.updated` → muat ulang daftarnya. `resource` sekarang bisa `package`, `fnb_product`, `station`, `station_type` (DEC-048) — **abaikan** nilai yang tidak dikenal, jangan error | Harga, menu, dan station yang diubah owner tidak akan terlihat di tablet sampai aplikasinya dimuat ulang |
+| 6 | **Pakai `expected_cash` dari server** di layar tutup shift — jangan menjumlahkan `opening_cash + cash` sendiri | **DEC-046.** Rumusnya sekarang `modal + tunai − pengeluaran`. Tablet yang menjumlahkan sendiri akan menampilkan angka yang berbeda dari yang dipakai server saat `close()`, dan kasir yang menyetor sesuai layar justru tercatat punya selisih |
+| 7 | Layar **catat pengeluaran** (`POST /shifts/{id}/expenses`) | Yang memegang laci adalah kasir di tablet. Sekarang satu-satunya pintunya ada di Admin Web — artinya kasir harus memanggil owner hanya untuk mencatat Rp 20.000 beli galon |
 
 > ⚠️ Kalau nomor 3 dikerjakan: `connect()` bisa mengembalikan
 > `addressChanged == true`. Saat itu koneksi WebSocket yang sudah terbuka
@@ -52,7 +54,7 @@ paling penting:
 | `items[0]` selalu rental | Postpaid **tidak punya** baris rental sampai checkout |
 | Operator tidak boleh daftarkan member | **Boleh** — tombolnya harus muncul |
 
-Detail lengkap: `docs/contracts/CHANGELOG.md` DRAFT 6 s/d 16.
+Detail lengkap: `docs/contracts/CHANGELOG.md` DRAFT 6 s/d 20.
 
 ---
 
@@ -115,6 +117,32 @@ mengganti alamatnya dan memutus **semua** perangkat sekaligus.
 
 ---
 
+## ⛔ Pembagian peran — DEC-044, diperbarui DEC-045
+
+| | Laravel Admin Web | Flutter Tablet |
+|---|---|---|
+| **Peran** | owner — **punya semua akses** | kasir — melayani customer |
+| Harga, paket, stok, HPP | ✅ **sumbernya** | melihat saja |
+| Mulai sesi, bayar, extend, swap, checkout, batal | ✅ **bisa** (DEC-045) | ✅ jalur sehari-hari |
+| Kas, laporan, audit, pembayaran | ✅ | — |
+| Daftar member baru | ✅ | ✅ |
+
+> **Untuk Flutter:** jangan bangun layar pengaturan harga atau stok. Begitu
+> sebuah pengaturan ada di Laravel, Flutter **tidak** membuat salinannya.
+>
+> **DEC-045:** Laravel sekarang juga bisa menjalankan operasi sesi. Itu
+> jalur owner, bukan pengganti kasir — tablet tetap yang dipakai melayani.
+
+**Sekarang ada DUA pintu ke operasi yang memegang uang.** Itu aman hanya
+karena keduanya memanggil Service yang sama. Kalau Anda menambah aksi web
+baru, **salin juga `can:` dari `routes/api.php`** — dua pintu dengan gerbang
+berbeda sama saja dengan satu pintu tanpa gerbang.
+
+**Realtime = polling tiap 10 detik**, bukan Reverb. Reverb sudah dua kali
+mati diam-diam. Penyegaran dilewati selama ada yang mengetik **atau** ada
+panel aksi yang terbuka.
+
+---
 ## Admin Web dimulai — DEC-042
 
 Ada permukaan **ketiga** sekarang: Laravel Blade di `/admin`. Bentuknya dari
@@ -132,12 +160,18 @@ Lalu buka `http://localhost:8000/admin`.
 | **Tablet dan TV tidak berubah** | Web punya spec sendiri: `docs/UI-UX-SPEC-WEB.md`. `UI-UX-SPEC.md` tetap berlaku penuh di Flutter dan Kotlin |
 | **Warnanya sama persis** | Teal Amor ternyata skala `cyan` Tailwind: `primary #0E7490` = `cyan-700`. Sebuah test membaca `tokens.dart` dan gagal kalau keduanya menyimpang |
 | **Font: Plus Jakarta Sans saja** | Berbeda dari tablet yang memakai tiga family |
-| **Isinya data contoh** | `DashboardSampleData`, dengan spanduk peringatan yang tidak bisa dimatikan |
+| **Datanya nyata** | `DashboardSampleData` sudah dihapus. Database dev masih kosong transaksi, jadi angkanya nol — itu benar, bukan rusak |
+| ⚠️ **Batas "hari ini" = tengah malam WIB** | DB menyimpan UTC; `BusinessDay` yang menggeser batasnya. **Jangan pakai `whereDate(..., today())`** di query laporan — itu memotong pada 07:00 WIB dan membuang omzet dini hari ke hari sebelumnya |
 | **Login sudah ada** (DEC-043) | Guard **session**, bukan Sanctum — tablet tidak terpengaruh. Masuk dengan `owner` atau `admin`; **operator ditolak**, dia memakai tablet |
 
-> **Kalau Anda menyentuh Blade:** jangan tulis `bg-blue-600`, `text-gray-400`,
-> atau hex mentah. Semua warna lewat token di `resources/css/app.css`.
-> `php artisan test --filter=WebDesignTokensTest` akan gagal kalau tidak.
+> **Kalau Anda menyentuh Blade**, tiga aturan ini ditegakkan test
+> (`php artisan test --filter=WebDesignTokensTest`):
+>
+> 1. Semua warna lewat token di `app.css` — bukan `bg-blue-600`, bukan hex.
+> 2. Kelas warna **ditulis utuh**, jangan dirangkai (`bg-{$nada}-surface`
+>    tidak pernah dibuat Tailwind, dan hasilnya badge tanpa warna).
+> 3. Setiap sel tabel wajib punya `data-label` — tabel berubah jadi kartu
+>    bertumpuk di bawah 768px, dan sel tanpa label tampil tanpa keterangan.
 
 ---
 
@@ -182,7 +216,6 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 - Paket yang sudah termasuk F&B (DEC-037) — menunggu durasi paket minuman
 - Harga per jam sepi / happy hour (OD-025)
-- Ubah station & tipe konsol (OD-028)
 - Booking, payment gateway, laporan — semuanya Tahap 3
 
 ---
@@ -191,6 +224,17 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 | Tanggal | Isi |
 |---|---|
+| 12 Okt 2026 | **DEC-050** — halaman **Laporan** jadi. HPP dibekukan ke baris order. Bug: `whereBetween` membuat transaksi tengah malam terhitung dua hari — Dashboard dan Laporan beda Rp 48.000. Sebelas halaman dirapikan ke satu skala padding & jarak |
+| 12 Okt 2026 | **DEC-049** — data customer bisa diperbaiki (`PATCH /customers/{id}`). Jalur web yang selama ini menambah customer **tanpa audit** ikut diperbaiki |
+| 12 Okt 2026 | **DEC-048** — station & tipe konsol bisa ditambah/diubah dari web. Permission baru `station.manage`. Kode station terkunci selama TV terdaftar; tipe terkunci selama ada sesi berjalan |
+| 12 Okt 2026 | **DEC-047** — F&B walk-in (OD-030) **ditutup tanpa dibangun**. User: tidak bisa beli F&B saja, minimal sewa; teman yang ikut beli masuk ke sesi yang menyewa. `fnb_orders.session_id` tetap NOT NULL |
+| 12 Okt 2026 | **DEC-046** — pengeluaran kasir dicatat (`POST /shifts/{id}/expenses`), `expected_cash` dihitung server. Rekonsiliasi laci berhenti menuduh kasir jujur. Bug: seluruh halaman bisa digeser menyamping di laptop 1366px — titik tukar nav dipindah ke 2xl |
+| 11 Okt 2026 | **DEC-045** — Laravel punya SEMUA akses: mulai sesi, bayar, extend, swap, F&B, checkout, batal, buka shift |
+| 11 Okt 2026 | 7 celah "backend ada, UI belum" ditutup: detail sesi, struk WA, pembayaran, daftar member, tambah menu, HPP. `POST /fnb/products` baru (DRAFT 17) |
+| 11 Okt 2026 | **DEC-044** — Laravel mengatur semuanya, Flutter melayani. Web bisa ubah harga/stok/shift, menyegarkan otomatis tiap 10 detik |
+| 11 Okt 2026 | Admin Web jadi **penuh layar** — pagar 1240px dibuang, grid menambah kolom, header sticky |
+| 11 Okt 2026 | **8 halaman Admin Web** — sesi, station, F&B, harga, customer, shift, audit. Semuanya responsif sampai 375px |
+| 11 Okt 2026 | Dashboard Admin Web memakai **data nyata**; data contoh dihapus. Audit fitur kasir → OD-029/030/031 |
 | 11 Okt 2026 | **Login Admin Web** (DEC-043) — guard session, Owner & Admin saja, pemeriksa kredensial dibagi dengan API |
 | 11 Okt 2026 | **Admin Web dimulai** (DEC-042) — dashboard Blade di `/admin`, design system teal Amor + bentuk referensi |
 | 10 Okt 2026 | Penemuan server otomatis (DEC-041) di Flutter **dan** Kotlin. `/health` menyebut identitasnya; `APP_ID` jadi kontrak |

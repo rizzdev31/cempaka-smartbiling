@@ -610,6 +610,45 @@ dihapus.
 
 ---
 
+## v1 · DRAFT 17 — 2026-10-11
+
+Menu F&B bisa ditambah lewat API, dan HPP bisa diubah.
+
+**ADDED — API** · Admin Web · **DEC-044**
+- `POST /fnb/products` — menu baru. **Owner saja** (`can:pricing.manage`),
+  bukan `fnb.manage`. Menambah produk berarti **menetapkan harganya**, dan
+  DEC-020 menyerahkan setiap angka harga ke owner; membolehkan admin
+  menambah produk akan membuka jalan memutar yang persis sama dengan
+  mengubah harga produk lama. 201 + objek `fnb_product`, butuh
+  `Idempotency-Key`.
+
+```json
+{ "category": "Minuman", "name": "Es Jeruk", "price": 7000, "hpp": 3000, "stock": null }
+```
+
+`category` dibatasi pada kategori yang **sudah ada di database**, bukan
+teks bebas. "MINUMAN", "Minuman", dan "minuman " akan tampil sebagai tiga
+kelompok berbeda di halaman menu, dan tidak ada yang menyadari sampai
+daftarnya jadi panjang. Konsekuensinya kategori baru hanya lewat seeder.
+
+**ADDED — API** · `PATCH /fnb/products/{id}`
+- Field `hpp` sekarang diterima (`nullable`, integer).
+
+**CHANGED — izin** · ⚠️ perhatikan
+- `hpp` ikut **dikunci untuk owner**, sama seperti `price`. Ia bukan harga
+  yang dibayar customer, tapi ia menentukan margin di setiap laporan laba —
+  dan angka yang mengubah laporan laba adalah angka yang paling menggoda
+  untuk dirapikan. Dikunci dulu sampai user memutuskan (**OD-033**);
+  melonggarkan nanti jauh lebih murah daripada menarik kembali akses yang
+  terlanjur diberikan.
+
+**Yang perlu diketahui Flutter**
+
+Tidak ada yang wajib dikerjakan. Tapi kalau nanti ada layar menu di tablet:
+`price` dan `hpp` akan ditolak 403 untuk operator maupun admin. `stock` dan
+`is_available` tetap boleh — "Mie Goreng habis" kejadian harian.
+
+---
 ## v1 · DRAFT <n> — YYYY-MM-DD
 
 **<JENIS> — API|REALTIME** · terdampak: Flutter | Kotlin | Admin | semua
@@ -617,3 +656,128 @@ dihapus.
 - alasan + referensi DEC/OD
 - aksi yang harus dilakukan client
 ```
+
+---
+
+## v1 · DRAFT 18 — 2026-10-12
+
+Pengeluaran kasir akhirnya punya tempat, dan hitungan laci berhenti salah.
+
+**ADDED — API** · Flutter · Admin Web · **DEC-046** (menutup OD-029)
+- `POST /shifts/{id}/expenses` — catat uang yang keluar dari laci.
+  `can:shift.manage` + `Idempotency-Key`. 201 + objek pengeluaran, dengan
+  shift yang sudah diperbarui ikut di dalamnya.
+
+```json
+{ "amount": 20000, "category": "Galon & air", "note": "beli galon 2 buah" }
+```
+
+- `category` daftar tertutup: `Bahan F&B`, `Galon & air`, `Kebersihan`,
+  `Perbaikan`, `Listrik & utilitas`, `Lainnya`.
+- `note` **wajib**, minimal 3 huruf. Pengeluaran tanpa keterangan persis
+  yang tidak bisa dijelaskan saat laporan diperiksa.
+- Shift sudah ditutup → `409 SHIFT_NOT_OPEN`. Bukan pemegangnya dan bukan
+  admin → `403`.
+- **Tidak ada endpoint hapus**, dan itu disengaja.
+
+**ADDED — API** · Flutter · objek `shift`
+- `summary.expense` — total pengeluaran shift ini. **Positif**; yang
+  mengurangkan adalah `expected_cash`.
+- `expected_cash` — `opening_cash + summary.cash − summary.expense`,
+  dihitung **server**.
+
+**Kenapa `expected_cash` dikirim server, bukan dihitung client**
+
+Rumus itu sudah salah sekali karena sukunya kurang. Kalau client
+menghitungnya sendiri, layar tablet dan hitungan `close()` bisa berbeda —
+dan kasir yang menyetor uang **sesuai angka di layarnya** justru tercatat
+punya selisih. Selisih seperti itu tidak akan pernah bisa dijelaskan.
+
+Flutter yang sudah menampilkan "kas seharusnya" **wajib** berhenti
+menjumlahkan sendiri dan memakai `expected_cash`. Tidak breaking: field
+lama tidak berubah, hanya bertambah.
+
+---
+
+## v1 · DRAFT 19 — 2026-10-12
+
+Station dan tipe konsol tidak lagi hanya bisa diubah lewat seeder.
+
+**ADDED — API** · Admin Web · Flutter (opsional) · **DEC-048** (menutup OD-028)
+- `POST /stations`, `PATCH /stations/{id}`
+- `GET /station-types`, `POST /station-types`, `PATCH /station-types/{id}`
+
+**ADDED — permission** · semua client
+- `station.manage` masuk ke `data.user.permissions` untuk **ADMIN** dan
+  **OWNER**. Additive — tidak ada permission yang hilang, dan client yang
+  mengabaikannya tetap bekerja.
+
+**Pembagian izin yang tidak terlihat dari daftar route**
+
+`can:station.manage` di route (admin ke atas), lalu Service menolak kalau
+pemanggilnya bukan owner untuk: **membuat station**, mengubah `code`, dan
+mengubah `station_type_id`. Tipe konsol owner sepenuhnya.
+
+Polanya sama dengan `PATCH /fnb/products` — route longgar, field dikunci.
+Client yang menyembunyikan tombol berdasarkan permission saja akan
+menampilkan form yang sebagian field-nya ditolak; pakai `role` untuk
+field-field itu.
+
+**Tiga `409` baru yang perlu ditangani**
+
+| Kondisi | Error |
+|---|---|
+| Ubah `code` saat TV terdaftar | `STATION_HAS_DEVICE` |
+| Ubah tipe saat ada sesi berjalan | `STATION_HAS_ACTIVE_SESSION` |
+| Nonaktifkan tipe yang dipakai station aktif | `STATION_NOT_AVAILABLE` |
+
+Ketiganya memakai error code yang **sudah ada** — tidak ada code baru yang
+perlu ditambahkan ke penanganan client.
+
+**CHANGED — `master.updated`** · Flutter
+- `resource` sekarang bisa bernilai `station` dan `station_type`, selain
+  `package` dan `fnb_product`. Client yang hanya mengenali dua nilai lama
+  harus **mengabaikan** yang tidak dikenal, bukan error — dan sebaiknya
+  memuat ulang `GET /stations` saat menerima `station`.
+
+**TIDAK ADA `DELETE`, dan itu permanen**
+
+Station dan tipe konsol dipegang setiap sesi yang pernah berjalan di
+atasnya. Menghapusnya membuang dasar harga dari riwayat yang sudah dibayar.
+Yang pensiun: `status: "DISABLED"` untuk station, `is_active: false` untuk
+tipe.
+
+---
+
+## v1 · DRAFT 20 — 2026-10-12
+
+Data customer akhirnya bisa diperbaiki.
+
+**ADDED — API** · Flutter · Admin Web · **DEC-049**
+- `PATCH /customers/{id}` — `name`, `phone`, `note`. Izin `customer.create`
+  (sama dengan membuat), **tanpa** `Idempotency-Key`: ini bukan pembuatan
+  data baru.
+
+Semua field `sometimes`. `phone` tetap unik, tapi aturannya mengabaikan
+baris itu sendiri — mengirim nomor yang tidak diubah tidak boleh ditolak.
+
+**Saldo, membership, dan riwayat sesi tidak ikut berubah** saat nama atau
+nomor diubah. Semuanya menempel ke `customer_id`.
+
+**Kenapa izinnya bukan permission baru**
+
+Orang yang paling mungkin menyadari nama salah ketik adalah operator yang
+baru saja mengetiknya. Permission terpisah berarti dia harus mencari admin,
+dan salah ketiknya akan dibiarkan — yang persis keadaan sebelum ini.
+
+**Untuk Flutter:** layar member sekarang bisa punya tombol "perbaiki data".
+Tidak wajib, tapi ia menutup kasus nyata — nomor HP yang kurang satu angka
+membuat struk WA tidak pernah sampai, dan sebelum ini satu-satunya jalan
+keluar adalah membuat customer kedua.
+
+**Audit** · Admin Web
+- Action baru `customer.updated`, menyimpan nilai sebelum dan sesudah.
+- `customer.created` sekarang **juga** tercatat saat customer ditambahkan
+  dari Admin Web. Sebelumnya jalur web melewatkannya sepenuhnya — bukan
+  perubahan kontrak, tapi laporan audit sebelum tanggal ini tidak lengkap
+  untuk customer yang dibuat dari web.
