@@ -4,7 +4,7 @@
 > setiap ada perubahan backend. Kalau tidak ada nama Anda di bagian
 > "Perlu dikerjakan", tidak ada yang perlu Anda lakukan.
 
-**Terakhir diperbarui:** 12 Oktober 2026 · **Kontrak:** `v1 DRAFT 20`
+**Terakhir diperbarui:** 13 Oktober 2026 · **Kontrak:** `v1 DRAFT 20`
 
 > **Perubahan batas kerja (10 Okt):** user mencabut aturan "backend saja".
 > Claude sekarang juga menyentuh `operator-app/` dan `tv-agent/`.
@@ -18,7 +18,7 @@
 |---|---|
 | **Backend (Laravel)** | Tahap 0 **SELESAI**. 40 endpoint, 9 event realtime, 520 test lulus |
 | **Admin Web (Blade)** | Login + **11 halaman** di `/admin` (termasuk **Laporan**), data nyata, **penuh layar**, **menyegarkan otomatis**. Bisa ubah harga, stok, status F&B, shift, pengeluaran kasir, **dan menambah/mengubah station, tipe konsol, serta data customer** (DEC-044 s/d 050) |
-| **Operator app (Flutter)** | Layar sudah jadi. Klien API **sudah ada** (`lib/data/api/`) dan alamat server sudah bisa ditemukan otomatis, tapi aplikasi **masih memakai data palsu** — belum dialihkan dan belum ada login |
+| **Operator app (Flutter)** | **Memakai data server sungguhan (11 Okt).** Layar masuk + gate auth + token tersimpan; `ApiBillingRepository` menggantikan fake. 237 test lulus. Belum ada: klien Reverb, dan `ServerConnector().connect()` belum dipanggil otomatis |
 | **TV Agent (Kotlin)** | Kiosk + timer jalan, dan sudah bisa **menemukan** server, tapi **belum bicara** dengan Laravel — masih menerima perintah langsung dari tablet |
 
 ---
@@ -29,15 +29,15 @@
 |---|---|---|
 | ✅ | **`ApiBillingRepository`** — sudah ditulis di `lib/data/api/`, 20 method, `flutter analyze` bersih | — |
 | ✅ | **Penemuan server otomatis** — `server_discovery.dart` + tombol **Cari otomatis** di Pengaturan | — |
-| 1 | **Layar login** + simpan token | Tanpa token, semua endpoint selain `/health` ditolak |
-| 2 | **Alihkan `main.dart`** dari `FakeBillingRepository` ke `ApiBillingRepository` | Satu baris, tapi sampai itu dilakukan aplikasi tetap memakai data palsu |
-| 3 | Panggil `ServerConnector().connect()` saat `main()` | Kodenya sudah ada tapi **belum dipanggil otomatis** — sekarang baru jalan kalau tombolnya ditekan |
-| 4 | Klien Reverb + reconnect | Tablet tidak tahu apa pun yang terjadi di tablet/TV lain |
-| 5 | Dengarkan `master.updated` → muat ulang daftarnya. `resource` sekarang bisa `package`, `fnb_product`, `station`, `station_type` (DEC-048) — **abaikan** nilai yang tidak dikenal, jangan error | Harga, menu, dan station yang diubah owner tidak akan terlihat di tablet sampai aplikasinya dimuat ulang |
-| 6 | **Pakai `expected_cash` dari server** di layar tutup shift — jangan menjumlahkan `opening_cash + cash` sendiri | **DEC-046.** Rumusnya sekarang `modal + tunai − pengeluaran`. Tablet yang menjumlahkan sendiri akan menampilkan angka yang berbeda dari yang dipakai server saat `close()`, dan kasir yang menyetor sesuai layar justru tercatat punya selisih |
-| 7 | Layar **catat pengeluaran** (`POST /shifts/{id}/expenses`) | Yang memegang laci adalah kasir di tablet. Sekarang satu-satunya pintunya ada di Admin Web — artinya kasir harus memanggil owner hanya untuk mencatat Rp 20.000 beli galon |
+| ✅ | **Layar login** + token tersimpan — gate auth tunggal di `app.dart` | — |
+| ✅ | **`ApiBillingRepository` dipakai** — fake tinggal untuk test | — |
+| 1 | Panggil `ServerConnector().connect()` saat `main()` | Kodenya sudah ada tapi **belum dipanggil otomatis** — sekarang baru jalan kalau tombolnya ditekan |
+| 2 | Klien Reverb + reconnect | Tablet tidak tahu apa pun yang terjadi di tablet/TV lain |
+| 3 | Dengarkan `master.updated` → muat ulang daftarnya. `resource` sekarang bisa `package`, `fnb_product`, `station`, `station_type` (DEC-048) — **abaikan** nilai yang tidak dikenal, jangan error | Harga, menu, dan station yang diubah owner tidak akan terlihat di tablet sampai aplikasinya dimuat ulang |
+| ✅ | **`expected_cash` dari server dipakai** (13 Okt) — `Shift.expectedCash` tidak lagi menghitung sendiri, dan fallback-nya ikut rumus DEC-046 di layar tutup shift — jangan menjumlahkan `opening_cash + cash` sendiri | **DEC-046.** Rumusnya sekarang `modal + tunai − pengeluaran`. Tablet yang menjumlahkan sendiri akan menampilkan angka yang berbeda dari yang dipakai server saat `close()`, dan kasir yang menyetor sesuai layar justru tercatat punya selisih |
+| 4 | Layar **catat pengeluaran** (`POST /shifts/{id}/expenses`) | Yang memegang laci adalah kasir di tablet. Sekarang satu-satunya pintunya ada di Admin Web — artinya kasir harus memanggil owner hanya untuk mencatat Rp 20.000 beli galon |
 
-> ⚠️ Kalau nomor 3 dikerjakan: `connect()` bisa mengembalikan
+> ⚠️ Kalau nomor 1 dikerjakan: `connect()` bisa mengembalikan
 > `addressChanged == true`. Saat itu koneksi WebSocket yang sudah terbuka
 > **harus dibangun ulang** — ia tidak akan error sendiri, hanya diam.
 

@@ -1739,6 +1739,65 @@ memuat 6 station dari server.
 
 ---
 
+### 2026-10-13 — Sinkronisasi klien dengan backend: satu bug uang ditemukan
+
+**Files changed** — `operator-app/lib/domain/models/models.dart`,
+`operator-app/test/shift_test.dart`, `SYNC.md`.
+**DB changes** — tidak ada.
+
+**Bug uang: kas seharusnya dihitung dua kali dengan rumus berbeda**
+
+DEC-046 menambahkan pengeluaran kasir ke rumus kas. Server:
+
+```
+expected_cash = modal + tunai − pengeluaran
+```
+
+Tablet menghitung versinya sendiri dan **melewatkan pengeluaran**:
+`openingCash + summary.cash`.
+
+Akibatnya persis seperti yang diperingatkan `SYNC.md`: kasir melihat angka
+**lebih besar** daripada yang dipakai server saat `close()`, menyetor sesuai
+layar, lalu **tercatat punya selisih yang tidak pernah dia buat**. Selisih
+itu yang diaudit (PRD §24).
+
+Diperbaiki: `Shift.expectedCash` memakai `expected_cash` dari server apa
+adanya. `ShiftSummary.expense` ditambahkan karena sebelumnya field itu
+dibuang saat parsing. Fallback tetap ada untuk jaga-jaga, tapi rumusnya
+**dibuat sama persis** supaya tidak ada dua jawaban berbeda.
+
+Empat test mengunci ini, termasuk satu yang memastikan **angka server menang**
+walau berbeda dari hitungan lokal.
+
+> Ini contoh kenapa "klien menghitung sendiri angka yang juga dihitung
+> server" berbahaya walau rumusnya sedang sama: ia tidak salah saat ditulis,
+> ia jadi salah saat server berubah — tanpa satu pun test gagal.
+
+**`SYNC.md` diselaraskan**
+
+Ditulis 12 Okt tanpa tahu login Flutter sudah selesai 11 Okt. Item 1 (layar
+login) dan 2 (alihkan `main.dart`) masih tertulis sebagai pekerjaan, dan
+baris keadaan masih menyebut operator app "masih memakai data palsu".
+
+Ditandai selesai, sisanya dinomori ulang, dan `expected_cash` ikut ditandai
+selesai. Catatan ⚠️ yang menunjuk "nomor 3" ikut disesuaikan.
+
+**Tidak ada pekerjaan lokal yang hilang saat merge** — diperiksa lewat
+reflog dan stash sebelum menyentuh apa pun.
+
+**Tests** — Flutter **241 lulus** (+4), `analyze` bersih.
+
+**Known issues**
+- Sisa pekerjaan Flutter (`SYNC.md`): `ServerConnector().connect()` otomatis,
+  klien Reverb, `master.updated`, layar catat pengeluaran.
+- Layar catat pengeluaran belum ada di tablet — kasir yang memegang laci
+  harus memanggil owner hanya untuk mencatat pengeluaran kecil.
+
+**Next step**
+Jalankan operator app ke server dan buktikan dashboard memuat 6 station.
+
+---
+
 ## SESI TV — diisi saat menguji
 
 ### Pairing

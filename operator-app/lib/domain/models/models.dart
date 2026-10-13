@@ -616,6 +616,7 @@ class ShiftSummary {
     required this.cash,
     required this.qris,
     required this.total,
+    this.expense = 0,
   });
 
   final int rental;
@@ -624,12 +625,18 @@ class ShiftSummary {
   final int qris;
   final int total;
 
+  /// Pengeluaran kasir dari laci selama shift (DEC-046).
+  ///
+  /// Mengurangi kas yang seharusnya ada — lihat [Shift.expectedCash].
+  final int expense;
+
   factory ShiftSummary.fromJson(Map<String, dynamic> j) => ShiftSummary(
         rental: _int(j['rental']),
         fnb: _int(j['fnb']),
         cash: _int(j['cash']),
         qris: _int(j['qris']),
         total: _int(j['total']),
+        expense: _int(j['expense']),
       );
 
   static const zero =
@@ -646,6 +653,7 @@ class Shift {
     this.closedAt,
     this.closingCash,
     this.note,
+    this.serverExpectedCash,
   });
 
   final String id;
@@ -662,11 +670,26 @@ class Shift {
   final ShiftSummary summary;
   final String? note;
 
+  /// `expected_cash` apa adanya dari server. Lihat [expectedCash].
+  final int? serverExpectedCash;
+
   bool get isOpen => closedAt == null;
 
-  /// Kas yang **seharusnya** ada di kotak: kas awal + penerimaan tunai.
-  /// QRIS tidak dihitung karena tidak masuk kotak kas.
-  int get expectedCash => openingCash + summary.cash;
+  /// Kas yang **seharusnya** ada di kotak.
+  ///
+  /// **Angka dari server yang dipakai**, bukan hitungan sendiri. Server
+  /// memakai angka ini saat `close()` untuk menentukan selisih; kalau tablet
+  /// menghitung versinya sendiri dan keduanya berbeda, kasir menyetor sesuai
+  /// layar lalu tercatat punya selisih yang tidak pernah dia buat.
+  ///
+  /// Rumusnya `modal + tunai − pengeluaran` (DEC-046). Versi sebelumnya di
+  /// sini melewatkan pengeluaran — QRIS memang tidak dihitung karena tidak
+  /// masuk laci, tapi pengeluaran justru keluar dari laci.
+  ///
+  /// Fallback dipakai hanya kalau server tidak mengirimnya, dan rumusnya
+  /// dibuat sama persis supaya tidak ada dua jawaban yang berbeda.
+  int get expectedCash =>
+      serverExpectedCash ?? (openingCash + summary.cash - summary.expense);
 
   /// Selisih antara kas yang dihitung dan kas yang seharusnya.
   /// Positif = lebih, negatif = kurang. `null` kalau shift belum ditutup.
@@ -686,6 +709,7 @@ class Shift {
             ? ShiftSummary.zero
             : ShiftSummary.fromJson(j['summary'] as Map<String, dynamic>),
         note: j['note'] as String?,
+        serverExpectedCash: (j['expected_cash'] as num?)?.toInt(),
       );
 }
 

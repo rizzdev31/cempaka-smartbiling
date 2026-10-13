@@ -3,6 +3,7 @@ import 'package:operator_app/core/time/server_time.dart';
 import 'package:operator_app/data/fake/fake_billing_repository.dart';
 import 'package:operator_app/domain/errors/api_error.dart';
 import 'package:operator_app/domain/models/enums.dart';
+import 'package:operator_app/domain/models/models.dart';
 import 'package:operator_app/ui/shift/shift_controller.dart';
 
 /// Test shift — PRD §18 "Start/close shift, handover" dan kontrak §10.
@@ -276,6 +277,84 @@ void main() {
             'mengubah kas seharusnya',
       );
       expect(ctrl.current!.summary.qris, greaterThanOrEqualTo(amount));
+    });
+  });
+
+  // ── Kas seharusnya: angka server, bukan hitungan tablet ───────────
+  //
+  // DEC-046 menambahkan pengeluaran kasir ke rumusnya. Sebelum ini tablet
+  // menghitung `modal + tunai` sendiri dan melewatkan pengeluaran — kasir
+  // melihat angka lebih besar daripada yang dipakai server saat menutup
+  // shift, menyetor sesuai layar, lalu tercatat punya selisih yang tidak
+  // pernah dia buat.
+  group('Kas seharusnya mengikuti server', () {
+    Map<String, dynamic> shiftJson({
+      required int openingCash,
+      required int cash,
+      required int expense,
+      int? expectedCash,
+    }) =>
+        {
+          'id': 'shift-1',
+          'operator': {'id': 'u-1', 'name': 'Kasir'},
+          'opened_at': '2026-10-13T01:00:00Z',
+          'opening_cash': openingCash,
+          'summary': {
+            'rental': 0,
+            'fnb': 0,
+            'cash': cash,
+            'qris': 0,
+            'total': cash,
+            'expense': expense,
+          },
+          if (expectedCash != null) 'expected_cash': expectedCash,
+        };
+
+    test('pengeluaran mengurangi kas seharusnya', () {
+      final shift = Shift.fromJson(shiftJson(
+        openingCash: 200000,
+        cash: 500000,
+        expense: 20000,
+        expectedCash: 680000,
+      ));
+
+      expect(shift.summary.expense, 20000);
+      expect(shift.expectedCash, 680000);
+    });
+
+    test('angka server dipakai apa adanya, bukan dihitung ulang', () {
+      // Kalau server dan tablet pernah berbeda, yang menang harus server —
+      // karena angka itulah yang dipakai menentukan selisih saat close().
+      final shift = Shift.fromJson(shiftJson(
+        openingCash: 200000,
+        cash: 500000,
+        expense: 20000,
+        expectedCash: 999999,
+      ));
+
+      expect(shift.expectedCash, 999999);
+    });
+
+    test('tanpa expected_cash dari server, rumus fallback ikut DEC-046', () {
+      final shift = Shift.fromJson(shiftJson(
+        openingCash: 200000,
+        cash: 500000,
+        expense: 20000,
+      ));
+
+      expect(shift.expectedCash, 680000,
+          reason: 'fallback tidak boleh melewatkan pengeluaran');
+    });
+
+    test('selisih dihitung dari kas seharusnya milik server', () {
+      final json = shiftJson(
+        openingCash: 200000,
+        cash: 500000,
+        expense: 20000,
+        expectedCash: 680000,
+      )..['closing_cash'] = 675000;
+
+      expect(Shift.fromJson(json).variance, -5000);
     });
   });
 }
