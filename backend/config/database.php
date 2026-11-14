@@ -17,7 +17,18 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    /*
+     * MySQL, bukan `sqlite` seperti bawaan Laravel.
+     *
+     * Semua data aplikasi ini hidup di MySQL — termasuk `cache`, `jobs`,
+     * `web_sessions`, dan `idempotency_keys`. Kalau `DB_CONNECTION` lupa
+     * diisi saat deploy, bawaan `sqlite` membuat Laravel diam-diam membuat
+     * `database/database.sqlite` baru yang kosong: server menyala, `/health`
+     * menjawab, login gagal tanpa alasan yang jelas, dan transaksi hari itu
+     * masuk ke berkas yang tidak pernah di-backup. Gagal keras di sini jauh
+     * lebih murah.
+     */
+    'default' => env('DB_CONNECTION', 'mysql'),
 
     /*
     |--------------------------------------------------------------------------
