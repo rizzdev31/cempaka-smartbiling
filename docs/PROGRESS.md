@@ -4463,3 +4463,78 @@ DEC-051; pengiriman ke pusat baru berguna setelah ada transaksi nyata.
 
 **Next step** — jalankan ulang seluruh test di basis ini, lalu lanjut ke
 pekerjaan Tahap 1/2 yang tersisa di `SYNC.md`.
+
+---
+
+### 2026-11-15 — Admin Web tidak bisa di-build: pengambilan font saat build dimatikan
+
+**Gejala** — setiap halaman `/admin` menjawab 500:
+
+```
+ViteManifestNotFoundException: Vite manifest not found at: backend/public/build/manifest.json
+```
+
+**Sebab** — `npm run build` gagal, bukan karena kode:
+
+```
+[plugin laravel:fonts] TypeError: fetch failed ... AggregateError [ETIMEDOUT]
+```
+
+`vite.config.js` memakai `bunny('Plus Jakarta Sans', ...)`, yang mengunduh font
+dari fonts.bunny.net **saat build** lalu men-self-host hasilnya. Niatnya benar
+(DEC-002: halaman tidak boleh menarik font dari CDN saat dibuka), tapi
+build-nya sendiri jadi menuntut internet.
+
+Diuji dari shell user sendiri, bukan dari sandbox:
+
+```
+Test-NetConnection fonts.bunny.net -Port 443
+WARNING: TCP connect to (156.146.56.170 : 443) failed
+WARNING: TCP connect to (2400:52e0:1500::1173:1 : 443) failed
+```
+
+Gagal di IPv4 **dan** IPv6. `raw.githubusercontent.com` juga tidak terjangkau,
+jadi mengunduh fontnya dari sumber lain pun tidak bisa saat ini.
+
+**Kenapa ini lebih dari gangguan lokal** — `backend/public/build` ada di
+`.gitignore`, jadi aset tidak pernah ikut repo dan **setiap mesin wajib
+menjalankan `npm run build` sendiri**, termasuk LXC di lokasi. Build yang
+menuntut internet bertentangan langsung dengan DEC-051, yang justru menuntut
+lokasi tetap jalan tanpa internet.
+
+**Yang dikerjakan** — entri `fonts:` dihapus dari `vite.config.js`, diganti
+komentar yang menjelaskan sebabnya dan cara mengembalikan fontnya tanpa
+mengorbankan build offline: taruh `.woff2` di `resources/fonts/`, commit
+(OFL), tulis `@font-face` di `app.css`. Dicatat sebagai **OD-035**.
+
+Build sekarang tidak menyentuh jaringan sama sekali:
+
+```
+✓ 3 modules transformed.
+public/build/manifest.json             0.33 kB
+public/build/assets/app-U2XLXMU9.css  81.18 kB
+public/build/assets/app-Cj5RjCJ0.js    1.26 kB
+✓ built in 945ms
+```
+
+**Files changed** — `backend/vite.config.js`, `SYNC.md`, `docs/DECISION-LOG.md`
+(OD-035), `docs/PROGRESS.md`.
+
+**Tests** — backend **520/520 lulus** (sebelumnya 474/520; 46 kegagalan
+seluruhnya `ViteManifestNotFound`, nol dari sebab lain).
+
+**Manual test**
+1. `npm.cmd run build` → manifest terbentuk.
+2. `curl` alur web: `/` → 302 `/admin` → 302 `/login` → 200.
+3. Login `owner` di browser → Dashboard tampil penuh: 11 menu (Dashboard, Sesi,
+   Station & TV, F&B, Harga & Paket, Pembayaran, Customer, Shift, Audit,
+   Laporan), data nyata (Rp 0, 0/6 station), penyegaran otomatis tiap 10 detik.
+   Tata letak utuh dengan font sistem.
+
+**Known issues**
+- Tampilan memakai `ui-sans-serif, system-ui`, bukan Plus Jakarta Sans. Bobot
+  800 pada angka metrik besar akan dipalsukan browser (OD-035).
+- `npm.ps1` diblokir Execution Policy PowerShell di mesin ini; pakai
+  `npm.cmd run build`.
+
+**Next step** — jawab OD-035 saat ada jaringan yang bisa mengunduh fontnya.

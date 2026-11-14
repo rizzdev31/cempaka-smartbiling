@@ -175,6 +175,28 @@ Lalu buka `http://localhost:8000/admin`.
 
 ---
 
+## ⚠️ `npm run build` wajib di setiap mesin — dan sekarang jalan tanpa internet
+
+`backend/public/build` ada di `.gitignore`, jadi aset Admin Web tidak ikut
+repo. Mesin baru mana pun — laptop, LXC di lokasi — wajib:
+
+```bash
+cd backend && npm install && npm run build
+```
+
+Tanpa itu **setiap halaman `/admin` menjawab 500**
+(`ViteManifestNotFoundException`) dan 46 test web gagal.
+
+> **15 Nov:** pengambilan font saat build dimatikan (`vite.config.js`). Dulu
+> build mengunduh Plus Jakarta Sans dari fonts.bunny.net; host itu tidak
+> terjangkau dari jaringan ini (TCP 443 gagal di IPv4 maupun IPv6), jadi
+> Admin Web sama sekali tidak bisa di-build. Sekarang build tidak menyentuh
+> jaringan dan teks memakai font sistem. Cara mengembalikan fontnya tanpa
+> mengorbankan build offline ada di komentar `vite.config.js` — dan sebagai
+> **OD-035**.
+
+---
+
 ## Cara menjalankan server
 
 Empat proses, masing-masing terminal sendiri:
