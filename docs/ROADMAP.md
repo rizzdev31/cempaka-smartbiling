@@ -101,16 +101,36 @@ Scope (PRD §16, MVP-07):
 
 ---
 
-## TAHAP 3 — Laravel Superadmin + VPS + Customer Portal + Gateway
+## TAHAP 3 — Server lokasi ke produksi + Pusat + Portal + Gateway
 
 **Tujuan:** owner punya kontrol & laporan; sistem pindah ke produksi.
 
-### 3A — Migrasi ke VPS
+> ⚠️ **Diubah 15 Nov 2026 oleh DEC-051.** Sebelumnya tahap ini memindahkan
+> **satu-satunya** server ke VPS, yang berarti ISP mati = rental berhenti.
+> Sekarang tidak lagi: **server operasional tetap di lokasi**, dan VPS
+> berperan sebagai **pusat yang hanya menerima**.
+
+### 3A-1 — Server lokasi jadi produksi (wajib, lebih dulu)
+- Laravel + MySQL + Reverb keluar dari laptop → LXC Proxmox di LAN lokasi.
+  Spesifikasi lengkap: `docs/DEPLOY-LXC.md`
+- HTTP tetap di **port 8000** — tablet dan TV memindai port itu saja (DEC-041)
+- Automated backup + **restore test** (PRD §26) → T20, T21, T22
+- **Exit criteria:** cabut internet, lalu tablet, TV, Admin Web, dan billing
+  harus tetap jalan penuh. Ini syarat lulus, bukan catatan tambahan
+
+### 3A-2 — Pusat (VPS), satu arah
 - Provisioning VPS, Nginx, HTTPS, domain/subdomain
 - MySQL private (tidak diekspos internet)
-- Deploy via `migrate --seed` (bukan dump manual)
-- Flutter & Kotlin ganti ke flavor **prod** (HTTPS-only, cleartext dimatikan)
-- Automated backup + **restore test** (PRD §26) → T20, T21, T22
+- Pengiriman dikerjakan **Laravel lokasi**, bukan tablet (DEC-051, DEC-004):
+  job terjadwal, idempotent, tahan kirim ulang, tertunda diam-diam saat
+  internet mati dan menyusul sendiri saat pulih
+- Pusat **tidak pernah** menulis balik ke lokasi
+- Flavor **prod** (HTTPS-only) berlaku untuk jalur lokasi→pusat. Tablet dan TV
+  tetap bicara ke LAN; kapan keduanya pindah ke HTTPS adalah keputusan
+  tersendiri, bukan konsekuensi otomatis dari adanya VPS
+
+> Masih terbuka (OD-034): apakah pusat perlu UI laporan read-only sendiri, dan
+> apa yang dikirim ke sana — transaksi final saja atau seluruh perubahan.
 
 ### 3B — Superadmin Web (PRD §19)
 Dashboard live · Station & Device · Package & Pricing · Customer/Membership · F&B/Inventory + HPP + stock · Payment & reconciliation · Shift/Attendance · Expense/Profit · Target · Reports (daily/weekly/monthly/custom) · Audit Log viewer · Backup status
@@ -154,7 +174,7 @@ TAHAP 0 (API Core)
     │         │
     │         └──► TAHAP 2 (Kotlin TV Agent)
     │                   │
-    └───────────────────┴──► TAHAP 3 (Superadmin + VPS + Portal + Gateway)
+    └───────────────────┴──► TAHAP 3 (Produksi lokasi + Pusat + Portal + Gateway)
 ```
 
 Kotlin (Tahap 2) butuh event `session.started/updated/extended/swapped` dari Tahap 0 — jadi kontrak realtime harus sudah fix sebelum Tahap 2 mulai.

@@ -4391,3 +4391,75 @@ tempat.
 
 **Next step** — tanya user soal target omzet & biaya bulanan, atau lanjut
 ke katalog kasir yang belum punya backend (promo OD-032, pause, booking).
+
+---
+
+### 2026-11-15 — DEC-051 pusat satu arah · spesifikasi LXC · folder kerja disinkronkan
+
+**Catatan penting soal sesi ini.** Pekerjaan hari ini dimulai di folder yang
+ternyata **snapshot 11 Okt**, tertinggal 60 commit dari `origin/main`, dengan
+**nol** commit yang tidak ada di remote. Akibatnya sebagian besar sesi
+mengerjakan ulang yang sudah ada sejak Oktober: layar login Flutter,
+`ApiBillingRepository`, filter paket per tipe konsol, dan pemanggilan
+`ServerConnector` di `main()`. `git status` diperiksa di awal sesi, `git log`
+terhadap remote tidak. Semuanya tersimpan di branch `wip/sesi-2026-11-15`
+sebagai arsip — **jangan di-merge apa adanya**.
+
+Yang di bawah ini adalah bagian yang benar-benar baru, ditulis ulang di atas
+`origin/main`.
+
+**Keputusan baru — DEC-051: server lokasi pemegang kebenaran, pusat satu arah**
+
+User: *"Pusat satu arah saja."* Laravel di lokasi satu-satunya penulis; pusat
+hanya menerima dan tidak pernah menulis balik. Yang mengirim adalah **Laravel
+lokasi**, bukan tablet — jadi **DEC-004 tetap berlaku** dan risiko double
+payment (R06) tidak dihidupkan kembali. Admin Web tetap di lokasi karena ia
+menulis (DEC-045). Sisa pertanyaan → **OD-034**.
+
+**ROADMAP 3A ditulis ulang.** Isinya sebelumnya memindahkan satu-satunya
+server ke VPS — ISP mati berarti rental berhenti, yang membatalkan DEC-051.
+Sekarang **3A-1** menaikkan server lokasi ke produksi (LXC) dengan exit
+criteria "cabut internet, semua tetap jalan", dan **3A-2** menambahkan pusat.
+
+**Files changed**
+- baru: `docs/DEPLOY-LXC.md`
+- `docs/DECISION-LOG.md` — DEC-051 + OD-034
+- `docs/ROADMAP.md` — Tahap 3 ditulis ulang
+- `CLAUDE.md` — §3 tahap + dua aturan client baru di §4
+- `SYNC.md` — bagian arsitektur + bagian pindah ke Proxmox
+- `backend/config/database.php` — fallback `sqlite` → `mysql`
+
+**`docs/DEPLOY-LXC.md`** — spesifikasi LXC dibaca dari node `pve` yang
+sebenarnya lewat `ssh pve`: PVE 9.2.21, 8 core, 9,8 GiB RAM tersisa (7
+container sudah dialokasikan ~17,9 GiB, jadi node overcommit), VMID 108 bebas,
+template `debian-13-standard` ada di storage `backup`. Hasilnya: **VMID 108 ·
+Debian 13 (PHP 8.4 di repo resmi) · 2 vCPU · 2048 MB · 16 GB di `data-ssd` ·
+static 192.168.0.108**. Yang paling mudah salah: **nginx harus `listen 8000`**,
+karena tablet dan TV memindai subnet hanya di port itu (DEC-041).
+
+**`config/database.php`** — bawaan Laravel `'sqlite'` diganti `'mysql'`. Kalau
+`DB_CONNECTION` lupa diisi saat deploy ke LXC, Laravel diam-diam membuat
+`database/database.sqlite` kosong: server menyala, `/health` menjawab, login
+gagal tanpa sebab yang jelas, dan transaksi hari itu masuk ke berkas yang
+tidak pernah di-backup.
+
+**⚠️ Database lokal `cempaka_billing` tanggal 11 Okt terhapus.** Folder
+`C:\xampp\mysql\data\cempaka_billing` dibuat 11 Okt 2026 10:02, jadi database
+itu sudah ada sebelum sesi ini. `migrate:fresh --seed` dijalankan pada 15 Nov
+04:50 untuk memperbaiki test yang gagal, dan `migrate:fresh` menghapus seluruh
+tabel lebih dulu. Tidak bisa dipulihkan: `log_bin = OFF`, tidak ada dump
+`*cempaka*.sql` di mesin itu. Yang hilang adalah data pengembangan — skema
+dibangun sepenuhnya dari migration + seeder (DEC-002), dan sistem belum pernah
+dipakai untuk uang nyata. **Pelajaran: `SELECT COUNT(*)` dulu sebelum
+`migrate:fresh`, termasuk di database yang "cuma" lokal.**
+
+**DB changes / API / Events** — tidak ada. Tidak ada kode yang ditulis untuk
+DEC-051; pengiriman ke pusat baru berguna setelah ada transaksi nyata.
+
+**Known issues**
+- Pengiriman lokasi→pusat belum ada kodenya sama sekali (3A-2).
+- OD-034 belum dijawab: pusat perlu UI laporan read-only sendiri atau tidak,
+  dan apa yang dikirim ke sana.
+
+**Next step** — jalankan ulang seluruh test di basis ini, lalu lanjut ke
+pekerjaan Tahap 1/2 yang tersisa di `SYNC.md`.

@@ -40,7 +40,8 @@ Claude = **coding assistant**, bukan pengambil keputusan produk.
 TAHAP 0  Laravel API Core (lokal)      ← SELESAI (32 endpoint, 9 event, 283 test)
 TAHAP 1  Flutter Operator (tablet)     ← SEDANG DIKERJAKAN
 TAHAP 2  Kotlin Android TV Agent       ← sebagian: kiosk jalan, belum bicara ke Laravel
-TAHAP 3  Laravel Superadmin Web + migrasi VPS + Customer Portal + gateway
+TAHAP 3  Server lokasi ke produksi + pusat satu arah (DEC-051)
+         + Customer Portal + gateway   ← Admin Web sudah ada (DEC-042…050)
 ```
 
 **Sudah beres (11 Okt):** operator app memakai `ApiBillingRepository` —
@@ -110,7 +111,9 @@ Detail: `docs/ROADMAP.md`.
 - Base URL **tidak boleh hardcode**. Lewat `--dart-define` / build config / settings screen.
 - Setiap POST yang membuat data kirim header `Idempotency-Key` (UUID v4 dari client).
 - Jangan hitung sisa waktu dari `DateTime.now()` mentah. Pakai **server-time offset** (lihat §5).
-- SQLite hanya untuk cache / timer state / queue. **Bukan** source of truth.
+- SQLite hanya untuk cache / timer state. **Bukan** source of truth.
+- **Tidak ada offline write queue di client** (DEC-004). Tablet bicara ke LAN dan tidak pernah butuh internet; antrian write di tablet hanya menghidupkan risiko double payment (R06).
+- **Laravel di lokasi adalah satu-satunya penulis** (DEC-051). Server pusat hanya menerima, satu arah, dan tidak pernah menulis balik. Yang mengirim ke pusat adalah Laravel lokasi — bukan tablet, bukan TV.
 
 ### Security
 - Jangan commit `.env`, token, kredensial, atau IP produksi. Pakai `.env.example`.

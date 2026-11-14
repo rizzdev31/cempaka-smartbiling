@@ -4,7 +4,7 @@
 > setiap ada perubahan backend. Kalau tidak ada nama Anda di bagian
 > "Perlu dikerjakan", tidak ada yang perlu Anda lakukan.
 
-**Terakhir diperbarui:** 13 Oktober 2026 · **Kontrak:** `v1 DRAFT 20`
+**Terakhir diperbarui:** 15 November 2026 · **Kontrak:** `v1 DRAFT 20`
 
 > **Perubahan batas kerja (10 Okt):** user mencabut aturan "backend saja".
 > Claude sekarang juga menyentuh `operator-app/` dan `tv-agent/`.
@@ -212,6 +212,48 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 ---
 
+## Arsitektur: lokasi pemegang kebenaran, pusat satu arah — DEC-051
+
+Diputuskan 15 Nov. **Server operasional tetap di lokasi, selamanya.** ROADMAP
+3A sebelumnya memindahkan satu-satunya server ke VPS — itu sudah ditulis ulang.
+
+```
+tablet ──LAN──┐
+              ├──► Laravel lokasi ──► MySQL ──(saat ada internet)──► pusat
+TV ────LAN────┘        ▲                                              │
+Admin Web ─────────────┘   tidak pernah menulis balik ◄───────────────┘
+```
+
+| Pertanyaan | Jawaban |
+|---|---|
+| Semua data di MySQL? | **Ya**, termasuk `cache`, `jobs`, `web_sessions`, `idempotency_keys`. Tidak ada SQLite di mana pun. Perangkat hanya menyimpan alamat server + token |
+| Jalan tanpa internet? | **Ya**, selama Laravel di WiFi yang sama. Sekarang jadi **exit criteria 3A-1** — diuji dengan mencabut internet |
+| Siapa yang mengirim ke pusat? | **Laravel lokasi**, bukan tablet. Yang butuh internet cuma pengiriman itu |
+| Pusat boleh mengubah data lokasi? | **Tidak pernah.** Harga, master data, status sesi — semua ditulis di lokasi |
+| Admin Web ikut ke pusat? | **Tidak.** Ia menulis (DEC-045), jadi tempatnya di lokasi |
+| Offline write queue di Flutter? | **Tetap tidak ada** (DEC-004). Tablet tidak pernah butuh internet |
+| Sudah ada kodenya? | **Belum.** Yang berubah baru rencananya |
+
+⛔ **Jangan menulis outbox di tablet.** Kalau terasa butuh, yang kurang hampir
+pasti ada di server lokasi.
+
+Masih terbuka (OD-034): apakah pusat perlu UI laporan read-only sendiri, dan
+apa yang dikirim ke sana.
+
+---
+
+## Pindah dari laptop ke Proxmox — `docs/DEPLOY-LXC.md`
+
+Spesifikasi LXC sudah ditulis dari pembacaan node `pve` yang sebenarnya:
+**VMID 108 · Debian 13 · 2 vCPU · 2 GB RAM · 16 GB di `data-ssd` · static
+192.168.0.108**.
+
+> ⛔ **nginx harus `listen 8000`, bukan 80.** Tablet dan TV memindai subnet
+> hanya di port 8000 (DEC-041). Pasang di 80 saja dan penemuan otomatis mati
+> tanpa gejala yang menunjuk ke penyebabnya.
+
+---
+
 ## Belum ada di backend
 
 - Paket yang sudah termasuk F&B (DEC-037) — menunggu durasi paket minuman
@@ -224,6 +266,7 @@ Kalau event muncul di situ tapi tidak di aplikasi Anda, masalahnya di aplikasi.
 
 | Tanggal | Isi |
 |---|---|
+| 15 Nov 2026 | **DEC-051**: server lokasi pemegang kebenaran, pusat satu arah. ROADMAP 3A ditulis ulang. Spesifikasi LXC Proxmox ditambahkan. `config/database.php` tidak lagi jatuh ke SQLite |
 | 12 Okt 2026 | **DEC-050** — halaman **Laporan** jadi. HPP dibekukan ke baris order. Bug: `whereBetween` membuat transaksi tengah malam terhitung dua hari — Dashboard dan Laporan beda Rp 48.000. Sebelas halaman dirapikan ke satu skala padding & jarak |
 | 12 Okt 2026 | **DEC-049** — data customer bisa diperbaiki (`PATCH /customers/{id}`). Jalur web yang selama ini menambah customer **tanpa audit** ikut diperbaiki |
 | 12 Okt 2026 | **DEC-048** — station & tipe konsol bisa ditambah/diubah dari web. Permission baru `station.manage`. Kode station terkunci selama TV terdaftar; tipe terkunci selama ada sesi berjalan |

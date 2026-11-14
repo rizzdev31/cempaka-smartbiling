@@ -2019,12 +2019,77 @@ bekerja tanpa melihat angkanya. Operator tetap ditolak: dia memakai tablet,
 dan tidak punya alasan melihat omzet sepanjang bulan.
 
 ---
+## DEC-051 — Server lokasi pemegang kebenaran; pusat menerima satu arah
+**Tanggal:** 15 Nov 2026 · **Status:** APPROVED · **Mengubah:** ROADMAP 3A · **Menegaskan:** DEC-002, DEC-004 · **Membuka:** OD-034
+
+User 15 Nov: *"Pusat satu arah saja."*
+
+**Laravel di lokasi adalah satu-satunya source of truth operasional.** Semua
+tulisan — sesi, payment, extend, F&B, checkout, shift, saldo member, tarif,
+dan seluruh Admin Web (DEC-042…DEC-050) — terjadi di sana, di LAN yang sama
+dengan tablet dan TV.
+
+**Server pusat hanya menerima.** Ia tidak pernah menulis apa pun yang kembali
+ke lokasi: tidak harga, tidak master data, tidak status sesi. Kalau pusat
+tidak terjangkau, yang tertunda hanya pengirimannya — operasional tidak
+terpengaruh sama sekali.
+
+**Yang mengirim adalah Laravel lokasi, bukan tablet.** Ini bagian yang paling
+mudah salah. Masalah yang dipecahkan adalah **internet**, dan tablet tidak
+pernah butuh internet — ia bicara ke LAN. Yang butuh internet hanyalah
+pengiriman ke pusat, dan itu terjadi di server. Karena itu **DEC-004 tetap
+berlaku**: tidak ada offline write queue di Flutter, dan risiko double payment
+(R06) tidak dihidupkan kembali.
+
+```
+tablet ──LAN──┐
+              ├──► Laravel lokasi ──► MySQL lokasi ──(saat ada internet)──► pusat
+TV ────LAN────┘        ▲                                                     │
+Admin Web ─────────────┘   tidak pernah menulis balik ◄──────────────────────┘
+```
+
+**Alasan:** rental tidak boleh berhenti karena ISP mati. Satu arah dipilih,
+bukan replikasi dua arah, karena dua penulis atas data yang sama menghasilkan
+dua kebenaran — dan pada `customer_credits` (saldo member) itu berarti uang
+terpakai dua kali.
+
+### Yang ikut terjawab sendiri
+
+| Pertanyaan | Jawaban yang mengikut |
+|---|---|
+| Siapa pemegang saldo member? | **Lokasi.** Pusat tidak pernah mengotorisasi pemakaian, jadi tidak ada double-spend |
+| Siapa pemegang harga? | **Lokasi.** Owner mengubah tarif lewat Admin Web yang berjalan di server lokasi |
+| Perlakuan konflik? | **Tidak ada konflik yang mungkin** — hanya satu penulis |
+| Nomor sesi bentrok antar lokasi? | Tidak mendesak. `S-YYYYMMDD-NNNN` tetap unik **per lokasi**; pusat membedakannya dengan kolom lokasi. Format kode di struk tidak perlu berubah |
+| Admin Web ikut pindah ke pusat? | **Tidak.** Ia menulis (DEC-045 memberinya operasi sesi), jadi tempatnya di lokasi. Apakah pusat perlu UI laporan sendiri yang read-only → OD-034 |
+
+### Konsekuensi untuk ROADMAP 3A
+
+Sebelumnya 3A memindahkan **satu-satunya** server ke VPS, yang berarti ISP
+mati = rental berhenti. Itu membatalkan DEC-051, jadi 3A ditulis ulang:
+**3A-1** menaikkan server **lokasi** ke produksi (LXC, `docs/DEPLOY-LXC.md`),
+**3A-2** menambahkan pusat. "Cabut internet, semua tetap jalan" jadi exit
+criteria 3A-1, bukan catatan tambahan.
+
+Pengiriman ke pusat wajib **idempotent** dan tahan kirim ulang. Mekanismenya
+sudah ada (`idempotency_keys`), tinggal dipakai ke arah keluar.
+
+### Yang TIDAK berubah sekarang
+
+Tidak ada kode yang ditulis untuk ini. Pengiriman ke pusat baru berguna
+setelah ada transaksi nyata yang layak dikirim, dan spesifikasi LXC tidak
+berubah apa pun jawabannya — container lokasi memang sudah berperan sebagai
+server operasional.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 
 | ID | Pertanyaan | Kenapa penting | Blokir tahap |
 |---|---|---|---|
+| **OD-034** | **Apakah pusat perlu UI laporannya sendiri, dan apa yang dikirim ke sana?** DEC-051 menetapkan pusat hanya menerima. Admin Web tetap di lokasi karena ia menulis. Yang belum: (a) pusat cukup database + backup, atau perlu halaman laporan read-only lintas lokasi? (b) yang dikirim transaksi final saja (sesi selesai, payment, shift tutup) atau seluruh perubahan? | Menentukan bentuk 3A-2. Tidak memblokir 3A-1 maupun spesifikasi LXC | Tahap 3A-2 |
 | ~~OD-029~~ | ~~Pengeluaran kasir (petty cash) belum ada tabelnya~~ | **DIPUTUSKAN → DEC-046** (tabel `cash_expenses`, menempel ke shift, keterangan wajib, tidak bisa dihapus, ikut `expectedCash()`) | — |
 | ~~OD-030~~ | ~~Penjualan F&B tanpa sesi (walk-in)~~ | **DIPUTUSKAN → DEC-047** — tidak ada. F&B selalu menempel ke sesi; teman yang ikut beli masuk ke sesi yang menyewa. Tidak ada yang perlu dibangun | — |
 | **OD-033** | **Siapa boleh mengubah HPP?** Untuk sekarang dikunci **owner**, sama seperti harga jual. HPP bukan angka yang dibayar customer, jadi secara teknis ia bisa saja cukup `fnb.manage` — tapi ia menentukan margin di setiap laporan laba | Dipilih yang lebih ketat dulu: melonggarkan nanti jauh lebih murah daripada menarik kembali akses yang terlanjur diberikan. Kalau owner sering tidak ada saat belanja, aturannya perlu dilonggarkan | Saat laporan laba dipakai |
