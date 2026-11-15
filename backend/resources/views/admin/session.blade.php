@@ -229,7 +229,10 @@
 
                     @if ($waPhone)
                         @php
-                            $pesan = "Struk {$session->receipt_number} — ".config('app.name')."\n"
+                            // Nama RENTAL, bukan nama sistem: yang menerima struk ini
+                            // customer, dan dia mengenal "Amor Gaming Space" —
+                            // bukan "Cempaka Smart Billing".
+                            $pesan = "Struk {$session->receipt_number} — ".config('brand.name')."\n"
                                 ."Total: Rp ".number_format($totals->grandTotal(), 0, ',', '.');
                         @endphp
 

@@ -3,7 +3,10 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Masuk — {{ config('app.name') }}</title>
+    <title>Masuk — {{ config('brand.name') }}</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset(config('brand.logo.icon_small')) }}">
+    <link rel="icon" type="image/png" sizes="512x512" href="{{ asset(config('brand.logo.icon')) }}">
+    <link rel="apple-touch-icon" href="{{ asset(config('brand.logo.apple_touch')) }}">
     @fonts
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -20,10 +23,13 @@
 <div class="w-full max-w-sm">
 
     <div class="flex flex-col items-center mb-8">
-        <div class="w-14 h-14 rounded-full bg-brand-600 flex items-center justify-center text-card shadow-brand mb-4">
-            <x-icon name="bolt" class="w-7 h-7" />
-        </div>
-        <h1 class="text-xl font-bold text-ink tracking-tight">{{ config('app.name') }}</h1>
+        {{--
+            Judul halaman tetap ada untuk pembaca layar. Lencana merek
+            menuliskan namanya dalam dua baris terpisah, yang terbaca
+            sebagai potongan — bukan sebagai judul halaman.
+        --}}
+        <h1 class="sr-only">Masuk ke Admin Web {{ config('brand.name') }}</h1>
+        <x-brand-mark :size="64" :stacked="true" class="mb-3" />
         <p class="text-xs text-ink-soft mt-1">Admin Web</p>
     </div>
 

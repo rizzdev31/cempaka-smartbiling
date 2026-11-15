@@ -5,19 +5,29 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $title }} — {{ config('app.name') }}</title>
+    <title>{{ $title }} — {{ config('brand.name') }}</title>
 
     {{--
-        `@fonts` WAJIB ada, dan mudah terlupakan.
+        Ikon tab. Dibuat persegi dari logo gamepad (`icon-amor-*.png`) —
+        logo aslinya 256x137, dan browser memipihkannya kalau dipakai
+        apa adanya.
+    --}}
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset(config('brand.logo.icon_small')) }}">
+    <link rel="icon" type="image/png" sizes="512x512" href="{{ asset(config('brand.logo.icon')) }}">
+    <link rel="apple-touch-icon" href="{{ asset(config('brand.logo.apple_touch')) }}">
 
-        Plugin font di `vite.config.js` mengunduh serta men-self-host Plus
-        Jakarta Sans, tapi `@vite` TIDAK ikut menautkan CSS-nya — berkas itu
-        punya manifest sendiri (`fonts-manifest.json`) dan hanya keluar lewat
-        direktif ini.
+    {{--
+        `@fonts` sekarang TIDAK mengeluarkan apa-apa — 15 Nov 2026.
 
-        Tanpanya halaman tetap tampil normal, hanya memakai font sistem —
-        kegagalan yang nyaris tidak terlihat kecuali dibandingkan
-        berdampingan. Ditangkap `WebDesignTokensTest`.
+        Plugin font di `vite.config.js` dimatikan karena membuat build
+        menuntut internet (alasan lengkapnya ada di berkas itu), jadi
+        tidak ada `fonts-manifest.json` untuk ditautkan dan halaman
+        memakai font sistem.
+
+        Direktifnya sengaja DIBIARKAN: begitu Plus Jakarta Sans
+        dikembalikan (OD-035), ia langsung berfungsi lagi tanpa ada yang
+        perlu ingat memasangnya kembali di setiap halaman.
+        `WebDesignTokensTest` menjaga keberadaannya.
     --}}
     @fonts
     @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -78,14 +88,10 @@
 
         <div class="flex items-center justify-between gap-3 h-16">
             <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-3 shrink-0 min-w-0">
-                <div class="w-9 h-9 rounded-full bg-brand-600 flex items-center justify-center text-card shadow-brand shrink-0">
-                    <x-icon name="bolt" class="w-5 h-5" />
-                </div>
-                {{-- Nama rental disembunyikan di bawah `sm`: ikon sudah cukup
-                     mengenali, dan 180px itu ruang yang dibutuhkan nav. --}}
-                <span class="text-base font-bold text-ink tracking-tight hidden sm:block truncate">
-                    {{ config('app.name') }}
-                </span>
+                {{-- Nama rental disembunyikan di bawah `sm`: logonya sudah
+                     cukup mengenali, dan 180px itu ruang yang dibutuhkan nav. --}}
+                <x-brand-mark :size="34" class="hidden sm:flex" />
+                <x-brand-mark :size="34" :show-name="false" class="sm:hidden" />
             </a>
 
             {{--

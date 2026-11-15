@@ -4538,3 +4538,72 @@ seluruhnya `ViteManifestNotFound`, nol dari sebab lain).
   `npm.cmd run build`.
 
 **Next step** — jawab OD-035 saat ada jaringan yang bisa mengunduh fontnya.
+
+---
+
+### 2026-11-15 — Admin Web memakai merek Amor Gaming Space
+
+**Permintaan user:** sesuaikan UI admin/owner dengan logo Amor Gaming —
+ikon maupun logo navbar.
+
+**Sebelumnya** navbar dan layar login memakai ikon petir dalam lingkaran
+`bg-brand-600`, dengan tulisan `config('app.name')` → "Cempaka Smart Billing".
+Itu nama **sistem**, bukan nama rental. DEC-017 menetapkan mereknya **Amor
+Gaming Space**, dengan Cempaka sebagai atribusi pembuat.
+
+**Files changed**
+- baru: `backend/config/brand.php`, `backend/resources/views/components/brand-mark.blade.php`,
+  `backend/tests/Feature/Web/BrandingTest.php`, `backend/public/images/*`
+- `backend/resources/views/components/layouts/app.blade.php` — lencana merek
+  di navbar, `<link rel="icon">`, judul halaman memakai nama rental
+- `backend/resources/views/auth/login.blade.php` — lencana merek bertumpuk + favicon
+- `backend/resources/views/admin/session.blade.php` — pesan struk WhatsApp
+
+**`config/brand.php`** — cermin dari `operator-app/lib/core/brand.dart`.
+Alasannya sama: tidak boleh ada nama merek yang diketik di Blade, supaya
+memasang aplikasi ini untuk rental lain (OD-012) berarti mengubah satu berkas.
+Sengaja **tidak** memakai `config('app.name')` — nilai itu milik instalasi
+Laravel dan ikut muncul di log, antrian, serta field `instance` pada
+`/api/v1/health`. Menyamakannya membuat mengganti satu berarti mengganti yang
+lain tanpa sengaja.
+
+**Logo yang dipakai `mark`, bukan `full`.** Tulisan "AMOR GAMING SPACE" pada
+logo penuh berwarna putih-perak; di atas latar terang Admin Web ia nyaris
+tidak terbaca. Lencananya memakai gambar gamepad saja, lalu namanya ditulis
+dengan CSS dua baris — "Amor" tebal, "GAMING SPACE" kecil berjarak lebar —
+persis seperti `BrandMark` di Flutter. Kontrasnya jadi mengikuti token tema.
+
+**Aset di `public/images/`, bukan `resources/`.** Aset Vite menuntut
+`npm run build` berhasil lebih dulu, dan build itu baru saja terbukti bisa
+gagal total di mesin tanpa internet. Logo yang hilang karena build gagal
+membuat halaman terlihat rusak padahal yang salah cuma asetnya.
+
+**Ikon tab** dibuat persegi dari logo gamepad (512, 180, 32 px) dengan PIL —
+aslinya 256×137, dan browser memipihkannya kalau dipakai apa adanya.
+Sebelumnya tidak ada `<link rel="icon">` sama sekali, jadi tab menampilkan
+`favicon.ico` bawaan Laravel.
+
+**Struk WhatsApp** ikut diperbaiki: pesannya memakai nama rental, bukan nama
+sistem. Yang menerima struk itu customer, dan dia mengenal "Amor Gaming
+Space".
+
+**Tests** — backend **525/525 lulus** (dari 520; +5 `BrandingTest`).
+Yang dijaga: berkas logo yang ditunjuk config benar-benar ada di `public/`,
+layar login dan navbar memakai nama rental, `<link rel="icon">` terpasang, dan
+**tidak ada nama merek yang diketik langsung di Blade** — yang terakhir itu
+penjaga OD-012.
+
+**Manual test** — diperiksa di browser pada lebar desktop dan ponsel (375px):
+navbar menampilkan logo + "Amor / GAMING SPACE", di bawah `sm` menyusut jadi
+logo saja tanpa merusak baris; layar login menampilkan logo bertumpuk; judul
+tab "Dashboard — Amor Gaming Space".
+
+**Known issues**
+- Komentar `@fonts` di layout diperbarui: direktifnya sekarang tidak
+  mengeluarkan apa-apa (lihat OD-035), tapi sengaja dibiarkan supaya langsung
+  berfungsi lagi begitu fontnya dikembalikan.
+- `welcome.blade.php` bawaan Laravel masih ada tapi sudah tidak terpakai —
+  `/` dialihkan ke `/admin`.
+
+**Next step** — OD-035 (kembalikan Plus Jakarta Sans) saat ada jaringan yang
+bisa mengunduh fontnya.
