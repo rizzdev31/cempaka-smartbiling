@@ -4607,3 +4607,61 @@ tab "Dashboard — Amor Gaming Space".
 
 **Next step** — OD-035 (kembalikan Plus Jakarta Sans) saat ada jaringan yang
 bisa mengunduh fontnya.
+
+---
+
+### 2026-11-15 — TV Agent: idle berlogo, video pembuka, serah terima HDMI (DEC-052)
+
+**Permintaan user:** TV yang menyala tanpa perintah operator menampilkan logo
+dan nomor station; saat operator memulai, diputar video pembuka sampai selesai,
+lalu layar menunggu input HDMI, dan begitu sinyalnya masuk layar diserahkan ke
+konsol. User menegaskan TV-nya Android di atas 10.
+
+**Files changed**
+- baru: `HdmiInput.kt`, `res/raw/intro_tvagent.mp4`,
+  `res/drawable-nodpi/logo_amor_full.png`
+- `AgentState.kt` — `StartupPhase` + field `phase`
+- `CommandSource.kt` — perintah `IntroFinished`, `HdmiSignalDetected`, dan
+  aturan transisinya di `CommandApplier`
+- `StateStore.kt` — tahap ikut disimpan & dipulihkan
+- `KioskActivity.kt` — pemutar video, pemantau sinyal, serah terima, idle berlogo
+- `AgentService.kt` — merebut layar kembali saat sesi berakhir
+- `AndroidManifest.xml` — `USE_FULL_SCREEN_INTENT`
+- `activity_kiosk.xml`, `strings.xml`
+
+**Tests** — TV Agent **55/55 lulus** (dari 47; +8 test tahap pembukaan).
+Yang dikunci: video sekali per sesi, sinyal HDMI tidak memotong video, tahap
+tidak mundur, dan sesi baru memutar video lagi.
+
+**Manual test** — emulator, APK dipasang, dipasangkan lewat HTTP lokal:
+1. Idle → **logo Amor Gaming Space + ST01 + "Hubungi operator untuk memulai"**.
+2. `POST /session` → **video pembuka memenuhi layar**, baris diagnostik dan
+   titik koneksi hilang selama video.
+3. Video selesai → **"Menunggu konsol"** + logo + kode station.
+4. Emulator tidak punya input HDMI, jadi serah terima tidak pernah terjadi —
+   dan setelah 12 detik layar berganti ke **"Tekan tombol SOURCE di remote"**.
+   Itu persis jalur fallback yang akan dipakai kalau TV menolak.
+
+APK debug sekarang **11 MB** (dari 4,2 MB) — video 6,8 MB ikut dibundel supaya
+tidak pernah bergantung jaringan.
+
+**Yang diperbaiki saat pengujian**
+- Padding overscan dipindah dari root ke tiap pane. Sebelumnya video mewarisi
+  padding dan menyisakan bingkai hitam yang terlihat seperti video gagal.
+- Baris diagnostik dan titik koneksi disembunyikan selama video — di atas
+  video keduanya terbaca sebagai cacat tampilan.
+
+**Known issues — belum diuji di TV aktual (OD-036)**
+- **Serah terima HDMI belum terbukti.** `HdmiInput` memakai `TvInputManager`
+  (satu-satunya jalan yang didokumentasikan) dan tidak pernah mengklaim
+  berhasil; kalau ditolak, tahap kembali ke menunggu dan layar menampilkan
+  petunjuk manual. PRD §5/R01 melarang menjanjikannya sebelum dicoba.
+- **Merebut layar saat waktu habis juga belum terbukti.** Sejak Android 10 app
+  background tidak boleh memulai Activity; dipakai notifikasi
+  `setFullScreenIntent()`. Sampai diuji, **jangan janjikan TV mati sendiri**
+  saat waktu habis (DEC-033).
+- Setelah serah terima, **timer tidak terlihat** selama bermain. Itu
+  konsekuensi yang diminta, bukan bug.
+
+**Next step** — pasang APK ini di TV `192.168.0.100`, lalu jawab OD-036:
+apakah serah terima dan perebutan layar benar-benar jalan di sana.

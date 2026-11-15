@@ -12,19 +12,50 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/tv_background"
-    android:paddingStart="@dimen/overscan_h"
-    android:paddingTop="@dimen/overscan_v"
-    android:paddingEnd="@dimen/overscan_h"
-    android:paddingBottom="@dimen/overscan_v">
+    android:background="@color/tv_background">
+
+    <!--
+      Padding overscan ada di tiap pane, BUKAN di root.
+
+      Sebelumnya di root, dan video pembuka jadi tidak bisa memenuhi layar —
+      ia mewarisi padding yang sama dan menyisakan bingkai hitam yang
+      terlihat seperti video gagal. Dipindah ke pane supaya hanya isi teks
+      yang menjauh dari tepi.
+    -->
 
     <!-- ── Keadaan: ada sesi / idle ──────────────────────────────── -->
     <LinearLayout
         android:id="@+id/sessionPane"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:paddingStart="@dimen/overscan_h"
+        android:paddingTop="@dimen/overscan_v"
+        android:paddingEnd="@dimen/overscan_h"
+        android:paddingBottom="@dimen/overscan_v"
         android:gravity="center"
         android:orientation="vertical">
+
+        <!--
+          Logo hanya tampil saat idle.
+
+          Latar TV hitam murni, jadi di sini yang dipakai logo PENUH —
+          tulisan putih-peraknya justru paling terbaca di atas hitam.
+          (Admin Web berlatar terang dan memakai logo gamepad saja.)
+
+          Disembunyikan begitu sesi berjalan: saat itu yang harus dominan
+          adalah timer, dan logo di atasnya hanya mendorong timer turun
+          dari pusat layar.
+        -->
+        <ImageView
+            android:id="@+id/idleLogo"
+            android:layout_width="wrap_content"
+            android:layout_height="220dp"
+            android:layout_marginBottom="28dp"
+            android:adjustViewBounds="true"
+            android:contentDescription="@null"
+            android:src="@drawable/logo_amor_full"
+            android:visibility="gone"
+            tools:visibility="visible" />
 
         <TextView
             android:id="@+id/stationCode"
@@ -92,6 +123,10 @@
         android:id="@+id/pairingPane"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:paddingStart="@dimen/overscan_h"
+        android:paddingTop="@dimen/overscan_v"
+        android:paddingEnd="@dimen/overscan_h"
+        android:paddingBottom="@dimen/overscan_v"
         android:gravity="center"
         android:orientation="vertical"
         android:visibility="gone"
@@ -139,6 +174,90 @@
             tools:text="192.168.0.77:8787" />
     </LinearLayout>
 
+    <!-- ── Keadaan: video pembuka ────────────────────────────────── -->
+    <!--
+      Di LUAR padding overscan, dan menutupi seluruh FrameLayout.
+
+      Video pembuka adalah satu-satunya hal di layar saat ia berjalan;
+      memberinya padding akan menyisakan bingkai hitam di tepi yang
+      terlihat seperti video yang gagal memenuhi layar.
+    -->
+    <FrameLayout
+        android:id="@+id/introPane"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/tv_background"
+        android:visibility="gone"
+        tools:visibility="gone">
+
+        <VideoView
+            android:id="@+id/introVideo"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_gravity="center" />
+    </FrameLayout>
+
+    <!-- ── Keadaan: menunggu sinyal HDMI ─────────────────────────── -->
+    <LinearLayout
+        android:id="@+id/awaitingPane"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:paddingStart="@dimen/overscan_h"
+        android:paddingTop="@dimen/overscan_v"
+        android:paddingEnd="@dimen/overscan_h"
+        android:paddingBottom="@dimen/overscan_v"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone"
+        tools:visibility="gone">
+
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="150dp"
+            android:layout_marginBottom="36dp"
+            android:adjustViewBounds="true"
+            android:alpha="0.85"
+            android:contentDescription="@null"
+            android:src="@drawable/logo_amor_full" />
+
+        <TextView
+            android:id="@+id/awaitingTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/plus_jakarta_semibold"
+            android:textColor="@color/tv_on_surface"
+            android:textSize="44sp"
+            android:text="@string/awaiting_hdmi_title" />
+
+        <!--
+          Kalimat kedua menyebut APA yang harus dilakukan, bukan hanya apa
+          yang sedang terjadi. Customer yang melihat "menunggu" tanpa
+          petunjuk akan memanggil operator; yang melihat "nyalakan
+          konsolnya" biasanya menyelesaikannya sendiri.
+        -->
+        <TextView
+            android:id="@+id/awaitingHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:fontFamily="@font/plus_jakarta_regular"
+            android:gravity="center"
+            android:textColor="@color/tv_outline"
+            android:textSize="26sp"
+            android:text="@string/awaiting_hdmi_hint" />
+
+        <TextView
+            android:id="@+id/awaitingStation"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="30dp"
+            android:fontFamily="@font/space_grotesk_bold"
+            android:letterSpacing="0.08"
+            android:textColor="@color/accent_primary"
+            android:textSize="30sp"
+            tools:text="ST01" />
+    </LinearLayout>
+
     <!-- ── Baris diagnostik bawah ────────────────────────────────── -->
     <!-- Kecil dan redup: dibutuhkan saat troubleshooting di lokasi, tapi
          tidak boleh mengganggu customer yang sedang bermain. -->
@@ -147,6 +266,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|start"
+        android:layout_marginStart="@dimen/overscan_h"
+        android:layout_marginBottom="@dimen/overscan_v"
         android:alpha="0.6"
         android:fontFamily="@font/jetbrains_mono_medium"
         android:textColor="@color/tv_outline"
@@ -160,5 +281,7 @@
         android:layout_width="14dp"
         android:layout_height="14dp"
         android:layout_gravity="top|end"
+        android:layout_marginTop="@dimen/overscan_v"
+        android:layout_marginEnd="@dimen/overscan_h"
         android:background="@drawable/status_dot" />
 </FrameLayout>

@@ -27,6 +27,40 @@ enum class DisplayMode {
 }
 
 /**
+ * Tahap pembukaan layar saat sesi dimulai.
+ *
+ * Dipisah dari [DisplayMode] dengan sengaja. `DisplayMode` memakai nama
+ * kontrak (`API.md` §9) dan datang dari server; tahap di bawah ini hanya
+ * diketahui TV dan tidak pernah dikirim siapa pun. Menggabungkan keduanya
+ * berarti menambah nilai ke enum kontrak untuk sesuatu yang server tidak
+ * tahu — dan nilai itu akan bocor ke payload saat Reverb masuk.
+ *
+ * Urutannya searah: INTRO -> AWAITING_HDMI -> HANDED_OVER. Tidak ada jalan
+ * mundur selain sesi berakhir.
+ */
+enum class StartupPhase {
+    /** Tidak sedang membuka sesi. Nilai saat idle dan saat menunggu bayar. */
+    NONE,
+
+    /** Video pembuka sedang diputar. Diselesaikan oleh pemutarnya sendiri. */
+    INTRO,
+
+    /**
+     * Video selesai, konsol belum mengirim sinyal. Layar memberi tahu
+     * customer bahwa TV sedang menunggu — bukan rusak.
+     */
+    AWAITING_HDMI,
+
+    /**
+     * Layar sudah diserahkan ke input HDMI. Agen tidak lagi terlihat.
+     *
+     * Catatan penting: di tahap ini timer **tidak tampil**, karena yang
+     * ada di layar adalah konsol. Itu konsekuensi yang diminta, bukan bug.
+     */
+    HANDED_OVER,
+}
+
+/**
  * State agen. Immutable; perubahan selalu menghasilkan instance baru supaya
  * tidak ada mutasi diam-diam dari thread server HTTP.
  *
@@ -55,6 +89,12 @@ data class AgentState(
      * countdown yang dikirim per detik (PRD §16).
      */
     val endAtMillis: Long? = null,
+
+    /**
+     * Tahap pembukaan. Hanya berarti saat [mode] == [DisplayMode.TIMER];
+     * di mode lain selalu [StartupPhase.NONE].
+     */
+    val phase: StartupPhase = StartupPhase.NONE,
 ) {
     val isPaired: Boolean get() = mode != DisplayMode.PAIRING
 
@@ -68,6 +108,10 @@ data class AgentState(
             val total = e - s
             return if (total > 0) total else null
         }
+
+    /** Sedang memutar video atau menunggu sinyal — layar masih milik agen. */
+    val isOpening: Boolean
+        get() = phase == StartupPhase.INTRO || phase == StartupPhase.AWAITING_HDMI
 
     companion object {
         val UNPAIRED = AgentState()

@@ -12,6 +12,8 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 /**
  * Foreground service yang menjaga agen tetap hidup.
@@ -35,9 +37,80 @@ class AgentService : LifecycleService() {
 
     private var commandSource: CommandSource? = null
 
+    /** Tahap terakhir yang terlihat, untuk mengenali sesi yang baru berakhir. */
+    private var lastPhase: StartupPhase = StartupPhase.NONE
+
     override fun onCreate() {
         super.onCreate()
         createChannel()
+        watchForScreenHandback()
+    }
+
+    /**
+     * Rebut layar kembali saat sesi berakhir.
+     *
+     * ## Kenapa ini butuh perlakuan khusus
+     *
+     * Setelah layar diserahkan ke HDMI, agen ada di **background**. Sejak
+     * Android 10 aplikasi background tidak boleh memulai Activity begitu
+     * saja — `startActivity()` diam-diam tidak melakukan apa pun. Padahal
+     * DEC-033 mewajibkan TV berhenti saat waktu habis, dan itu mustahil
+     * kalau agen tidak bisa kembali ke layar.
+     *
+     * Jalan yang DIDOKUMENTASIKAN untuk kasus ini adalah notifikasi dengan
+     * `setFullScreenIntent()`: sistem sendiri yang membuka Activity-nya.
+     * Dicoba bersama `startActivity()` biasa, karena di perangkat dengan
+     * Device Owner (Lock Task) cara biasa justru berhasil dan lebih cepat.
+     *
+     * **Belum terbukti di TV aktual** (PRD §5, R01). Kalau keduanya gagal,
+     * yang terjadi bukan crash: sesi tetap berakhir di server dan di state
+     * agen, hanya layar TV yang masih menampilkan konsol sampai ada yang
+     * memindahnya. Itu dicatat di `GET /health` lewat laporan HDMI.
+     */
+    private fun watchForScreenHandback() {
+        lifecycleScope.launch {
+            AgentApp.of(this@AgentService).store.state.collect { state ->
+                val before = lastPhase
+                lastPhase = state.phase
+
+                val sesiBaruSelesai =
+                    before == StartupPhase.HANDED_OVER && state.phase == StartupPhase.NONE
+
+                if (sesiBaruSelesai) reclaimScreen()
+            }
+        }
+    }
+
+    private fun reclaimScreen() {
+        Log.i(TAG, "Sesi berakhir saat layar dipegang HDMI — mencoba kembali")
+
+        val intent = Intent(this, KioskActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+
+        runCatching { startActivity(intent) }
+            .onFailure { Log.w(TAG, "startActivity ditolak", it) }
+
+        val full = PendingIntent.getActivity(
+            this,
+            1,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val notif = NotificationCompat.Builder(this, CHANNEL_RECLAIM_ID)
+            .setContentTitle(getString(R.string.reclaim_title))
+            .setContentText(getString(R.string.reclaim_body))
+            .setSmallIcon(R.drawable.ic_agent)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setAutoCancel(true)
+            .setFullScreenIntent(full, true)
+            .build()
+
+        runCatching {
+            getSystemService(NotificationManager::class.java)
+                ?.notify(NOTIFICATION_RECLAIM_ID, notif)
+        }.onFailure { Log.w(TAG, "Notifikasi layar penuh gagal", it) }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -155,12 +228,34 @@ class AgentService : LifecycleService() {
             setShowBadge(false)
         }
         manager.createNotificationChannel(channel)
+
+        /*
+         * Channel terpisah dengan IMPORTANCE_HIGH.
+         *
+         * `setFullScreenIntent` hanya dihormati pada channel yang penting.
+         * Dipisah dari channel status supaya notifikasi "agen aktif" yang
+         * ada sepanjang hari tetap diam dan tidak pernah merebut layar.
+         */
+        if (manager.getNotificationChannel(CHANNEL_RECLAIM_ID) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_RECLAIM_ID,
+                    getString(R.string.reclaim_channel_name),
+                    NotificationManager.IMPORTANCE_HIGH,
+                ).apply {
+                    description = getString(R.string.reclaim_channel_desc)
+                    setShowBadge(false)
+                }
+            )
+        }
     }
 
     companion object {
         private const val TAG = "AgentService"
         private const val CHANNEL_ID = "agent_status"
         private const val NOTIFICATION_ID = 1001
+        private const val CHANNEL_RECLAIM_ID = "agent_reclaim"
+        private const val NOTIFICATION_RECLAIM_ID = 1002
 
         fun start(context: Context) {
             val intent = Intent(context, AgentService::class.java)

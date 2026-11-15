@@ -107,6 +107,7 @@ class StateStore(context: Context) : TokenHolder, AgentStateHolder, ServerAddres
                 customerLabel = null,
                 startedAtMillis = null,
                 endAtMillis = null,
+                phase = StartupPhase.NONE,
             )
         )
     }
@@ -121,6 +122,7 @@ class StateStore(context: Context) : TokenHolder, AgentStateHolder, ServerAddres
             putString(KEY_CUSTOMER, s.customerLabel)
             s.startedAtMillis?.let { putLong(KEY_STARTED, it) } ?: remove(KEY_STARTED)
             s.endAtMillis?.let { putLong(KEY_END, it) } ?: remove(KEY_END)
+            putString(KEY_PHASE, s.phase.name)
         }.commit()
     }
 
@@ -147,6 +149,20 @@ class StateStore(context: Context) : TokenHolder, AgentStateHolder, ServerAddres
                 ?.getLong(KEY_STARTED, 0L),
             endAtMillis = prefs.takeIf { it.contains(KEY_END) }
                 ?.getLong(KEY_END, 0L),
+
+            /*
+             * Tahap pembukaan TIDAK dipulihkan apa adanya.
+             *
+             * TV yang restart di tengah sesi tidak boleh memutar ulang video
+             * pembuka — customer sudah bermain, dan 10 detik logo di tengah
+             * permainan adalah gangguan, bukan sambutan. Yang tersimpan hanya
+             * dipakai untuk membedakan "sudah sempat diserahkan" dari
+             * "belum", dan keduanya pulih langsung ke HANDED_OVER.
+             */
+            phase = prefs.getString(KEY_PHASE, null)
+                ?.let { runCatching { StartupPhase.valueOf(it) }.getOrNull() }
+                ?.let { if (it == StartupPhase.NONE) it else StartupPhase.HANDED_OVER }
+                ?: StartupPhase.NONE,
         )
     }
 
@@ -156,6 +172,7 @@ class StateStore(context: Context) : TokenHolder, AgentStateHolder, ServerAddres
         const val KEY_TOKEN = "device_token"
         const val KEY_UID = "device_uid"
         const val KEY_MODE = "mode"
+        const val KEY_PHASE = "phase"
         const val KEY_STATION = "station_code"
         const val KEY_SESSION = "session_id"
         const val KEY_CUSTOMER = "customer_label"

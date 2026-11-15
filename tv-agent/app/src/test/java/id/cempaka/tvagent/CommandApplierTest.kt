@@ -207,4 +207,105 @@ class CommandApplierTest {
 
         assertEquals(before, TimeSync.offset)
     }
+
+    // ── Tahap pembukaan layar: INTRO -> AWAITING_HDMI -> HANDED_OVER ──
+
+    @Test
+    fun `sesi dimulai memulai video pembuka`() {
+        store.onPaired("tok", "ST01")
+
+        assertTrue(applier.apply(session()))
+
+        assertEquals(DisplayMode.TIMER, store.current.mode)
+        assertEquals(StartupPhase.INTRO, store.current.phase)
+    }
+
+    @Test
+    fun `menunggu bayar tidak memutar video`() {
+        store.onPaired("tok", "ST01")
+
+        applier.apply(session(pending = true))
+
+        assertEquals(DisplayMode.PENDING_PAYMENT, store.current.mode)
+        assertEquals(StartupPhase.NONE, store.current.phase)
+    }
+
+    @Test
+    fun `video selesai lalu menunggu sinyal HDMI`() {
+        store.onPaired("tok", "ST01")
+        applier.apply(session())
+
+        assertTrue(applier.apply(AgentCommand.IntroFinished()))
+        assertEquals(StartupPhase.AWAITING_HDMI, store.current.phase)
+
+        assertTrue(applier.apply(AgentCommand.HdmiSignalDetected()))
+        assertEquals(StartupPhase.HANDED_OVER, store.current.phase)
+    }
+
+    @Test
+    fun `sinyal HDMI saat video masih berjalan diabaikan`() {
+        // Konsol yang menyala duluan tidak boleh memotong video pembuka.
+        store.onPaired("tok", "ST01")
+        applier.apply(session())
+
+        assertFalse(applier.apply(AgentCommand.HdmiSignalDetected()))
+        assertEquals(StartupPhase.INTRO, store.current.phase)
+    }
+
+    @Test
+    fun `video selesai dua kali tidak memundurkan tahap`() {
+        store.onPaired("tok", "ST01")
+        applier.apply(session())
+        applier.apply(AgentCommand.IntroFinished())
+        applier.apply(AgentCommand.HdmiSignalDetected())
+
+        assertFalse(applier.apply(AgentCommand.IntroFinished()))
+        assertEquals(StartupPhase.HANDED_OVER, store.current.phase)
+    }
+
+    @Test
+    fun `pembaruan sesi yang sama tidak memutar ulang video`() {
+        /*
+         * Ini perilaku yang paling mahal kalau salah: `session.updated`
+         * datang setiap extend dan setiap order F&B. Customer yang sedang
+         * bermain tidak boleh dilempar kembali ke video pembuka hanya
+         * karena operator menambahkan sebotol minum.
+         */
+        store.onPaired("tok", "ST01")
+        applier.apply(session())
+        applier.apply(AgentCommand.IntroFinished())
+        applier.apply(AgentCommand.HdmiSignalDetected())
+
+        applier.apply(session(endAt = System.currentTimeMillis() + 7_200_000))
+
+        assertEquals(StartupPhase.HANDED_OVER, store.current.phase)
+    }
+
+    @Test
+    fun `sesi baru setelah sesi lama selesai memutar video lagi`() {
+        store.onPaired("tok", "ST01")
+        applier.apply(session())
+        applier.apply(AgentCommand.IntroFinished())
+        applier.apply(AgentCommand.HdmiSignalDetected())
+        applier.apply(AgentCommand.EndSession(senderTimeMillis = null))
+
+        val sesiBaru = AgentCommand.ApplySession(
+            sessionId = "ses-2",
+            stationCode = "ST01",
+            customerLabel = null,
+            startedAtMillis = System.currentTimeMillis(),
+            endAtMillis = System.currentTimeMillis() + 3_600_000,
+            pendingPayment = false,
+            senderTimeMillis = null,
+        )
+        applier.apply(sesiBaru)
+
+        assertEquals(StartupPhase.INTRO, store.current.phase)
+    }
+
+    @Test
+    fun `tahap pembukaan ditolak sebelum dipasangkan`() {
+        assertFalse(applier.apply(AgentCommand.IntroFinished()))
+        assertFalse(applier.apply(AgentCommand.HdmiSignalDetected()))
+    }
 }

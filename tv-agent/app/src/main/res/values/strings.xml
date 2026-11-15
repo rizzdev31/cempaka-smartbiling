@@ -9,9 +9,19 @@
     <string name="status_expired">Waktu habis</string>
     <string name="status_pending">Menunggu pembayaran</string>
 
+    <string name="awaiting_hdmi_title">Menunggu konsol</string>
+    <string name="awaiting_hdmi_hint">Nyalakan konsolnya. Layar berpindah sendiri
+begitu gambarnya masuk.</string>
+    <string name="awaiting_hdmi_manual">Tekan tombol SOURCE di remote kalau layar tidak berpindah sendiri.</string>
+
     <string name="pairing_title">Belum dipasangkan</string>
     <string name="pairing_hint">Masukkan kode ini di aplikasi operator</string>
     <string name="pairing_waiting">Menunggu operator…</string>
+
+    <string name="reclaim_channel_name">Sesi berakhir</string>
+    <string name="reclaim_channel_desc">Mengembalikan layar TV saat waktu sewa habis</string>
+    <string name="reclaim_title">Sesi berakhir</string>
+    <string name="reclaim_body">Mengembalikan layar</string>
 
     <string name="service_channel_name">Agen TV</string>
     <string name="service_channel_desc">Menjaga agen tetap berjalan dan menerima perintah operator</string>

@@ -37,6 +37,24 @@ sealed interface AgentCommand {
         override val senderTimeMillis: Long?,
     ) : AgentCommand
 
+    /**
+     * Video pembuka selesai diputar.
+     *
+     * Datang dari pemutar di layar, bukan dari jaringan — tapi lewat jalur
+     * yang sama supaya perpindahan tahap hanya terjadi di satu tempat
+     * ([CommandApplier]) dan bisa diuji tanpa perangkat.
+     */
+    data class IntroFinished(
+        override val senderTimeMillis: Long? = null,
+    ) : AgentCommand
+
+    /**
+     * Konsol mengirim sinyal di input HDMI. Layar diserahkan.
+     */
+    data class HdmiSignalDetected(
+        override val senderTimeMillis: Long? = null,
+    ) : AgentCommand
+
     /** Sinkronisasi waktu saja, tanpa perubahan sesi. */
     data class Ping(
         override val senderTimeMillis: Long?,
@@ -102,6 +120,21 @@ class CommandApplier(private val store: AgentStateHolder) {
                     return false
                 }
 
+                /*
+                 * Tahap pembukaan hanya dimulai SEKALI per sesi.
+                 *
+                 * `session.updated` datang berkali-kali selama sesi berjalan
+                 * — extend, F&B, swap. Kalau tahapnya di-reset setiap kali,
+                 * customer yang sedang bermain tiba-tiba dilempar kembali ke
+                 * video pembuka karena operator menambahkan sebotol minum.
+                 */
+                val sesiSama = current.sessionId == command.sessionId
+                val phase = when {
+                    command.pendingPayment -> StartupPhase.NONE
+                    sesiSama && current.phase != StartupPhase.NONE -> current.phase
+                    else -> StartupPhase.INTRO
+                }
+
                 store.replace(
                     current.copy(
                         mode = if (command.pendingPayment) {
@@ -109,6 +142,7 @@ class CommandApplier(private val store: AgentStateHolder) {
                         } else {
                             DisplayMode.TIMER
                         },
+                        phase = phase,
                         sessionId = command.sessionId,
                         stationCode = command.stationCode ?: current.stationCode,
                         customerLabel = command.customerLabel,
@@ -122,6 +156,28 @@ class CommandApplier(private val store: AgentStateHolder) {
             is AgentCommand.EndSession -> {
                 if (!store.current.isPaired) return false
                 store.dropSession()
+                true
+            }
+
+            is AgentCommand.IntroFinished -> {
+                val current = store.current
+                if (current.phase != StartupPhase.INTRO) return false
+                store.replace(current.copy(phase = StartupPhase.AWAITING_HDMI))
+                true
+            }
+
+            is AgentCommand.HdmiSignalDetected -> {
+                val current = store.current
+                /*
+                 * Hanya sah saat benar-benar sedang menunggu.
+                 *
+                 * Sinyal HDMI bisa muncul kapan saja — konsol menyala sendiri,
+                 * atau customer menekan tombolnya di tengah sesi. Kalau itu
+                 * memindahkan tahap, video pembuka bisa terpotong dan layar
+                 * diserahkan sebelum waktunya.
+                 */
+                if (current.phase != StartupPhase.AWAITING_HDMI) return false
+                store.replace(current.copy(phase = StartupPhase.HANDED_OVER))
                 true
             }
 

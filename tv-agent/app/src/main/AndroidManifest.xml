@@ -21,6 +21,14 @@
         tools:ignore="SpecialUsePermission" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+      Satu-satunya cara yang didokumentasikan bagi aplikasi background untuk
+      membuka layar sendiri sejak Android 10. Dipakai HANYA saat sesi
+      berakhir sementara layar dipegang HDMI (DEC-033) — bukan untuk
+      notifikasi biasa.
+    -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
     <!-- Layar tetap menyala selama sesi berjalan. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 

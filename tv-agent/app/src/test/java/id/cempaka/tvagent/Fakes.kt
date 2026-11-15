@@ -44,6 +44,9 @@ class FakeStore(
             customerLabel = null,
             startedAtMillis = null,
             endAtMillis = null,
+            // Sama seperti StateStore.clearSession: sesi berikutnya harus
+            // mulai dari video pembuka lagi.
+            phase = StartupPhase.NONE,
         )
     }
 

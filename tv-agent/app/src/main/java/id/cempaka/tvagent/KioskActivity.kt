@@ -2,21 +2,28 @@ package id.cempaka.tvagent
 
 import android.content.Context
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import kotlin.math.abs
@@ -57,8 +64,28 @@ class KioskActivity : AppCompatActivity() {
     private lateinit var diagnostics: TextView
     private lateinit var linkDot: View
 
+    private lateinit var idleLogo: ImageView
+    private lateinit var introPane: FrameLayout
+    private lateinit var introVideo: VideoView
+    private lateinit var awaitingPane: LinearLayout
+    private lateinit var awaitingStation: TextView
+    private lateinit var awaitingHint: TextView
+
     private var capabilities: DeviceCapabilities? = null
     private var lockTaskActive = false
+
+    private lateinit var hdmi: HdmiInput
+
+    /** Video hanya boleh disiapkan sekali per sesi. */
+    private var introPrepared = false
+
+    /** Serah terima hanya dicoba sekali; kalau gagal, jangan diulang terus. */
+    private var handoverTried = false
+
+    /** Sejak kapan layar menunggu sinyal — untuk memunculkan petunjuk manual. */
+    private var awaitingSince = 0L
+
+    private var hdmiWatch: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,6 +94,7 @@ class KioskActivity : AppCompatActivity() {
         bindViews()
 
         capabilities = DeviceCapabilities.read(this)
+        hdmi = HdmiInput(this)
 
         // Layar tidak boleh mati saat sesi berjalan — customer sedang bermain
         // dan timer harus terlihat.
@@ -112,6 +140,13 @@ class KioskActivity : AppCompatActivity() {
         pairingAddress = findViewById(R.id.pairingAddress)
         diagnostics = findViewById(R.id.diagnostics)
         linkDot = findViewById(R.id.linkDot)
+
+        idleLogo = findViewById(R.id.idleLogo)
+        introPane = findViewById(R.id.introPane)
+        introVideo = findViewById(R.id.introVideo)
+        awaitingPane = findViewById(R.id.awaitingPane)
+        awaitingStation = findViewById(R.id.awaitingStation)
+        awaitingHint = findViewById(R.id.awaitingHint)
     }
 
     private fun observeState() {
@@ -139,6 +174,58 @@ class KioskActivity : AppCompatActivity() {
     private fun render() {
         val state = app.store.state.value
 
+        /*
+         * Tiga pane saling meniadakan. Dikerjakan di satu tempat supaya
+         * tidak ada kombinasi yang tertinggal terlihat — dua pane yang
+         * sama-sama VISIBLE adalah bug yang hanya muncul di TV, bukan di
+         * emulator.
+         */
+        val fase = if (state.mode == DisplayMode.TIMER) state.phase else StartupPhase.NONE
+
+        introPane.visibility = if (fase == StartupPhase.INTRO) View.VISIBLE else View.GONE
+
+        /*
+         * Selama video, layar HANYA berisi video.
+         *
+         * Baris diagnostik dan titik koneksi berguna sepanjang hari, tapi di
+         * atas video pembuka keduanya terbaca sebagai cacat tampilan —
+         * customer tidak tahu itu alat bantu teknisi.
+         */
+        val bersih = fase == StartupPhase.INTRO
+        diagnostics.visibility = if (bersih) View.GONE else View.VISIBLE
+        linkDot.visibility = if (bersih) View.GONE else linkDot.visibility
+        awaitingPane.visibility =
+            if (fase == StartupPhase.AWAITING_HDMI) View.VISIBLE else View.GONE
+
+        when (fase) {
+            StartupPhase.INTRO -> {
+                sessionPane.visibility = View.GONE
+                pairingPane.visibility = View.GONE
+                startIntroIfNeeded()
+                return
+            }
+
+            StartupPhase.AWAITING_HDMI -> {
+                sessionPane.visibility = View.GONE
+                pairingPane.visibility = View.GONE
+                renderAwaiting(state)
+                return
+            }
+
+            StartupPhase.HANDED_OVER -> {
+                // Layar seharusnya sudah milik konsol. Kalau kita masih
+                // terlihat, serah terimanya gagal — dan itu ditampilkan apa
+                // adanya lewat pane menunggu, bukan disembunyikan.
+                tryHandOverOnce()
+            }
+
+            StartupPhase.NONE -> {
+                stopIntro()
+                stopHdmiWatch()
+                handoverTried = false
+            }
+        }
+
         if (!state.isPaired) {
             sessionPane.visibility = View.GONE
             pairingPane.visibility = View.VISIBLE
@@ -155,6 +242,10 @@ class KioskActivity : AppCompatActivity() {
         sessionPane.visibility = View.VISIBLE
         pairingPane.visibility = View.GONE
 
+        // Default tiap render; cabang idle di bawah yang membalikkannya.
+        idleLogo.visibility = View.GONE
+        timer.visibility = View.VISIBLE
+
         stationCode.text = state.stationCode ?: "—"
 
         customerLabel.text = state.customerLabel.orEmpty()
@@ -170,9 +261,17 @@ class KioskActivity : AppCompatActivity() {
             state.hasSession -> renderRunning(state.endAtMillis!!)
 
             else -> {
-                // Idle: tidak menampilkan deretan tanda hubung yang terlihat
-                // seperti kerusakan. Station kosong adalah keadaan normal.
-                timer.text = getString(R.string.idle_title)
+                /*
+                 * Idle: logo rental + kode station, bukan angka.
+                 *
+                 * Ini yang dilihat orang sepanjang hari di station kosong.
+                 * Deretan tanda hubung terbaca seperti kerusakan, dan kata
+                 * "Tersedia" setinggi 132sp lebih besar daripada mereknya
+                 * sendiri. Timer disembunyikan sepenuhnya — tidak ada waktu
+                 * yang sedang berjalan untuk ditampilkan.
+                 */
+                idleLogo.visibility = View.VISIBLE
+                timer.visibility = View.GONE
                 setStatus(R.string.idle_hint, R.color.status_available)
             }
         }
@@ -251,6 +350,147 @@ class KioskActivity : AppCompatActivity() {
         linkDot.visibility = if (state.isPaired) View.VISIBLE else View.GONE
     }
 
+    // ── Pembukaan layar: video -> menunggu HDMI -> serah terima ──────
+
+    /**
+     * Mulai video pembuka. Idempoten — `render()` dipanggil tiap 500 ms.
+     */
+    private fun startIntroIfNeeded() {
+        if (introPrepared) return
+        introPrepared = true
+
+        val uri = Uri.parse("android.resource://$packageName/${R.raw.intro_tvagent}")
+        introVideo.setVideoURI(uri)
+
+        introVideo.setOnPreparedListener { mp ->
+            // Tanpa suara: TV rental berdiri di ruangan berisi orang lain
+            // yang sedang bermain. Video pembuka tidak boleh menimpa suara
+            // konsol di sebelahnya.
+            mp.setVolume(0f, 0f)
+            mp.isLooping = false
+        }
+
+        introVideo.setOnCompletionListener { selesaikanIntro("video selesai") }
+
+        /*
+         * Error TIDAK boleh menahan layar.
+         *
+         * Berkas rusak, codec tidak didukung, atau pemutar gagal — apa pun
+         * sebabnya, customer sudah membayar dan harus bisa bermain. Jadi
+         * kegagalan video memajukan tahap, bukan menghentikannya.
+         */
+        introVideo.setOnErrorListener { _, what, extra ->
+            selesaikanIntro("video gagal ($what/$extra)")
+            true
+        }
+
+        introVideo.start()
+
+        /*
+         * Jaring pengaman. `OnCompletionListener` tidak selalu terpanggil di
+         * semua implementasi VideoView — dan kalau ia diam, layar tertahan
+         * di video selamanya. Batasnya murah hati: durasi video 10 detik.
+         */
+        lifecycleScope.launch {
+            delay(INTRO_TIMEOUT_MS)
+            if (app.store.state.value.phase == StartupPhase.INTRO) {
+                selesaikanIntro("batas waktu video terlewat")
+            }
+        }
+    }
+
+    private fun selesaikanIntro(alasan: String) {
+        android.util.Log.i(TAG, "Intro selesai: $alasan")
+        stopIntro()
+        app.applier.apply(AgentCommand.IntroFinished())
+    }
+
+    private fun stopIntro() {
+        if (!introPrepared) return
+        introPrepared = false
+        runCatching {
+            introVideo.stopPlayback()
+            introVideo.setOnCompletionListener(null)
+            introVideo.setOnErrorListener(null)
+        }
+    }
+
+    private fun renderAwaiting(state: AgentState) {
+        awaitingStation.text = state.stationCode ?: "—"
+
+        if (awaitingSince == 0L) awaitingSince = System.currentTimeMillis()
+
+        /*
+         * Petunjuk manual muncul BELAKANGAN, bukan sejak awal.
+         *
+         * Di TV yang serah terimanya berhasil, layar berpindah dalam
+         * hitungan detik dan menyuruh customer menekan SOURCE hanya
+         * membingungkan. Di TV yang tidak bisa, diam saja jauh lebih buruk.
+         */
+        val menunggu = System.currentTimeMillis() - awaitingSince
+        awaitingHint.setText(
+            if (menunggu > MANUAL_HINT_AFTER_MS) R.string.awaiting_hdmi_manual
+            else R.string.awaiting_hdmi_hint
+        )
+
+        startHdmiWatch()
+    }
+
+    /**
+     * Pantau sinyal HDMI selama menunggu.
+     *
+     * Polling, bukan callback: `TvInputManager.registerCallback` tidak
+     * tersedia merata di TV murah, dan satu pemeriksaan per detik pada satu
+     * nilai status jauh lebih murah daripada kode yang hanya jalan di
+     * sebagian perangkat.
+     */
+    private fun startHdmiWatch() {
+        if (hdmiWatch?.isActive == true) return
+
+        hdmiWatch = lifecycleScope.launch {
+            while (isActive && app.store.state.value.phase == StartupPhase.AWAITING_HDMI) {
+                val ada = withContext(Dispatchers.IO) { hdmi.hasSignal() }
+                if (ada) {
+                    app.applier.apply(AgentCommand.HdmiSignalDetected())
+                    break
+                }
+                delay(HDMI_POLL_MS)
+            }
+        }
+    }
+
+    private fun stopHdmiWatch() {
+        hdmiWatch?.cancel()
+        hdmiWatch = null
+        awaitingSince = 0L
+    }
+
+    /**
+     * Serahkan layar ke konsol.
+     *
+     * Dicoba SEKALI. Kalau sistem menolak — dan PRD §5/R01 memang melarang
+     * menganggapnya pasti berhasil — tahapnya dikembalikan ke menunggu,
+     * sehingga customer melihat petunjuk menekan SOURCE alih-alih layar
+     * yang diam.
+     */
+    private fun tryHandOverOnce() {
+        if (handoverTried) return
+        handoverTried = true
+
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) { hdmi.handOver() }
+            if (!ok) {
+                android.util.Log.w(TAG, "Serah terima HDMI ditolak: ${hdmi.report().note}")
+                app.store.update(
+                    app.store.state.value.copy(phase = StartupPhase.AWAITING_HDMI)
+                )
+                // Petunjuk manual langsung, tanpa menunggu: kita sudah tahu
+                // otomatisnya tidak akan datang.
+                awaitingSince = 1L
+            }
+        }
+    }
+
     // ── Kiosk ─────────────────────────────────────────────────────────
 
     private fun applyImmersive() {
@@ -323,4 +563,16 @@ class KioskActivity : AppCompatActivity() {
             @Suppress("DEPRECATION")
             applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
         }
+
+    companion object {
+        private const val TAG = "KioskActivity"
+
+        /** Durasi video 10 detik; batasnya diberi ruang untuk TV lambat. */
+        private const val INTRO_TIMEOUT_MS = 20_000L
+
+        private const val HDMI_POLL_MS = 1_000L
+
+        /** Setelah ini, layar menyarankan menekan SOURCE di remote. */
+        private const val MANUAL_HINT_AFTER_MS = 12_000L
+    }
 }

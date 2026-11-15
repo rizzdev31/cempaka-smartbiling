@@ -19,7 +19,7 @@
 | **Backend (Laravel)** | Tahap 0 **SELESAI**. 40 endpoint, 9 event realtime, 520 test lulus |
 | **Admin Web (Blade)** | Login + **11 halaman** di `/admin` (termasuk **Laporan**), data nyata, **penuh layar**, **menyegarkan otomatis**. Bisa ubah harga, stok, status F&B, shift, pengeluaran kasir, **dan menambah/mengubah station, tipe konsol, serta data customer** (DEC-044 s/d 050) |
 | **Operator app (Flutter)** | **Memakai data server sungguhan (11 Okt).** Layar masuk + gate auth + token tersimpan; `ApiBillingRepository` menggantikan fake. 237 test lulus. Belum ada: klien Reverb, dan `ServerConnector().connect()` belum dipanggil otomatis |
-| **TV Agent (Kotlin)** | Kiosk + timer jalan, dan sudah bisa **menemukan** server, tapi **belum bicara** dengan Laravel — masih menerima perintah langsung dari tablet |
+| **TV Agent (Kotlin)** | Kiosk + timer jalan, sudah bisa **menemukan** server, tapi **belum bicara** dengan Laravel — masih menerima perintah langsung dari tablet. **15 Nov:** idle berlogo + nomor station, video pembuka saat sesi dimulai, lalu layar menunggu HDMI (DEC-052). 55 test lulus; serah terima HDMI **belum diuji di TV aktual** (OD-036) |
 
 ---
 
@@ -288,6 +288,7 @@ Spesifikasi LXC sudah ditulis dari pembacaan node `pve` yang sebenarnya:
 
 | Tanggal | Isi |
 |---|---|
+| 15 Nov 2026 | **DEC-052**: TV Agent — idle berlogo, video pembuka, serah terima HDMI. Belum diuji di TV aktual (OD-036) |
 | 15 Nov 2026 | **DEC-051**: server lokasi pemegang kebenaran, pusat satu arah. ROADMAP 3A ditulis ulang. Spesifikasi LXC Proxmox ditambahkan. `config/database.php` tidak lagi jatuh ke SQLite |
 | 12 Okt 2026 | **DEC-050** — halaman **Laporan** jadi. HPP dibekukan ke baris order. Bug: `whereBetween` membuat transaksi tengah malam terhitung dua hari — Dashboard dan Laporan beda Rp 48.000. Sebelas halaman dirapikan ke satu skala padding & jarak |
 | 12 Okt 2026 | **DEC-049** — data customer bisa diperbaiki (`PATCH /customers/{id}`). Jalur web yang selama ini menambah customer **tanpa audit** ikut diperbaiki |

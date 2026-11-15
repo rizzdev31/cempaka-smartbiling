@@ -2083,12 +2083,71 @@ server operasional.
 
 ---
 
+## DEC-052 — Pembukaan layar TV: idle berlogo, video pembuka, lalu serah terima HDMI
+**Tanggal:** 15 Nov 2026 · **Status:** APPROVED · **Membuka:** OD-036 · **Mengubah:** perilaku `DisplayMode.TIMER` di TV
+
+Permintaan user 15 Nov: TV yang menyala tanpa perintah operator menampilkan
+**logo rental dan nomor station**; saat operator memulai sesi, diputar
+**video pembuka sampai selesai**, lalu layar **menunggu input HDMI**, dan
+begitu sinyalnya masuk layar **diserahkan ke konsol**.
+
+### Tahap baru, dipisah dari `DisplayMode`
+
+`StartupPhase`: `NONE → INTRO → AWAITING_HDMI → HANDED_OVER`, searah.
+
+Sengaja **bukan** nilai baru di `DisplayMode`. Enum itu memakai nama kontrak
+(`API.md` §9) dan datang dari server; tahap pembukaan hanya diketahui TV.
+Menggabungkannya berarti menambah nilai ke enum kontrak untuk sesuatu yang
+server tidak tahu — dan nilai itu akan bocor ke payload saat Reverb masuk.
+
+Aturan yang mengikat, semuanya diuji:
+
+| Aturan | Kenapa |
+|---|---|
+| Video diputar **sekali per sesi** | `session.updated` datang setiap extend dan setiap order F&B. Tanpa ini, customer yang sedang bermain dilempar kembali ke video pembuka karena operator menambahkan sebotol minum |
+| Sinyal HDMI saat video berjalan **diabaikan** | Konsol yang menyala duluan tidak boleh memotong video |
+| Video gagal/rusak **tetap memajukan tahap** | Customer sudah membayar. Codec yang tidak didukung tidak boleh menahan layar |
+| Restart TV di tengah sesi **tidak memutar ulang video** | Tahap dipulihkan langsung ke `HANDED_OVER`; 10 detik logo di tengah permainan adalah gangguan |
+| Menunggu bayar tidak memutar video | Sesi belum berjalan |
+
+### Konsekuensi yang diterima: timer tidak terlihat saat bermain
+
+Setelah layar diserahkan, yang tampil adalah konsol — **timer tidak ada di
+layar**. Itu yang diminta, dan berbeda dari desain sebelumnya yang selalu
+menampilkan hitungan mundur.
+
+Ikutannya: DEC-033 (waktu habis → TV berhenti) menuntut agen **merebut layar
+kembali**, padahal sejak Android 10 aplikasi background tidak boleh memulai
+Activity. Dipakai jalan yang didokumentasikan untuk itu — notifikasi
+`setFullScreenIntent()` pada channel `IMPORTANCE_HIGH`, dicoba bersama
+`startActivity()` biasa yang berhasil bila ada Device Owner.
+
+### Yang TIDAK diklaim
+
+PRD §5 dan R01 melarang menjanjikan HDMI switching sebelum diuji di TV
+aktual. `HdmiInput` karena itu tidak pernah berpura-pura berhasil: ia
+melaporkan apa yang ditemukan, dan **kalau serah terima ditolak sistem,
+tahapnya dikembalikan ke `AWAITING_HDMI`** sehingga layar menampilkan
+petunjuk menekan SOURCE — bukan layar diam.
+
+Dipakai `TvInputManager`, bukan daftar intent per merek: itu satu-satunya
+jalan yang didokumentasikan Android, dan ia juga yang memberi tahu apakah
+ada sinyal. Deteksi memakai polling 1 detik, bukan callback, karena
+`registerCallback` tidak merata di TV murah.
+
+**Belum diuji di TV aktual.** Yang sudah terbukti di emulator: idle berlogo,
+video pembuka, layar menunggu, dan fallback saat tidak ada input HDMI sama
+sekali — persis jalur yang akan terjadi kalau TV-nya menolak.
+
+---
+
 ## Open Decisions — tambahan hasil analisis
 
 Belum diputuskan. **Jangan diperlakukan sebagai requirement.**
 
 | ID | Pertanyaan | Kenapa penting | Blokir tahap |
 |---|---|---|---|
+| **OD-036** | **Apa yang terjadi kalau TV menolak serah terima HDMI?** DEC-052 menyiapkan fallback "tekan SOURCE di remote", tapi belum diuji di TV di `192.168.0.100`. Kalau ditolak, apakah petunjuk manual cukup, atau timer harus tetap terlihat (artinya serah terima dibatalkan)? Ikut belum terbukti: apakah notifikasi layar penuh benar-benar mengembalikan layar saat waktu habis (DEC-033) | Hanya bisa dijawab dengan APK di TV aktual — ini isi OD-005 yang belum tuntas. Sampai terjawab, jangan janjikan TV mati sendiri saat waktu habis | Tahap 2 |
 | **OD-035** | **Plus Jakarta Sans dikembalikan, atau terima font sistem?** Pengambilan font saat build dimatikan 15 Nov karena membuat Admin Web tidak bisa di-build di jaringan yang tidak menjangkau fonts.bunny.net — dan `public/build` di-gitignore, jadi setiap mesin wajib build sendiri. Mengembalikannya = taruh `.woff2` di `resources/fonts/`, commit (OFL), tulis `@font-face` di `app.css` | Sekarang Admin Web memakai `ui-sans-serif, system-ui`. Tata letaknya utuh, tapi bobot 800 pada angka metrik besar akan dipalsukan browser. Murni tampilan — tidak memblokir apa pun | Kapan saja, saat ada jaringan yang bisa mengunduh fontnya |
 | **OD-034** | **Apakah pusat perlu UI laporannya sendiri, dan apa yang dikirim ke sana?** DEC-051 menetapkan pusat hanya menerima. Admin Web tetap di lokasi karena ia menulis. Yang belum: (a) pusat cukup database + backup, atau perlu halaman laporan read-only lintas lokasi? (b) yang dikirim transaksi final saja (sesi selesai, payment, shift tutup) atau seluruh perubahan? | Menentukan bentuk 3A-2. Tidak memblokir 3A-1 maupun spesifikasi LXC | Tahap 3A-2 |
 | ~~OD-029~~ | ~~Pengeluaran kasir (petty cash) belum ada tabelnya~~ | **DIPUTUSKAN → DEC-046** (tabel `cash_expenses`, menempel ke shift, keterangan wajib, tidak bisa dihapus, ikut `expectedCash()`) | — |
