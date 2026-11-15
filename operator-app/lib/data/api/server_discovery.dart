@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:http/http.dart' as http;
+
+import '../tv/local_ip.dart';
 
 /// Server billing yang ditemukan di jaringan.
 class DiscoveredServer {
@@ -165,22 +166,17 @@ class ServerDiscovery {
     return prefixes.toList(growable: false);
   }
 
-  static Future<List<String>> _systemAddresses() async {
-    try {
-      final interfaces = await NetworkInterface.list(
-        type: InternetAddressType.IPv4,
-        includeLoopback: false,
-        includeLinkLocal: false,
-      );
-
-      return [
-        for (final i in interfaces)
-          for (final a in i.addresses) a.address,
-      ];
-    } catch (_) {
-      return const [];
-    }
-  }
+  /*
+   * Alamat lokal dibaca lewat fasad `local_ip.dart`, bukan `dart:io`
+   * langsung.
+   *
+   * `dart:io` tidak ada di web, dan satu import saja membuat SELURUH
+   * aplikasi gagal dikompilasi untuk Chrome — bukan hanya fitur ini.
+   * Fasadnya memilih implementasi saat compile dan mengembalikan daftar
+   * kosong di browser, sehingga pemindaian subnet mati dengan sendirinya
+   * sementara sisa aplikasi tetap jalan.
+   */
+  static Future<List<String>> _systemAddresses() => localIpv4All();
 
   void close() => _http.close();
 }

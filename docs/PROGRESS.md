@@ -4665,3 +4665,49 @@ tidak pernah bergantung jaringan.
 
 **Next step** — pasang APK ini di TV `192.168.0.100`, lalu jawab OD-036:
 apakah serah terima dan perebutan layar benar-benar jalan di sana.
+
+
+---
+
+### 2026-11-15 — Operator app bisa dijalankan di Chrome
+
+**Permintaan user:** jalankan aplikasi operator di Chrome saja.
+
+**Penghalangnya satu baris.** `lib/data/api/server_discovery.dart` meng-import
+`dart:io` hanya untuk `NetworkInterface.list()` — dan satu import itu membuat
+**seluruh** aplikasi gagal dikompilasi untuk web, bukan cuma fitur
+pemindaiannya.
+
+Fasadnya sudah ada sejak awal (`lib/data/tv/local_ip.dart`, conditional export
+`dart:io` vs stub), tinggal dipakai. Ditambahkan `localIpv4All()` di kedua
+implementasi — versi `dart:io` mengembalikan semua alamat (TV dan tablet bisa
+punya WiFi dan Ethernet sekaligus, jadi satu alamat tidak cukup untuk
+menurunkan prefix subnet), versi web mengembalikan daftar kosong.
+
+**Files changed** — `lib/data/api/server_discovery.dart`,
+`lib/data/tv/local_ip_io.dart`, `lib/data/tv/local_ip_stub.dart`.
+
+**Tests** — Flutter **260/260 lulus**, `flutter analyze` bersih.
+
+**Manual test**
+
+```bash
+cd operator-app
+flutter run -d chrome --web-port=5000   --dart-define=API_BASE_URL=http://127.0.0.1:8000   --dart-define=WS_HOST=127.0.0.1 --dart-define=WS_PORT=8080
+```
+
+Layar masuk tampil di `http://localhost:5000` dengan merek Amor dan alamat
+server `http://127.0.0.1:8000`. CORS tidak perlu disentuh: Laravel memasang
+`HandleCors` di stack global dan default-nya sudah membuka `api/*` untuk semua
+origin, method, dan header — termasuk preflight yang dipicu login.
+
+**Known issues**
+- Tombol **Cari otomatis** tidak berfungsi di Chrome. Browser tidak
+  mengizinkan aplikasi membaca IP lokalnya, jadi subnet tidak bisa diturunkan.
+  Di web alamat server diisi manual — dan default `127.0.0.1:8000` sudah benar
+  untuk backend yang jalan di mesin yang sama.
+- Kontrol TV langsung (DEC-015) juga tidak akan jalan dari Chrome dengan
+  alasan yang sama.
+
+**Next step** — tidak ada yang tertahan; Chrome dipakai untuk menguji alur
+kasir tanpa emulator.

@@ -32,3 +32,25 @@ Future<String?> localIpv4() async {
 }
 
 bool get supportsSubnetScan => true;
+
+/// SEMUA alamat IPv4 perangkat, bukan hanya yang pertama.
+///
+/// Dipakai penemuan server untuk menurunkan prefix subnet. Satu alamat saja
+/// tidak cukup: TV dan tablet bisa punya WiFi dan Ethernet sekaligus, dan
+/// server bisa berada di subnet mana pun dari keduanya.
+Future<List<String>> localIpv4All() async {
+  try {
+    final interfaces = await NetworkInterface.list(
+      type: InternetAddressType.IPv4,
+      includeLoopback: false,
+      includeLinkLocal: false,
+    );
+
+    return [
+      for (final i in interfaces)
+        for (final a in i.addresses) a.address,
+    ];
+  } catch (_) {
+    return const [];
+  }
+}
