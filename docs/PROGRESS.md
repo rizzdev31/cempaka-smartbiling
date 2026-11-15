@@ -4711,3 +4711,63 @@ origin, method, dan header — termasuk preflight yang dipicu login.
 
 **Next step** — tidak ada yang tertahan; Chrome dipakai untuk menguji alur
 kasir tanpa emulator.
+
+---
+
+### 2026-11-15 — Tiga bug ditemukan saat pairing TV dari Chrome
+
+**Laporan user:** operator bilang TV belum terpasang padahal agen sudah
+terhubung, dan ada keterangan "waktu belum sinkron".
+
+**1. `X-Server-Time` tidak terlihat di browser** — `backend/config/cors.php`
+(baru).
+
+Browser hanya memberikan segelintir header response kepada JavaScript; header
+kustom **disembunyikan** kecuali disebut di `Access-Control-Expose-Headers`.
+Laravel memasang `HandleCors` global, tapi tanpa `config/cors.php` daftar
+`exposed_headers` kosong. Akibatnya `response.headers['x-server-time']`
+selalu null di Chrome, `ServerTime` tidak pernah menghitung offset, dan
+Pengaturan menulis "jam belum sinkron" selamanya.
+
+Bukan kosmetik: DEC-003 dan CLAUDE.md §5 mewajibkan sisa waktu dihitung dari
+`end_at` dikurangi (jam perangkat + offset). Tanpa offset client diam-diam
+jatuh ke jam perangkat mentah — laptop yang jamnya meleset dua menit menagih
+customer dua menit lebih cepat. Di Android tidak pernah terlihat karena
+`dart:io` membaca header apa adanya.
+
+**2. Diagnostik "Data billing" berbohong** — `settings_screen.dart`.
+
+Barisnya mencetak `'Data contoh — belum dari server'` sebagai **teks mati**,
+peninggalan masa fake repository. Aplikasi sudah memakai `ApiBillingRepository`
+sejak 11 Okt, jadi operator yang membuka Pengaturan untuk memastikan datanya
+nyata justru diberi tahu sebaliknya. Sekarang dibaca dari
+`BillingRepository.isSample` — getter yang memang ada untuk itu.
+
+**3. Pairing buntu kalau gagal tersimpan di sisi operator** —
+`tv_pair_sheet.dart`.
+
+Kode pairing **sekali pakai**: `Pairing.tryPair()` memanggil `regenerate()`
+setelah berhasil, dan layar TV berhenti menampilkan kode begitu terpasang.
+Kalau pemasangan berhasil di TV tapi gagal tersimpan di operator — koneksi
+putus, sheet tertutup, atau kode yang sama dicoba dua kali — hasilnya buntu:
+TV mengaku terpasang, operator tidak punya tokennya, dan tidak ada kode yang
+bisa dibaca. Satu-satunya petunjuk sebelumnya adalah "Kode pairing salah",
+yang menyesatkan.
+
+Sheet sekarang memeriksa `requiresPairing` dari hasil probe: kalau TV sudah
+terpasang, kolom kode **tidak ditampilkan** dan muncul penjelasan keadaannya
+berikut jalan keluarnya. Perilaku agen tidak diubah — menampilkan kode secara
+permanen akan melemahkan pairing, dan itu keputusan produk (OD-037).
+
+**Tests** — Flutter **260/260 lulus**, analyze bersih. Backend tidak berubah
+selain config baru.
+
+**Manual test** — `curl -i /api/v1/health -H "Origin: http://localhost:5000"`
+kini menjawab `Access-Control-Expose-Headers: X-Server-Time`.
+
+**Known issues**
+- Agen tetap tidak punya cara memulihkan diri dari pairing yatim selain
+  hapus data aplikasi → **OD-037**.
+- Tombol **Cari otomatis** dan **Pindai** tetap tidak berfungsi di Chrome.
+
+**Next step** — jawab OD-037 kalau ini terjadi lagi di lapangan.

@@ -9,6 +9,7 @@ import '../../core/time/server_time.dart';
 import '../../core/util/format.dart';
 import '../../data/api/server_connector.dart';
 import '../../data/api/server_discovery.dart';
+import '../../domain/repositories/billing_repository.dart';
 import '../widgets/confirm_dialog.dart';
 
 /// Pengaturan alamat server.
@@ -317,11 +318,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ? null
                         : AppColors.statusWarning,
                   ),
-                  _DiagRow(
-                    label: 'Data billing',
-                    value: 'Data contoh — belum dari server',
-                    valueColor: AppColors.statusWarning,
-                  ),
+                  /*
+                   * Dibaca dari repository, BUKAN ditulis tangan.
+                   *
+                   * Baris ini pernah mencetak "Data contoh — belum dari
+                   * server" secara mati, dan terus mencetaknya berbulan-bulan
+                   * setelah aplikasi benar-benar memakai server. Operator yang
+                   * membuka Pengaturan untuk memastikan datanya nyata justru
+                   * diberi tahu sebaliknya — dan diagnostik yang berbohong
+                   * lebih buruk daripada tidak ada diagnostik.
+                   */
+                  Builder(builder: (ctx) {
+                    final contoh = ctx.watch<BillingRepository>().isSample;
+                    return _DiagRow(
+                      label: 'Data billing',
+                      value: contoh
+                          ? 'Data contoh — belum dari server'
+                          : 'Dari server',
+                      valueColor: contoh ? AppColors.statusWarning : null,
+                    );
+                  }),
                   const _DiagRow(
                     label: 'Sambungan TV',
                     value: 'Nyata — langsung ke TV lewat jaringan lokal',

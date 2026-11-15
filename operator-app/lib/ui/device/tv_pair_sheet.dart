@@ -243,7 +243,55 @@ class _TvPairSheetState extends State<_TvPairSheet> {
                   ],
                 ),
 
-                if (_selected != null) ...[
+                /*
+                 * TV yang sudah terpasang tapi tokennya tidak ada di sini.
+                 *
+                 * Kode pairing SEKALI PAKAI: begitu dipakai, agen membuat
+                 * kode baru dan layar TV berhenti menampilkannya. Kalau
+                 * pemasangan sempat berhasil di sisi TV tapi gagal tersimpan
+                 * di sisi operator — koneksi putus di tengah, sheet tertutup,
+                 * atau operator mencoba kode yang sama dua kali — hasilnya
+                 * buntu: TV mengaku terpasang, operator tidak punya tokennya,
+                 * dan tidak ada kode yang bisa dibaca di layar TV.
+                 *
+                 * Sebelum ini, satu-satunya petunjuk adalah "Kode pairing
+                 * salah" yang menyesatkan. Sekarang keadaannya disebut apa
+                 * adanya, lengkap dengan jalan keluarnya.
+                 */
+                if (_selected != null && !_selected!.requiresPairing) ...[
+                  const SizedBox(height: AppSpacing.lg),
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.errorContainer,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'TV ini sudah terpasang'
+                          '${_selected!.stationCode != null ? ' di ${_selected!.stationCode}' : ''}',
+                          style: AppTypography.bodyMd.copyWith(
+                            color: AppColors.onErrorContainer,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          'Tapi tablet ini tidak menyimpan tokennya, dan '
+                          'layar TV tidak lagi menampilkan kode. Lepas dulu '
+                          'dari tablet yang memasangnya — atau hapus data '
+                          'aplikasi di TV supaya kodenya muncul lagi.',
+                          style: AppTypography.bodySm
+                              .copyWith(color: AppColors.onErrorContainer),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                if (_selected != null && _selected!.requiresPairing) ...[
                   const SizedBox(height: AppSpacing.lg),
                   _sectionLabel('2. MASUKKAN KODE'),
                   const SizedBox(height: AppSpacing.sm),
